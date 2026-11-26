@@ -25,6 +25,10 @@ Set `SMR_TRACE=1` to log individual Windows API calls. For non-windowed runs, `S
 
 The default ARM64 host runs recompiled startup functions and uses Unicorn for remaining x86 code. To test the full translation, run `SMR_FULL=1 SMR_WINDOW=1 ./scripts/startup-probe`. This uses a separate build, log, frame directory, and save directory. Add `SMR_BUILD_ONLY=1` to build without launching. Network access is disabled and probe output and saves stay under `work/boot/`.
 
+The full build runs one entry at `0x5c88f0` in Unicorn after its translated version failed during startup. Windows DLL code also still runs in Unicorn. A fallback root in the log identifies a distinct entry address and does not measure CPU time spent there.
+
+The full build reaches the opening scene. Across the first ten two-second intervals with at least 500 draws per frame and no shader compilation, the median rose from 13.3 to 16.2 FPS while main-thread CPU time fell from 68 to 53 ms per frame. GPU time stayed near 1.5 ms. The scene still renders magenta. See the [focused run](work/tutorial-test/original-window.log), [full run](work/boot/window-full-startup.log), and [full-run CPU sample](work/perf/full-tutorial.sample.txt).
+
 The executable extracted from the installer is a 32-bit Windows PE whose entry point lands in `.bind` and whose `.text` section is packed. The diagnostic uses the loose executable from Downloads, which differs from the installer executable. The Microsoft Visual C++, PhysX, DirectX, and FMOD DLLs come from the installer and its bundled redistributables.
 
 ### Project inputs

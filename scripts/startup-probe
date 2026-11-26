@@ -30,6 +30,10 @@ cp "$project/runtime/pe_modules.c" "$runtime/upstream/recomp/host/smr_pe_modules
 unicorn_prefix="$("$python" -c 'import pathlib, unicorn; print(pathlib.Path(unicorn.__file__).parent)')"
 build_out="$work/startup-host"
 build_flags=(--jobs "${SMR_BUILD_JOBS:-4}")
+if [[ -n "$variant" ]]; then
+    # The native version of this function re-enters Unicorn mid-function during startup.
+    build_flags+=(--interpret-entry 0x5c88f0)
+fi
 if [[ "${SMR_WINDOW:-0}" == 1 ]]; then
     build_out="$work/window-host"
     build_flags+=(--metal-surface "$project/runtime/surface.m" --windowed)
