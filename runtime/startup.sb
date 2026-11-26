@@ -1,0 +1,7 @@
+(version 1)
+(allow default)
+(deny network*)
+(deny file-read* (subpath (param "USER_HOME")))
+(allow file-read* (subpath (param "PROJECT")))
+(deny file-write*)
+(allow file-write* (subpath (param "BOOT_DIR")))

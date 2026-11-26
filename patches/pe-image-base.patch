@@ -1,0 +1,71 @@
+diff --git a/recomp/difftest.py b/recomp/difftest.py
+index 0acbbd8..015120c 100644
+--- a/recomp/difftest.py
++++ b/recomp/difftest.py
+@@ -26,7 +26,6 @@ import numpy as np
+ from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32
+ from unicorn.x86_const import *
+ 
+-IMAGE_BASE = 0x400000
+ SCRATCH, SCRATCH_SIZE = 0x20000000, 0x40000
+ STACK, STACK_SIZE = 0x2FFF0000, 0x10000
+ ESP0 = STACK + 0x8000
+@@ -48,6 +47,7 @@ def load_pe(path):
+     pe = struct.unpack_from("<I", d, 0x3C)[0]
+     n = struct.unpack_from("<H", d, pe + 6)[0]
+     osz = struct.unpack_from("<H", d, pe + 20)[0]
++    image_base = struct.unpack_from("<I", d, pe + 24 + 28)[0]
+     size_of_image = struct.unpack_from("<I", d, pe + 24 + 56)[0]
+     size_of_headers = struct.unpack_from("<I", d, pe + 24 + 60)[0]
+     img = bytearray(size_of_image)
+@@ -59,7 +59,7 @@ def load_pe(path):
+         ch = struct.unpack_from("<I", d, s + i * 40 + 36)[0]
+         img[va:va + min(rs, vs or rs)] = d[rp:rp + min(rs, vs or rs)]
+         if ch & 0x80000000:  # IMAGE_SCN_MEM_WRITE
+-            writable.append((IMAGE_BASE + va, (max(vs, rs) + 0xFFF) & ~0xFFF))
++            writable.append((image_base + va, (max(vs, rs) + 0xFFF) & ~0xFFF))
+     # import address table -> IAT_MAGIC + 4*i, identical on both sides
+     imp_rva = struct.unpack_from("<I", d, pe + 24 + 96 + 8)[0]
+     o, k = imp_rva, 0
+@@ -73,7 +73,7 @@ def load_pe(path):
+             t += 4
+             k += 1
+         o += 20
+-    return bytes(img), writable
++    return image_base, bytes(img), writable
+ 
+ 
+ def rand_word(rng, ptr_bias=0.4):
+@@ -121,7 +121,7 @@ def feq(a, b):
+ 
+ class Worker:
+     def __init__(self, exe, lib, regs):
+-        self.img, self.writable = load_pe(exe)
++        image_base, self.img, self.writable = load_pe(exe)
+         self.R = regs
+         self.lib = ctypes.CDLL(lib)
+         self.lib.rt_mem.restype = ctypes.c_void_p
+@@ -129,11 +129,11 @@ class Worker:
+         self.lib.rt_trap_addr.restype = ctypes.c_uint32
+         self.lib.rt_run.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_int64]
+         self.mem = self.lib.rt_mem()
+-        ctypes.memmove(self.mem + IMAGE_BASE, self.img, len(self.img))
++        ctypes.memmove(self.mem + image_base, self.img, len(self.img))
+         self.cpu = (ctypes.c_uint8 * 8960)()
+         self.mu = Uc(UC_ARCH_X86, UC_MODE_32)
+-        self.mu.mem_map(IMAGE_BASE, (len(self.img) + 0xFFF) & ~0xFFF)
+-        self.mu.mem_write(IMAGE_BASE, self.img)
++        self.mu.mem_map(image_base, (len(self.img) + 0xFFF) & ~0xFFF)
++        self.mu.mem_write(image_base, self.img)
+         self.mu.mem_map(SCRATCH, SCRATCH_SIZE)
+         self.mu.mem_map(STACK, STACK_SIZE)
+         self.mu.mem_map(TEB, TEB_SIZE)
+@@ -153,7 +153,7 @@ class Worker:
+         self.mu.reg_write(UC_X86_REG_FS, 3 << 3)
+         ctypes.memmove(self.mem + gdt, table, len(table))
+         self.regions = [(SCRATCH, SCRATCH_SIZE), (STACK, STACK_SIZE), (TEB, 0x1000)] + self.writable
+-        self.pristine = {a: self.img[a - IMAGE_BASE:a - IMAGE_BASE + n] for a, n in self.writable}
++        self.pristine = {a: self.img[a - image_base:a - image_base + n] for a, n in self.writable}
+         self.index = {self.lib.rt_addr(i): i for i in range(self.lib.rt_count())}
+ 
+     def setreg(self, name, val, size=4):

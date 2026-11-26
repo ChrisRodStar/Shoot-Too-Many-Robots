@@ -1,0 +1,1071 @@
+diff --git a/macos/FNVApp.m b/macos/FNVApp.m
+index 44a84f7..a9a7dc8 100644
+--- a/macos/FNVApp.m
++++ b/macos/FNVApp.m
+@@ -235,22 +235,7 @@ static CGFloat notchTopInsetPoints(NSScreen *screen) {
+ }
+ #endif
+ 
+-// macOS virtual key code -> DirectInput scancode (DIK_*)
+-static const uint8_t mac2dik[128] = {
+-    [0x00] = 0x1E, [0x01] = 0x1F, [0x02] = 0x20, [0x03] = 0x21, [0x04] = 0x23, [0x05] = 0x22, [0x06] = 0x2C, [0x07] = 0x2D,
+-    [0x08] = 0x2E, [0x09] = 0x2F, [0x0B] = 0x30, [0x0C] = 0x10, [0x0D] = 0x11, [0x0E] = 0x12, [0x0F] = 0x13, [0x10] = 0x15,
+-    [0x11] = 0x14, [0x12] = 0x02, [0x13] = 0x03, [0x14] = 0x04, [0x15] = 0x05, [0x16] = 0x07, [0x17] = 0x06, [0x18] = 0x0D,
+-    [0x19] = 0x0A, [0x1A] = 0x08, [0x1B] = 0x0C, [0x1C] = 0x09, [0x1D] = 0x0B, [0x1E] = 0x1B, [0x1F] = 0x18, [0x20] = 0x16,
+-    [0x21] = 0x1A, [0x22] = 0x17, [0x23] = 0x19, [0x24] = 0x1C, [0x25] = 0x26, [0x26] = 0x24, [0x27] = 0x28, [0x28] = 0x25,
+-    [0x29] = 0x27, [0x2A] = 0x2B, [0x2B] = 0x33, [0x2C] = 0x35, [0x2D] = 0x31, [0x2E] = 0x32, [0x2F] = 0x34, [0x30] = 0x0F,
+-    [0x31] = 0x39, [0x32] = 0x29, [0x33] = 0x0E, [0x35] = 0x01, [0x37] = 0xDB, [0x38] = 0x2A, [0x39] = 0x3A, [0x3A] = 0x38,
+-    [0x3B] = 0x1D, [0x3C] = 0x36, [0x3D] = 0xB8, [0x3E] = 0x9D, [0x41] = 0x53, [0x43] = 0x37, [0x45] = 0x4E, [0x4B] = 0xB5,
+-    [0x4C] = 0x9C, [0x4E] = 0x4A, [0x52] = 0x52, [0x53] = 0x4F, [0x54] = 0x50, [0x55] = 0x51, [0x56] = 0x4B, [0x57] = 0x4C,
+-    [0x58] = 0x4D, [0x59] = 0x47, [0x5B] = 0x48, [0x5C] = 0x49, [0x60] = 0x3F, [0x61] = 0x40, [0x62] = 0x41, [0x63] = 0x3D,
+-    [0x64] = 0x42, [0x65] = 0x43, [0x67] = 0x57, [0x6D] = 0x44, [0x6F] = 0x58, [0x72] = 0xD2, [0x73] = 0xC7, [0x74] = 0xC9,
+-    [0x75] = 0xD3, [0x76] = 0x3E, [0x77] = 0xCF, [0x78] = 0x3C, [0x79] = 0xD1, [0x7A] = 0x3B, [0x7B] = 0xCB, [0x7C] = 0xCD,
+-    [0x7D] = 0xD0, [0x7E] = 0xC8,
+-};
++#include "FNVKeyMap.h"
+ 
+ #ifndef FNV_PROBE
+ void FNVApplyIniSettings(NSMutableArray<NSString *> *lines,
+diff --git a/macos/FNVKeyMap.h b/macos/FNVKeyMap.h
+new file mode 100644
+index 0000000..8fddada
+--- /dev/null
++++ b/macos/FNVKeyMap.h
+@@ -0,0 +1,19 @@
++#pragma once
++#include <stdint.h>
++
++// macOS virtual key code -> DirectInput scancode (DIK_*)
++static const uint8_t mac2dik[128] = {
++    [0x00] = 0x1E, [0x01] = 0x1F, [0x02] = 0x20, [0x03] = 0x21, [0x04] = 0x23, [0x05] = 0x22, [0x06] = 0x2C, [0x07] = 0x2D,
++    [0x08] = 0x2E, [0x09] = 0x2F, [0x0B] = 0x30, [0x0C] = 0x10, [0x0D] = 0x11, [0x0E] = 0x12, [0x0F] = 0x13, [0x10] = 0x15,
++    [0x11] = 0x14, [0x12] = 0x02, [0x13] = 0x03, [0x14] = 0x04, [0x15] = 0x05, [0x16] = 0x07, [0x17] = 0x06, [0x18] = 0x0D,
++    [0x19] = 0x0A, [0x1A] = 0x08, [0x1B] = 0x0C, [0x1C] = 0x09, [0x1D] = 0x0B, [0x1E] = 0x1B, [0x1F] = 0x18, [0x20] = 0x16,
++    [0x21] = 0x1A, [0x22] = 0x17, [0x23] = 0x19, [0x24] = 0x1C, [0x25] = 0x26, [0x26] = 0x24, [0x27] = 0x28, [0x28] = 0x25,
++    [0x29] = 0x27, [0x2A] = 0x2B, [0x2B] = 0x33, [0x2C] = 0x35, [0x2D] = 0x31, [0x2E] = 0x32, [0x2F] = 0x34, [0x30] = 0x0F,
++    [0x31] = 0x39, [0x32] = 0x29, [0x33] = 0x0E, [0x35] = 0x01, [0x37] = 0xDB, [0x38] = 0x2A, [0x39] = 0x3A, [0x3A] = 0x38,
++    [0x3B] = 0x1D, [0x3C] = 0x36, [0x3D] = 0xB8, [0x3E] = 0x9D, [0x41] = 0x53, [0x43] = 0x37, [0x45] = 0x4E, [0x4B] = 0xB5,
++    [0x4C] = 0x9C, [0x4E] = 0x4A, [0x52] = 0x52, [0x53] = 0x4F, [0x54] = 0x50, [0x55] = 0x51, [0x56] = 0x4B, [0x57] = 0x4C,
++    [0x58] = 0x4D, [0x59] = 0x47, [0x5B] = 0x48, [0x5C] = 0x49, [0x60] = 0x3F, [0x61] = 0x40, [0x62] = 0x41, [0x63] = 0x3D,
++    [0x64] = 0x42, [0x65] = 0x43, [0x67] = 0x57, [0x6D] = 0x44, [0x6F] = 0x58, [0x72] = 0xD2, [0x73] = 0xC7, [0x74] = 0xC9,
++    [0x75] = 0xD3, [0x76] = 0x3E, [0x77] = 0xCF, [0x78] = 0x3C, [0x79] = 0xD1, [0x7A] = 0x3B, [0x7B] = 0xCB, [0x7C] = 0xCD,
++    [0x7D] = 0xD0, [0x7E] = 0xC8,
++};
+diff --git a/tools/startup/FallbackDiscovery.c b/tools/startup/FallbackDiscovery.c
+index 5af9846..8b49460 100644
+--- a/tools/startup/FallbackDiscovery.c
++++ b/tools/startup/FallbackDiscovery.c
+@@ -1,3 +1,4 @@
++#include <stdbool.h>
+ // Diagnostic-only copy from thetheoryofR/Fallout-NV-MacOS, MIT, pinned at
+ // ff8e0d791e3e1f0148a2245c12c7706855e66926. See upstream/LICENSE.
+ // This file is NEVER linked into the iPhone app. It collects missed entries on Mac.
+@@ -14,6 +15,8 @@
+ 
+ extern int rt_has_fn(uint32_t a);
+ #define MAXDEPTH 32
++// Leave room for guest calls made by native import shims.
++#define MAX_NATIVE_HANDOFF_DEPTH (MAXDEPTH / 2)
+ static _Thread_local uc_engine *engines[MAXDEPTH];
+ static _Thread_local int depth;
+ static _Thread_local CPU *cur_cpu[MAXDEPTH];
+@@ -114,6 +117,19 @@ static void uc_to_cpu(uc_engine *uc, CPU *c) {
+ }
+ 
+ // block hook: import thunks -> native shims; known native entries -> native code
++enum { RECENT_BLOCKS = 32 };
++typedef struct { uint32_t address, size; } GuestBlock;
++static _Thread_local GuestBlock recent_blocks[MAXDEPTH][RECENT_BLOCKS];
++static _Thread_local unsigned recent_count[MAXDEPTH];
++static _Thread_local uint32_t illegal_target[MAXDEPTH];
++static _Thread_local bool left_code[MAXDEPTH];
++bool smr_module_executable_address(uint32_t address);
++
++static bool executable_guest_address(uint32_t address) {
++    return (address >= host_text_start && address < host_text_end)
++        || smr_module_executable_address(address);
++}
++
+ static _Thread_local uint32_t prev_end[MAXDEPTH];   // end address of the previous block, per engine
+ 
+ static void on_block(uc_engine *uc, uint64_t address, uint32_t size, void *user) {
+@@ -124,7 +140,14 @@ static void on_block(uc_engine *uc, uint64_t address, uint32_t size, void *user)
+     uint32_t came_from = prev_end[d];
+     prev_end[d] = a + size;
+     int is_import = a >= IMPORT_THUNK_BASE && a < IMPORT_THUNK_BASE + 0x10000;
+-    if (!is_import && (a == cur_root[d] || !rt_has_fn(a))) return;
++    if (!is_import && !executable_guest_address(a)) {
++        left_code[d] = true;
++        illegal_target[d] = a;
++        uc_emu_stop(uc);
++        return;
++    }
++    recent_blocks[d][recent_count[d]++ % RECENT_BLOCKS] = (GuestBlock){a, size};
++    if (!is_import && (depth >= MAX_NATIVE_HANDOFF_DEPTH || a == cur_root[d] || !rt_has_fn(a))) return;
+     uint32_t esp; uc_reg_read(uc, UC_X86_REG_ESP, &esp);
+     uint32_t ret = G32(esp);
+     // Hand off to native code only when this block was entered by a CALL: then [ESP] is the
+@@ -177,18 +200,34 @@ static int log_root(uint32_t a) {
+ }
+ 
+ void rt_fallback(CPU *c, uint32_t a) {
+-    if (a < 0x401000 || a >= 0x1000000 || depth >= MAXDEPTH) rt_trap(c, TRAP_NOFN, a);   // only .text
++    if (depth >= MAXDEPTH) {
++        fprintf(stderr, "[fallback] engine nesting limit %d reached at %#x\n", MAXDEPTH, a);
++        rt_trap(c, TRAP_NOFN, a);
++    }
++    if (!executable_guest_address(a)) rt_trap(c, TRAP_NOFN, a);
+     if(log_root(a)) snapshot_root(c,a);
+     uc_engine *uc = engine(c);
+-    cur_cpu[depth] = c; cur_root[depth] = a; prev_end[depth] = 0;previous_pc[depth]=0;
++    cur_cpu[depth] = c; cur_root[depth] = a; prev_end[depth] = 0;previous_pc[depth]=0;recent_count[depth]=0;left_code[depth]=false;
+     depth++;
+     uint32_t ret = G32(REG(c, R_ESP));      // the CALL already pushed it
+     cpu_to_uc(c, uc);
+     uc_err e = uc_emu_start(uc, a, ret, 0, 0);
+     depth--;
+-    if (e != UC_ERR_OK) {
+-        uint32_t eip; uc_reg_read(uc, UC_X86_REG_EIP, &eip);
+-        fprintf(stderr, "[fallback] %s at %#x (root %#x)\n", uc_strerror(e), eip, a);
++    if (left_code[depth] || e != UC_ERR_OK) {
++        uint32_t eip;
++        if (left_code[depth])
++            eip = illegal_target[depth];
++        else
++            uc_reg_read(uc, UC_X86_REG_EIP, &eip);
++        uc_to_cpu(uc, c);
++        fprintf(stderr, "[fallback] %s at %#x (root %#x)\n",
++                left_code[depth] ? "left executable guest code" : uc_strerror(e), eip, a);
++        unsigned end = recent_count[depth];
++        unsigned start = end > RECENT_BLOCKS ? end - RECENT_BLOCKS : 0;
++        for (unsigned i = start; i < end; i++) {
++            GuestBlock block = recent_blocks[depth][i % RECENT_BLOCKS];
++            fprintf(stderr, "[fallback-block] %#x + %#x\n", block.address, block.size);
++        }
+         rt_trap(c, TRAP_NOFN, eip);
+     }
+     uc_to_cpu(uc, c);
+diff --git a/tools/startup/main.c b/tools/startup/main.c
+index 25f0c27..a4ea030 100644
+--- a/tools/startup/main.c
++++ b/tools/startup/main.c
+@@ -1,8 +1,12 @@
+ // Build-machine startup diagnostic using the same guest dispatcher and host shims.
+ // The null renderer cannot validate iPhone graphics or gameplay.
+ #include <stdio.h>
++#include <stdlib.h>
+ #include "rt.h"
+ extern int fnv_run_game(int, char **);
++#ifdef SMR_METAL_HOST
++extern int smr_run_windowed(int, char **);
++#endif
+ #ifdef FNV_STARTUP_HOST_CHECK
+ const uint32_t rt_fn_addr[] = {0};
+ const GuestFn rt_fn_ptr[] = {0};
+@@ -15,6 +19,10 @@ int main(int argc, char **argv) {
+     puts("PASS: native diagnostic host linked; no game code executed");
+     return 0;
+ #else
++#ifdef SMR_METAL_HOST
++    if (getenv("SMR_WINDOW"))
++        return smr_run_windowed(argc, argv);
++#endif
+     return fnv_run_game(argc, argv);
+ #endif
+ }
+diff --git a/tools/startup_build.py b/tools/startup_build.py
+index 601c243..6325423 100644
+--- a/tools/startup_build.py
++++ b/tools/startup_build.py
+@@ -18,6 +18,8 @@ def main():
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument('--generated', type=Path)
+     parser.add_argument('--host-check', action='store_true')
++    parser.add_argument('--metal-surface', type=Path, help='surface adapter for a Metal probe')
++    parser.add_argument('--windowed', action='store_true', help='host the guest in an AppKit window')
+     parser.add_argument('--discovery-prefix', type=Path, help='optional installed Unicorn prefix for a separate Mac discovery binary')
+     parser.add_argument('--out', type=Path, required=True)
+     parser.add_argument('--jobs', type=int, default=2)
+@@ -34,8 +36,10 @@ def main():
+     sdk = subprocess.check_output(['xcrun', '--sdk', 'macosx', '--show-sdk-path'], text=True).strip()
+     cc = subprocess.check_output(['xcrun', '--sdk', 'macosx', '--find', 'clang'], text=True).strip()
+     sources = [ROOT/'tools/startup/main.c', ROOT/'macos/FNVPad.c',ROOT/'macos/FNVDisplay.c',
+-               ROOT/'macos/FNVAudioMixer.c',ROOT/'macos/FNVNativeMedia.m',ROOT/'macos/FNVNativeVideo.m', R/'rt_dispatch.c', H/'dshow.m']
++               ROOT/'macos/FNVAudioMixer.c',ROOT/'macos/FNVXAudioMixer.c',ROOT/'macos/FNVNativeMedia.m',ROOT/'macos/FNVNativeVideo.m', R/'rt_dispatch.c', H/'dshow.m']
+     sources += [f for f in sorted(H.glob('*.c')) if f.name != 'fallback.c']  # includes the null renderer; no AppKit or Metal window
++    if args.metal_surface:
++        sources += [args.metal_surface.resolve(), H/'d3d9_metal.m']
+     if not args.host_check:
+         sources += [args.generated/'table.c', args.generated/'stubs.c', *sorted(args.generated.glob('tu_*.c'))]
+     args.out.mkdir(parents=True, exist_ok=True)
+@@ -49,6 +53,8 @@ def main():
+     with tempfile.TemporaryDirectory(dir=args.out) as temp:
+         tmp = Path(temp)
+         base = [cc, '-isysroot', sdk, '-O1', '-DRT_CALLTRACE', '-I', str(R), '-I', str(H), '-I', str(ROOT/'macos')]
++        if args.windowed:
++            base.append('-DSMR_METAL_HOST')
+         if args.host_check:
+             base.append('-DFNV_STARTUP_HOST_CHECK')
+         signature=hashlib.sha256(json.dumps(base).encode()+subprocess.check_output([cc,'--version']))
+@@ -107,6 +113,8 @@ def main():
+             (cache/'manifest.json').write_text(json.dumps(manifest,indent=2))
+         print(f'Native objects: {sum(reused for _,_,reused in compiled)} reused, {sum(not reused for _,_,reused in compiled)} compiled',flush=True)
+         frameworks = ['Foundation', 'AVFoundation', 'CoreGraphics', 'CoreMedia', 'CoreVideo', 'ImageIO', 'UniformTypeIdentifiers']
++        if args.metal_surface:
++            frameworks += ['AppKit', 'Metal', 'MetalFX', 'QuartzCore']
+         link = [cc, '-isysroot', sdk, *objects, *[v for f in frameworks for v in ('-framework', f)],
+                 '-Wl,-stack_size,0x1000000']
+         subprocess.run([*link, '-o', str(binary)], check=True)
+diff --git a/upstream/recomp/host/d3d9.c b/upstream/recomp/host/d3d9.c
+index 86010c1..d97ff63 100644
+--- a/upstream/recomp/host/d3d9.c
++++ b/upstream/recomp/host/d3d9.c
+@@ -472,6 +472,8 @@ static void present_guest(CPU *c, unsigned arguments, const char *interface) {
+     if (first) fprintf(stderr,"[checkpoint] first Present entered interface=%s guest_return=%#x\n",interface,caller);
+     d3d_backend_present(&g_d3d); reap(); RET(c, 0, arguments);
+     if (first) fprintf(stderr,"[checkpoint] first Present returned hresult=0 guest_return=%#x\n",caller);
++    if (first && getenv("SMR_STOP_AFTER_PRESENT"))
++        exit(0);
+ }
+ static void Swap_Present(CPU *c) { present_guest(c, 6, "swapchain"); }
+ static void Swap_GetDisplayMode(CPU *c) { uint32_t m = ARG(c, 1); P32(m, g_d3d.width); P32(m + 4, g_d3d.height); P32(m + 8, 60); P32(m + 12, 22); RET(c, 0, 2); }
+diff --git a/upstream/recomp/host/dinput.c b/upstream/recomp/host/dinput.c
+index f0eb571..75ddf82 100644
+--- a/upstream/recomp/host/dinput.c
++++ b/upstream/recomp/host/dinput.c
+@@ -6,6 +6,7 @@
+ #include "com.h"
+ #include "input.h"
+ #include "FNVPad.h"
++#include <stdatomic.h>
+ #if defined(FNV_GAME_INPUT_CONTEXT) && !defined(FNV_PROBE)
+ static void fnv_sample_game_context(void);
+ #else
+@@ -158,13 +159,22 @@ const ShimTable dinput_shims = { (const Shim[]){ {"DirectInput8Create", DirectIn
+ 
+ // ---- XInput 1.3 (via macOS GameController framework) ------------------------------------------
+ #include "FNVPad.h"
++#include <stdatomic.h>
+ #include <stdio.h>
++static _Atomic int xinput_enabled = 1;
++
++static void XInputEnable_(CPU *c) {
++    atomic_store(&xinput_enabled, ARG(c, 0) != 0);
++    RET(c, 0, 1);
++}
++
+ static void XInputGetState_(CPU *c) {
+     if (ARG(c, 0) || !fnv_analog_enabled()) { RET(c, 1167, 2); return; }
+     uint32_t out = ARG(c, 1);
+     if (!out) { RET(c, 87, 2); return; }
+-    FNVPadState state;
+-    fnv_pad_snapshot(&state);
++    FNVPadState state = {0};
++    if (atomic_load(&xinput_enabled))
++        fnv_pad_snapshot(&state);
+     _Static_assert(sizeof(FNVPadState) == 16, "XINPUT_STATE ABI");
+     memcpy(MEM + out, &state, 16);
+     RET(c, 0, 2);
+@@ -184,5 +194,6 @@ static void XInputGetCapabilities_(CPU *c) {
+ const ShimTable xinput_shims = { (const Shim[]){
+     {"xinput1_3#2", XInputGetState_}, {"xinput1_3#3", XInputSetState_},
+     {"xinput1_3#4", XInputGetCapabilities_}, {"XInputGetState", XInputGetState_},
+-    {"XInputSetState", XInputSetState_}, {"XInputGetCapabilities", XInputGetCapabilities_}
+-}, 6 };
++    {"XInputSetState", XInputSetState_}, {"XInputGetCapabilities", XInputGetCapabilities_},
++    {"xinput1_3#5", XInputEnable_}, {"XInputEnable", XInputEnable_}
++}, 8 };
+diff --git a/upstream/recomp/host/host.c b/upstream/recomp/host/host.c
+index 03f5794..101bdfc 100644
+--- a/upstream/recomp/host/host.c
++++ b/upstream/recomp/host/host.c
+@@ -1,3 +1,4 @@
++#include <stdbool.h>
+ // M2 host: loads a 32-bit PE image into the guest address space, binds its imports to native
+ // shims, builds the main thread (stack + TEB) and runs the recompiled entry point.
+ //
+@@ -64,22 +65,54 @@ static uint16_t rd16(uint32_t a) { uint16_t v; memcpy(&v, MEM + a, 2); return v;
+ HostImport host_imports[MAX_IMPORTS];
+ int host_import_count;
+ void host_sync_boundary(CPU *c);
++uint32_t smr_find_msvcr90_data(const char *name);
+ 
+-static void bind_imports(uint32_t base) {
++bool smr_load_modules(const char *vc90_directory, const char *physx_directory,
++                      const char *d3dx_directory);
++bool smr_module_uses_legacy_crt(uint32_t base);
++bool smr_attach_modules(CPU *cpu);
++uint32_t smr_module_export(const char *dll, const char *name);
++
++void smr_bind_imports(uint32_t base) {
+     uint32_t pe = base + rd32(base + 0x3C);
+     uint32_t imp = rd32(pe + 24 + 96 + 8);
+     if (!imp) return;
+     for (uint32_t d = base + imp; rd32(d + 12); d += 20) {
+         const char *dll = (const char *)MEM + base + rd32(d + 12);
++        if (!strcasecmp(dll, "msvcrt.dll") && smr_module_uses_legacy_crt(base))
++            dll = "msvcr90.dll";
+         uint32_t ilt = rd32(d) ? base + rd32(d) : base + rd32(d + 16);
+         uint32_t iat = base + rd32(d + 16);
+         for (; rd32(ilt); ilt += 4, iat += 4) {
+             uint32_t e = rd32(ilt);
++            if (host_import_count >= MAX_IMPORTS) {
++                fprintf(stderr, "[host] too many imports\n");
++                exit(1);
++            }
+             HostImport *hi = &host_imports[host_import_count];
+-            snprintf(hi->dll, sizeof hi->dll, "%s", dll);
+-            if (e & 0x80000000u) snprintf(hi->name, sizeof hi->name, "#%u", e & 0xFFFF);
+-            else snprintf(hi->name, sizeof hi->name, "%s", (const char *)MEM + base + e + 2);
+-            hi->fn = host_find_shim(hi->dll, hi->name);
++            char ordinal[16];
++            const char *symbol;
++            if (e & 0x80000000u) {
++                snprintf(ordinal, sizeof(ordinal), "#%u", e & 0xFFFF);
++                symbol = ordinal;
++            } else {
++                symbol = (const char *)MEM + base + e + 2;
++            }
++            uint32_t exported = smr_module_export(dll, symbol);
++            if (exported) {
++                P32(iat, exported);
++                continue;
++            }
++            if (!strcasecmp(dll, "msvcr90.dll")) {
++                uint32_t data = smr_find_msvcr90_data(symbol);
++                if (data) {
++                    P32(iat, data);
++                    continue;
++                }
++            }
++            snprintf(hi->dll, sizeof(hi->dll), "%s", dll);
++            snprintf(hi->name, sizeof(hi->name), "%s", symbol);
++            hi->fn = host_find_shim(dll, symbol);
+             uint32_t thunk = IMPORT_THUNK_BASE + 4 * host_import_count;
+             memcpy(MEM + iat, &thunk, 4);
+             host_import_count++;
+@@ -122,13 +155,15 @@ static uint32_t load_pe(const char *path) {
+     memcpy(&nsec, d + pe + 6, 2); memcpy(&osz, d + pe + 20, 2);
+     memcpy(&ep, d + pe + 24 + 16, 4); memcpy(&base, d + pe + 24 + 28, 4); memcpy(&soh, d + pe + 24 + 60, 4);
+     memcpy(MEM + base, d, soh);
++    bool have_exec_section = false;
+     for (int i = 0; i < nsec; i++) {
+         uint8_t *s = d + pe + 24 + osz + 40 * i;
+         uint32_t vs, va, rs, rp, sc;
+         memcpy(&vs, s + 8, 4); memcpy(&va, s + 12, 4); memcpy(&rs, s + 16, 4); memcpy(&rp, s + 20, 4); memcpy(&sc, s + 36, 4);
+         uint32_t take = rs < vs || !vs ? rs : vs;
+         memcpy(MEM + base + va, d + rp, take);
+-        if (!memcmp(s, ".text", 5) || (host_text_start == 0x401000 && (sc & 0x20000000u))) {
++        if ((sc & 0x20000000u) && (!have_exec_section || !memcmp(s, ".text\0\0\0", 8))) {
++            have_exec_section = true;
+             host_text_start = base + va;
+             host_text_end = base + va + (vs ? vs : rs);
+         }
+@@ -222,7 +257,10 @@ int fnv_run_game(int argc, char **argv) {
+     raise_fd_limit();
+     host_init_args(argc - 1, argv + 1);
+     uint32_t entry = load_pe(argv[1]);
+-    bind_imports(host_image_base);
++    if (!smr_load_modules(getenv("SMR_VC90_DIRECTORY"), getenv("SMR_PHYSX_DIRECTORY"),
++                          getenv("SMR_D3DX_DIRECTORY")))
++        return 1;
++    smr_bind_imports(host_image_base);
+     fprintf(stderr, "[host] image @%#x, entry %#x, %d imports (%d shimmed)\n", host_image_base, entry,
+             host_import_count, host_shimmed_count());
+ 
+@@ -235,6 +273,8 @@ int fnv_run_game(int argc, char **argv) {
+     memcpy(MEM + esp, &(uint32_t){HOST_EXIT_THUNK}, 4);
+     ST(c->r + 16, esp, 4);
+ 
++    if (!smr_attach_modules(c))
++        return 3;
+     int rc = host_run_guest(c, entry);
+     if (rc) return 3;
+     fprintf(stderr, "[host] entry returned, EAX=%#x\n", (uint32_t)LD(c->r, 4));
+diff --git a/upstream/recomp/host/shims_files.c b/upstream/recomp/host/shims_files.c
+index 24304d2..3c2c34b 100644
+--- a/upstream/recomp/host/shims_files.c
++++ b/upstream/recomp/host/shims_files.c
+@@ -76,6 +76,15 @@ void host_path(const char *win, char *out, size_t n) {
+             if (!strncasecmp(q,"Fallout3",8) && (!q[8]||q[8]=='\\'||q[8]=='/')) { game=q; glen=8; break; }
+             if (!strncasecmp(q,"Skyrim",6) && (!q[6]||q[6]=='\\'||q[6]=='/')) { game=q; glen=6; break; }
+         }
++        if (!game) {
++            const char prefix[] = "Games\\ShootManyRobots";
++            const char *start = p + (*p == '\\' || *p == '/');
++            size_t len = sizeof(prefix) - 1;
++            if (!strncasecmp(start, prefix, len) && (!start[len] || start[len] == '\\' || start[len] == '/')) {
++                game = start;
++                glen = len;
++            }
++        }
+         if (game) { p=game+glen; if (*p) p++; }
+         else if (*p == '\\'||*p=='/') p++;
+         if (user_dir && user_dir[0] && !strncasecmp(p, "UserDocuments", 13) &&
+@@ -254,6 +263,16 @@ SHIM(SetFilePointerEx) {
+ }
+ SHIM(SetEndOfFile) { FileObj *f = fobj(ARG(c, 0)); int ok = f && ftruncate(f->fd, lseek(f->fd, 0, SEEK_CUR)) == 0; file_put(f); RET(c, ok, 1); }
+ SHIM(FlushFileBuffers) { RET(c, 1, 1); }
++SHIM(SetCurrentDirectoryW) {
++    char windows[1024], path[1024];
++    w2a(ARG(c, 0), windows, sizeof(windows));
++    host_path(windows, path, sizeof(path));
++    int result = chdir(path);
++    if (result)
++        SETERR(3); // ERROR_PATH_NOT_FOUND
++    RET(c, result == 0, 1);
++}
++
+ SHIM(DeleteFileA) { char p[1024]; host_path(GSTR(ARG(c, 0)), p, sizeof p); RET(c, unlink(p) == 0, 1); }
+ SHIM(MoveFileA) { char a[1024], b[1024]; host_path(GSTR(ARG(c, 0)), a, sizeof a); host_path(GSTR(ARG(c, 1)), b, sizeof b); RET(c, rename(a, b) == 0, 2); }
+ SHIM(MoveFileExW) { char wa[1024], wb[1024], a[1024], b[1024]; w2a(ARG(c, 0), wa, sizeof wa); w2a(ARG(c, 1), wb, sizeof wb); host_path(wa, a, sizeof a); host_path(wb, b, sizeof b); RET(c, rename(a, b) == 0, 3); }
+@@ -265,6 +284,16 @@ SHIM(CopyFileA) {
+     if (in) fclose(in); if (out) fclose(out);
+     RET(c, ok, 3);
+ }
++SHIM(CreateDirectoryW) {
++    char windows[1024], path[1024];
++    w2a(ARG(c, 0), windows, sizeof(windows));
++    host_path(windows, path, sizeof(path));
++    int result = mkdir(path, 0755);
++    if (result)
++        SETERR(errno == EEXIST ? 183 : 3);
++    RET(c, result == 0, 2);
++}
++
+ SHIM(CreateDirectoryA) { char p[1024]; host_path(GSTR(ARG(c, 0)), p, sizeof p); int r = mkdir(p, 0755); RET(c, r == 0, 2); }
+ SHIM(GetFileAttributesA) {
+     char p[1024]; host_path(GSTR(ARG(c, 0)), p, sizeof p); struct stat st;
+@@ -381,6 +410,11 @@ static uint32_t find_open(const char *win, uint32_t out, int wide) {
+     return handle_new(H_FIND, f);
+ }
+ SHIM(FindFirstFileA) { RET(c, find_open(GSTR(ARG(c, 0)), ARG(c, 1), 0), 2); }
++SHIM(FindFirstFileW) {
++    char path[1024];
++    w2a(ARG(c, 0), path, sizeof(path));
++    RET(c, find_open(path, ARG(c, 1), 1), 2);
++}
+ SHIM(FindFirstFileExW) { char p[1024]; w2a(ARG(c, 0), p, sizeof p); RET(c, find_open(p, ARG(c, 2), 1), 6); }
+ SHIM(FindNextFileA) {
+     FindObj *f = handle_get(ARG(c, 0), H_FIND);
+@@ -536,9 +570,9 @@ SHIM(WritePrivateProfileStringA) {
+ SHIM_TABLE(file_shims,
+     E(CreateFileA) E(CreateFileW) E(ReadFile) E(WriteFile) E(ReadFileEx) E(WriteFileEx) E(PeekNamedPipe)
+     E(GetFileTime) E(SetFileTime) E(GetFileInformationByHandle) E(GetFileSize) E(GetFileSizeEx) E(SetFilePointer)
+-    E(SetFilePointerEx) E(SetEndOfFile) E(FlushFileBuffers) E(DeleteFileA) E(MoveFileA) E(MoveFileExW) E(CopyFileA)
+-    E(CreateDirectoryA) E(GetFileAttributesA) E(GetFileAttributesW) E(GetFileAttributesExA) E(GetFileAttributesExW)
++    E(SetFilePointerEx) E(SetEndOfFile) E(FlushFileBuffers) E(SetCurrentDirectoryW) E(DeleteFileA) E(MoveFileA) E(MoveFileExW) E(CopyFileA)
++    E(CreateDirectoryA) E(CreateDirectoryW) E(GetFileAttributesA) E(GetFileAttributesW) E(GetFileAttributesExA) E(GetFileAttributesExW)
+     E(GetDiskFreeSpaceExA) E(GetCurrentDirectoryA) E(GetCurrentDirectoryW) E(GetFullPathNameA) E(GetFullPathNameW)
+     E(GetDriveTypeA) E(GetDriveTypeW)
+-    E(CompareFileTime) E(FindFirstFileA) E(FindFirstFileExW) E(FindNextFileA) E(FindNextFileW) E(FindClose)
++    E(CompareFileTime) E(FindFirstFileA) E(FindFirstFileW) E(FindFirstFileExW) E(FindNextFileA) E(FindNextFileW) E(FindClose)
+     E(GetPrivateProfileStringA) E(GetPrivateProfileIntA) E(WritePrivateProfileStringA))
+diff --git a/upstream/recomp/host/shims_kernel32.c b/upstream/recomp/host/shims_kernel32.c
+index 9e12f08..132cf48 100644
+--- a/upstream/recomp/host/shims_kernel32.c
++++ b/upstream/recomp/host/shims_kernel32.c
+@@ -1,7 +1,9 @@
+ // kernel32 (and friends) shims, grown one trap at a time. Each shim reads its arguments from the
+ // guest stack, does the work natively, sets EAX and pops like the real stdcall export.
+ #include <mach/mach_time.h>
++#include <stdbool.h>
+ #include <pthread.h>
++#include <sched.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <sys/time.h>
+@@ -14,6 +16,7 @@ _Thread_local uint32_t host_last_error;
+ #define last_error host_last_error
+ static uint32_t cmdline_a, cmdline_w;
+ static uint32_t teb_main;
++static const char *game_binary_directory = "";
+ 
+ #ifdef FNV_GAME_SKYRIM
+ static char g_exe_name[128] = "TESV.exe";
+@@ -38,7 +41,9 @@ void host_init_args(int argc, char **argv) {
+         snprintf(g_game_dir, sizeof g_game_dir, "%s",
+                  strcasecmp(g_exe_name, "Fallout3.exe") == 0 ? "Fallout3"
+                  : strcasecmp(g_exe_name, "TESV.exe") == 0 ? "Skyrim"
++                 : strcasecmp(g_exe_name, "ShootManyRobots.exe") == 0 ? "ShootManyRobots"
+                  : "FalloutNV");
++        game_binary_directory = !strcmp(g_game_dir, "ShootManyRobots") ? "Binaries\\" : "";
+     }
+     char buf[4096];
+     snprintf(buf, sizeof buf, "%s", g_exe_name);
+@@ -131,12 +136,19 @@ static const char *known_mods[] = {"kernel32", "user32", "gdi32", "advapi32", "s
+ #endif
+ #define NMODS (sizeof known_mods / sizeof *known_mods)
+ 
++uint32_t smr_module_by_name(const char *name);
++uint32_t smr_module_export_by_handle(uint32_t handle, const char *name);
++bool smr_mapped_module_handle(uint32_t handle);
++
+ static uint32_t mod_handle(const char *name) {
+     if (!name) return host_image_base;
+     char low[128]; size_t n = 0;
+     for (const char *p = strrchr(name, '\\') ? strrchr(name, '\\') + 1 : name; *p && n < sizeof low - 1; p++)
+         low[n++] = (char)(*p >= 'A' && *p <= 'Z' ? *p + 32 : *p);
+     low[n] = 0;
++    uint32_t mapped = smr_module_by_name(low);
++    if (mapped)
++        return mapped;
+     char *dot = strstr(low, ".dll"); if (dot) *dot = 0;
+     if (!strcmp(low, "falloutnv") || !strcmp(low, "fallout3") ||
+         !strcmp(low, "tesv") || !strcmp(low, "tesv.exe") || !strcmp(low, "skyrim"))
+@@ -185,6 +197,13 @@ SHIM(GetProcAddress_) {
+     uint32_t h = ARG(c, 0), pn = ARG(c, 1);
+     char name[96];
+     if (pn < 0x10000) snprintf(name, sizeof name, "#%u", pn); else snprintf(name, sizeof name, "%s", GSTR(pn));
++    if (smr_mapped_module_handle(h)) {
++        uint32_t exported = smr_module_export_by_handle(h, name);
++        if (!exported)
++            last_error = 127;
++        RET(c, exported, 2);
++        return;
++    }
+     const char *dll = h >= MOD_BASE && (h - MOD_BASE) / 0x10000u < NMODS ? known_mods[(h - MOD_BASE) / 0x10000u] : "?";
+     ShimFn fn = host_find_shim(dll, name);
+     if (!fn) { fprintf(stderr, "[host] GetProcAddress(%s, %s) -> 0 (no shim)\n", dll, name); last_error = 127; RET(c, 0, 2); return; }
+@@ -197,7 +216,7 @@ SHIM(GetProcAddress_) {
+ SHIM(GetModuleFileNameA_) {
+     uint32_t buf = ARG(c, 1), n = ARG(c, 2);
+     char name[256];
+-    snprintf(name, sizeof name, "C:\\Games\\%s\\%s", g_game_dir, g_exe_name);
++    snprintf(name, sizeof name, "C:\\Games\\%s\\%s%s", g_game_dir, game_binary_directory, g_exe_name);
+     uint32_t l = (uint32_t)strlen(name);
+     if (n) { if (l >= n) l = n - 1; memcpy(MEM + buf, name, l); MEM[buf + l] = 0; }
+     RET(c, l, 3);
+@@ -205,7 +224,7 @@ SHIM(GetModuleFileNameA_) {
+ SHIM(GetModuleFileNameW_) {
+     uint32_t buf = ARG(c, 1), n = ARG(c, 2);
+     char name[256];
+-    snprintf(name, sizeof name, "C:\\Games\\%s\\%s", g_game_dir, g_exe_name);
++    snprintf(name, sizeof name, "C:\\Games\\%s\\%s%s", g_game_dir, game_binary_directory, g_exe_name);
+     uint32_t l = (uint32_t)strlen(name);
+     if (n) {
+         if (l >= n) l = n - 1;
+@@ -213,6 +232,17 @@ SHIM(GetModuleFileNameW_) {
+     }
+     RET(c, l, 3);
+ }
++SHIM(GetSystemDirectoryA_) {
++    static const char system_dir[] = "C:\\Windows\\System32";
++    uint32_t buffer = ARG(c, 0);
++    uint32_t capacity = ARG(c, 1);
++    if (capacity < sizeof(system_dir)) {
++        RET(c, sizeof(system_dir), 2);
++        return;
++    }
++    memcpy(MEM + buffer, system_dir, sizeof(system_dir));
++    RET(c, sizeof(system_dir) - 1, 2);
++}
+ SHIM(GetSystemDirectoryW_) {
+     uint32_t buf = ARG(c, 0), n = ARG(c, 1);
+     const char *sys = "C:\\Windows\\System32";
+@@ -277,6 +307,7 @@ static int overlaps(uint32_t lo, uint32_t hi) {
+ }
+ static void reserve(uint32_t lo, uint32_t hi) { if (nres < MAXRES) { res[nres].lo = lo; res[nres].hi = hi; nres++; } }
+ #include <pthread.h>
++#include <sched.h>
+ static pthread_mutex_t va_lk = PTHREAD_MUTEX_INITIALIZER;
+ int gheap_reserve_fixed(uint32_t lo,uint32_t hi);
+ static void VirtualAlloc_locked(CPU *c);
+@@ -381,6 +412,59 @@ SHIM(FlsSetValue_) {
+ }
+ 
+ // environment / code pages / startup info
++SHIM(DisableThreadLibraryCalls_) {
++    bool known_module = smr_mapped_module_handle(ARG(c, 0));
++    if (!known_module)
++        last_error = 6; // ERROR_INVALID_HANDLE
++    RET(c, known_module, 1);
++}
++
++SHIM(SwitchToThread_) { RET(c, sched_yield() == 0, 0); }
++
++SHIM(GetProcessAffinityMask_) {
++    uint32_t process_mask = ARG(c, 1);
++    uint32_t system_mask = ARG(c, 2);
++    if (!process_mask || !system_mask) {
++        last_error = 87; // ERROR_INVALID_PARAMETER
++        RET(c, 0, 3);
++        return;
++    }
++    long online = sysconf(_SC_NPROCESSORS_ONLN);
++    uint32_t mask = online >= 32 ? UINT32_MAX : (1u << (online > 0 ? online : 1)) - 1u;
++    P32(process_mask, mask);
++    P32(system_mask, mask);
++    RET(c, 1, 3);
++}
++
++SHIM(CreateFileMappingA_) {
++    const char *name = GSTR(ARG(c, 5));
++    fprintf(stderr, "[smr] file mapping unavailable: %.160s\n", name ? name : "");
++    last_error = 120; // ERROR_CALL_NOT_IMPLEMENTED
++    RET(c, 0, 6);
++}
++
++SHIM(ConnectNamedPipe_) {
++    last_error = 6; // ERROR_INVALID_HANDLE
++    RET(c, 0, 2);
++}
++
++SHIM(DisconnectNamedPipe_) {
++    last_error = 6; // ERROR_INVALID_HANDLE
++    RET(c, 0, 1);
++}
++
++SHIM(CreateNamedPipeA_) {
++    const char *name = GSTR(ARG(c, 0));
++    fprintf(stderr, "[smr] named pipe unavailable: %.160s\n", name ? name : "");
++    last_error = 120; // ERROR_CALL_NOT_IMPLEMENTED
++    RET(c, UINT32_MAX, 8);
++}
++
++SHIM(GetEnvironmentVariableA_) {
++    last_error = 203; // An empty guest environment has no requested variable.
++    RET(c, 0, 3);
++}
++SHIM(GetEnvironmentVariableW_) { GetEnvironmentVariableA_(c); }
+ SHIM(GetEnvironmentStringsW_) { uint32_t p = gmalloc(4); RET(c, p, 0); }
+ SHIM(GetEnvironmentStrings_) { uint32_t p = gmalloc(2); RET(c, p, 0); }
+ SHIM(FreeEnvironmentStringsW_) { RET(c, 1, 1); }
+@@ -434,13 +518,14 @@ static const Shim kernel32[] = {
+ #define E(n) { #n, n##_ },
+     E(GetLastError) E(SetLastError) E(GetVersion) E(GetVersionExA) E(GetCommandLineA) E(GetCommandLineW)
+     E(GetModuleHandleA) E(GetModuleHandleW) E(GetModuleHandleExW) E(GetModuleFileNameA) E(GetModuleFileNameW)
+-    E(GetSystemDirectoryW) E(LoadLibraryA) E(LoadLibraryW) E(LoadLibraryExW)
++    E(GetSystemDirectoryA) E(GetSystemDirectoryW) E(LoadLibraryA) E(LoadLibraryW) E(LoadLibraryExW)
+     E(FreeLibrary) E(GetProcAddress) E(GetCurrentProcess) E(GetCurrentThread)
+     E(GetCurrentProcessId) E(GetCurrentThreadId) E(GetTickCount) E(QueryPerformanceCounter)
+     E(QueryPerformanceFrequency) E(GetSystemTimeAsFileTime) E(IsProcessorFeaturePresent) E(IsDebuggerPresent)
+     E(HeapCreate) E(GetProcessHeap) E(HeapDestroy) E(HeapAlloc) E(HeapFree) E(HeapReAlloc) E(HeapSize) E(LocalAlloc)
+     E(VirtualAlloc) E(VirtualFree) E(VirtualQuery) E(TlsAlloc) E(TlsFree) E(TlsGetValue) E(TlsSetValue)
+     E(FlsAlloc) E(FlsFree) E(FlsGetValue) E(FlsSetValue)
++    E(SwitchToThread) E(GetProcessAffinityMask) E(CreateFileMappingA) E(CreateNamedPipeA) E(ConnectNamedPipe) E(DisconnectNamedPipe) E(DisableThreadLibraryCalls) E(GetEnvironmentVariableA) E(GetEnvironmentVariableW)
+     E(GetEnvironmentStringsW) E(GetEnvironmentStrings) E(FreeEnvironmentStringsW) E(FreeEnvironmentStringsA)
+     E(GetACP) E(GetOEMCP) E(GetCPInfo) E(IsValidCodePage) E(GetStartupInfoA) E(GetStartupInfoW)
+     E(GetStdHandle) E(GetFileType) E(SetHandleCount) E(SetUnhandledExceptionFilter)
+@@ -457,7 +542,11 @@ extern const ShimTable sync_shims, file_shims, text_shims, win_shims, steam_shim
+ #else
+ extern const ShimTable sync_shims, file_shims, text_shims, win_shims, steam_shims, xlive_shims, wsock_shims, dinput_shims, dsound_shims, d3d9_shims, d3dx_shims, xinput_shims, media_shims, mmio_shims;
+ #endif
++ShimFn smr_find_msvcr90_shim(const char *name);
++
+ ShimFn host_find_shim(const char *dll, const char *name) {
++    if (!strcasecmp(dll, "msvcr90.dll"))
++        return smr_find_msvcr90_shim(name);
+     // ordinal imports collide across DLLs: look them up as "<dll basename, lowercase>#<n>"
+     char key[160];
+     if (name[0] == '#') {
+diff --git a/upstream/recomp/host/shims_steam.c b/upstream/recomp/host/shims_steam.c
+index c23aaa2..2a59b13 100644
+--- a/upstream/recomp/host/shims_steam.c
++++ b/upstream/recomp/host/shims_steam.c
+@@ -34,6 +34,8 @@ static uint32_t proxy_user;
+ static uint32_t proxy_friends;
+ static uint32_t proxy_user_stats;
+ static uint32_t proxy_apps;
++static uint32_t offline_apps_v004;
++static uint32_t offline_language;
+ static uint32_t proxy_utils;
+ 
+ // Function pointers resolved from libsteam_api.dylib
+@@ -404,6 +406,11 @@ SHIM(SteamAPI_RunCallbacks) {
+     RET(c, 0, 0);
+ }
+ 
++SHIM(SteamGameServer_RunCallbacks) {
++    // This host has no dedicated game-server session or server callback queue.
++    RET(c, 0, 0);
++}
++
+ SHIM(SteamAPI_RegisterCallback) {
+     uint32_t obj = ARG(c, 0);
+     int32_t id = (int32_t)ARG(c, 1);
+@@ -443,10 +450,38 @@ SHIM(SteamAPI_UnregisterCallback) {
+ SHIM(SteamUser) { RET(c, steam_active ? proxy_user : 0u, 0); }
+ SHIM(SteamFriends) { RET(c, steam_active ? proxy_friends : 0u, 0); }
+ SHIM(SteamUserStats) { RET(c, steam_active ? proxy_user_stats : 0u, 0); }
+-SHIM(SteamApps) { RET(c, steam_active ? proxy_apps : 0u, 0); }
++static void steam_offline_language(CPU *c) {
++    RET(c, offline_language, 0);
++}
++
++static void steam_app_unavailable(CPU *c) {
++    fprintf(stderr, "[steam] offline app query %u -> unavailable\n", ARG(c, 0));
++    RET(c, 0, 1);
++}
++
++SHIM(SteamApps) {
++    uint32_t apps = steam_active ? proxy_apps : 0u;
++    if (!steam_active && !strcasecmp(host_exe_name(), "ShootManyRobots.exe")) {
++        static const SteamSlot slots[] = {
++            {4, "GetCurrentGameLanguage", steam_offline_language},
++            {6, "AppAvailability", steam_app_unavailable},
++        };
++        pthread_mutex_lock(&steam_lock);
++        if (!offline_apps_v004) {
++            static const char language[] = "english";
++            offline_language = gmalloc(sizeof(language));
++            memcpy(MEM + offline_language, language, sizeof(language));
++            offline_apps_v004 = make_proxy("ISteamApps004", slots,
++                                            sizeof(slots) / sizeof(slots[0]), 24);
++        }
++        apps = offline_apps_v004;
++        pthread_mutex_unlock(&steam_lock);
++    }
++    RET(c, apps, 0);
++}
+ SHIM(SteamUtils) { RET(c, steam_active ? proxy_utils : 0u, 0); }
+ 
+ SHIM_TABLE(steam_shims,
+     E(SteamAPI_Init) E(SteamAPI_IsSteamRunning) E(SteamAPI_Shutdown) E(SteamAPI_RunCallbacks)
+-    E(SteamAPI_RegisterCallback) E(SteamAPI_UnregisterCallback)
++    E(SteamGameServer_RunCallbacks) E(SteamAPI_RegisterCallback) E(SteamAPI_UnregisterCallback)
+     E(SteamUser) E(SteamFriends) E(SteamUserStats) E(SteamApps) E(SteamUtils))
+diff --git a/upstream/recomp/host/shims_sync.c b/upstream/recomp/host/shims_sync.c
+index 1895863..e1f64fb 100644
+--- a/upstream/recomp/host/shims_sync.c
++++ b/upstream/recomp/host/shims_sync.c
+@@ -64,7 +64,7 @@ typedef struct {
+     int manual, signaled;          // event
+     int count, max;                // semaphore
+     pthread_t owner; int recursion; int owned;  // mutex
+-    int done; uint32_t exit_code;  // thread
++    int done; uint32_t exit_code, tid;  // thread
+     int suspend;                   // thread: >0 while suspended (CREATE_SUSPENDED / SuspendThread)
+ } Obj;
+ 
+@@ -433,6 +433,30 @@ SHIM(InterlockedCompareExchange) {
+ typedef struct { uint32_t start, param; Obj *obj; uint32_t tid; CPU *cpu; uint32_t exit_code; } ThreadStart;
+ static _Thread_local ThreadStart *current_thread;
+ static uint32_t next_tid = 2;
++static Obj main_thread = {
++    .m = PTHREAD_MUTEX_INITIALIZER,
++    .cv = PTHREAD_COND_INITIALIZER,
++    .tid = 1,
++};
++
++SHIM(OpenThread) {
++    uint32_t tid = ARG(c, 2);
++    Obj *object = tid == main_thread.tid ? &main_thread : NULL;
++    if (!object) {
++        pthread_mutex_lock(&hlock);
++        for (size_t slot = 64; slot < MAXH; slot++) {
++            if (htab[slot].type == H_THREAD && ((Obj *)htab[slot].obj)->tid == tid) {
++                object = htab[slot].obj;
++                break;
++            }
++        }
++        pthread_mutex_unlock(&hlock);
++    }
++    uint32_t handle = object ? handle_new(H_THREAD, object) : 0;
++    if (!handle)
++        SETERR(object ? 8 : 87);
++    RET(c, handle, 3);
++}
+ extern int host_run_guest(CPU *c, uint32_t entry);   // host.c: trap-guarded call
+ 
+ static void thread_finished(void *p) {
+@@ -471,6 +495,7 @@ SHIM(CreateThread) {
+     ThreadStart *ts = calloc(1, sizeof *ts);
+     ts->start = ARG(c, 2); ts->param = ARG(c, 3); ts->obj = obj_new();
+     ts->tid = __atomic_fetch_add(&next_tid, 1, __ATOMIC_SEQ_CST);
++    ts->obj->tid = ts->tid;
+     if (ARG(c, 4) & 4) ts->obj->suspend = 1;
+     uint32_t h = handle_new(H_THREAD, ts->obj);
+     uint32_t tid=ts->tid,start=ts->start,param=ts->param;
+@@ -538,5 +563,5 @@ SHIM_TABLE(sync_shims,
+     E(DeleteCriticalSection) E(EnterCriticalSection)
+     E(LeaveCriticalSection) E(TryEnterCriticalSection) E(InterlockedIncrement) E(InterlockedDecrement)
+     E(InterlockedExchange) E(InterlockedExchangeAdd) E(InterlockedCompareExchange) E(CreateThread)
+-    E(ResumeThread) E(SuspendThread) E(SetThreadPriority) E(SetThreadIdealProcessor) E(GetExitCodeThread)
++    E(OpenThread) E(ResumeThread) E(SuspendThread) E(SetThreadPriority) E(SetThreadIdealProcessor) E(GetExitCodeThread)
+     E(ExitThread) E(CloseHandle))
+diff --git a/upstream/recomp/host/shims_win.c b/upstream/recomp/host/shims_win.c
+index a72cc73..139537f 100644
+--- a/upstream/recomp/host/shims_win.c
++++ b/upstream/recomp/host/shims_win.c
+@@ -1,6 +1,8 @@
+ // Headless (M2) user32 / gdi32 / advapi32 / shell32 / ole32 / winmm / steam_api shims.
+ // The window exists only as a handle and an empty message queue until the Metal layer (M3).
+ #include <stdio.h>
++#include <stdbool.h>
++#include <errno.h>
+ #include <stdlib.h>
+ #include <sys/stat.h>
+ #include <time.h>
+@@ -9,6 +11,8 @@
+ #include "input.h"
+ 
+ #define FAKE_HWND 0x00010010u
++#define DESKTOP_HWND 0x00010000u
++#define WINDOW_STATION 0x00010020u
+ static uint32_t wndproc;
+ 
+ // ---- a small Win32 message queue; DispatchMessage / SendMessage run the game's own WndProc ----------
+@@ -36,7 +40,12 @@ static uint32_t call_wndproc(CPU *c, uint32_t hwnd, uint32_t msg, uint32_t wp, u
+ 
+ // ---- user32 ------------------------------------------------------------------------------------
+ SHIM(RegisterClassA) { wndproc = G32(ARG(c, 0) + 4); fprintf(stderr, "[host] RegisterClassA wndproc %#x\n", wndproc); RET(c, 0xC001, 1); }
++static uint32_t window_style, window_ex_style, window_user_data;
++
+ SHIM(CreateWindowExA) {
++    window_style = ARG(c, 3);
++    window_ex_style = ARG(c, 0);
++    window_user_data = 0;
+     // the window starts active: tell the game the way Windows would
+     host_post_message(0x001C /* WM_ACTIVATEAPP */, 1, 0);
+     host_post_message(0x0006 /* WM_ACTIVATE */, 1 /* WA_ACTIVE */, 0);
+@@ -52,20 +61,95 @@ SHIM(SetWindowTextA) { RET(c, 1, 2); }
+ SHIM(GetWindowTextA) { if (ARG(c, 2)) MEM[ARG(c, 1)] = 0; RET(c, 0, 3); }
+ SHIM(GetClassNameA) { if (ARG(c, 2)) MEM[ARG(c, 1)] = 0; RET(c, 0, 3); }
+ SHIM(GetWindow) { RET(c, 0, 2); }
+-SHIM(GetWindowLongA) { RET(c, 0, 2); }
++static uint32_t *window_long_field(uint32_t window, int32_t index) {
++    if (window != FAKE_HWND) {
++        SETERR(1400); // ERROR_INVALID_WINDOW_HANDLE
++        return NULL;
++    }
++    switch (index) {
++    case -4: return &wndproc;
++    case -16: return &window_style;
++    case -20: return &window_ex_style;
++    case -21: return &window_user_data;
++    default:
++        SETERR(87);
++        return NULL;
++    }
++}
++
++SHIM(GetWindowLongA) {
++    uint32_t *field = window_long_field(ARG(c, 0), (int32_t)ARG(c, 1));
++    RET(c, field ? *field : 0, 2);
++}
++
++SHIM(SetWindowLongA) {
++    uint32_t *field = window_long_field(ARG(c, 0), (int32_t)ARG(c, 1));
++    uint32_t previous = field ? *field : 0;
++    if (field)
++        *field = ARG(c, 2);
++    RET(c, previous, 3);
++}
+ SHIM(GetClassLongA) { RET(c, 0, 2); }
+ SHIM(EnumChildWindows) { RET(c, 1, 3); }
+ SHIM(FindWindowA) { RET(c, 0, 2); }
++SHIM(GetDesktopWindow) { RET(c, DESKTOP_HWND, 0); }
++SHIM(GetProcessWindowStation) { RET(c, WINDOW_STATION, 0); }
++
++SHIM(GetUserObjectInformationW) {
++    static const uint16_t name[] = {'W', 'i', 'n', 'S', 't', 'a', '0', 0};
++    uint32_t handle = ARG(c, 0), index = ARG(c, 1);
++    uint32_t output = ARG(c, 2), capacity = ARG(c, 3), needed = ARG(c, 4);
++    if (handle != WINDOW_STATION || index != 2) {
++        SETERR(handle != WINDOW_STATION ? 6 : 87);
++        RET(c, 0, 5);
++        return;
++    }
++    if (needed)
++        P32(needed, sizeof(name));
++    if (!output || capacity < sizeof(name)) {
++        SETERR(122);
++        RET(c, 0, 5);
++        return;
++    }
++    memcpy(MEM + output, name, sizeof(name));
++    RET(c, 1, 5);
++}
++
+ SHIM(GetActiveWindow) { RET(c, FAKE_HWND, 0); }
+ SHIM(GetForegroundWindow) { RET(c, FAKE_HWND, 0); }
+ SHIM(GetFocus) { RET(c, FAKE_HWND, 0); }
+ SHIM(SetForegroundWindow) { RET(c, 1, 1); }
++// The guest has one window whose client area starts at its virtual desktop origin.
++SHIM(ScreenToClient) {
++    if (ARG(c, 0) != FAKE_HWND || !ARG(c, 1)) {
++        SETERR(87);
++        RET(c, 0, 2);
++        return;
++    }
++    RET(c, 1, 2);
++}
++
++SHIM(ClientToScreen) { ScreenToClient_(c); }
++
+ SHIM(GetClientRect) { uint32_t r = ARG(c, 1); P32(r, 0); P32(r + 4, 0); P32(r + 8, fnv_client_width()); P32(r + 12, fnv_client_height()); RET(c, 1, 2); }
+ SHIM(AdjustWindowRect) { RET(c, 1, 3); }
+ SHIM(AdjustWindowRectEx) { RET(c, 1, 4); }
+ SHIM(GetSystemMetrics) { uint32_t i = ARG(c, 0); RET(c, i == 0 ? fnv_display_width() : i == 1 ? fnv_display_height() : 0, 1); }
+ SHIM(EnumDisplayDevicesA) { RET(c, 0, 4); }
++SHIM(LoadImageA) {
++    uint32_t type = ARG(c, 2);
++    uint32_t handle = type == 1 ? 0x00020001u : type == 2 ? 0x00020002u : 0;
++    RET(c, handle, 6);
++}
+ SHIM(LoadIconA) { RET(c, 0x00020001, 2); }
++static uint32_t window_cursor;
++
++SHIM(SetCursor) {
++    uint32_t previous = window_cursor;
++    window_cursor = ARG(c, 0);
++    RET(c, previous, 1);
++}
++
+ SHIM(LoadCursorA) { RET(c, 0x00020002, 2); }
+ SHIM(ShowCursor) {
+     static int32_t display_count = 0;
+@@ -87,7 +171,40 @@ SHIM(ToUnicode) {
+     uint16_t w = (uint16_t)ch; memcpy(MEM + out, &w, 2);
+     RET(c, 1, 6);
+ }
+-SHIM(GetCursorPos) { uint32_t p = ARG(c, 0); if (p) { P32(p, fnv_client_width() / 2); P32(p + 4, fnv_client_height() / 2); } RET(c, p != 0, 1); }
++static bool cursor_set, cursor_clipped;
++static int32_t cursor_x, cursor_y, cursor_clip[4];
++
++SHIM(ClipCursor) {
++    uint32_t rect = ARG(c, 0);
++    cursor_clipped = rect != 0;
++    if (rect)
++        memcpy(cursor_clip, MEM + rect, sizeof(cursor_clip));
++    RET(c, 1, 1);
++}
++
++SHIM(SetCursorPos) {
++    cursor_x = (int32_t)ARG(c, 0);
++    cursor_y = (int32_t)ARG(c, 1);
++    cursor_set = true;
++    RET(c, 1, 2);
++}
++
++SHIM(GetCursorPos) {
++    uint32_t output = ARG(c, 0);
++    if (output) {
++        int32_t x = cursor_set ? cursor_x : (int32_t)fnv_client_width() / 2;
++        int32_t y = cursor_set ? cursor_y : (int32_t)fnv_client_height() / 2;
++        if (cursor_clipped && cursor_clip[0] < cursor_clip[2] && cursor_clip[1] < cursor_clip[3]) {
++            if (x < cursor_clip[0]) x = cursor_clip[0];
++            if (y < cursor_clip[1]) y = cursor_clip[1];
++            if (x >= cursor_clip[2]) x = cursor_clip[2] - 1;
++            if (y >= cursor_clip[3]) y = cursor_clip[3] - 1;
++        }
++        P32(output, (uint32_t)x);
++        P32(output + 4, (uint32_t)y);
++    }
++    RET(c, output != 0, 1);
++}
+ SHIM(GetDlgItem) { RET(c, 0, 2); }
+ SHIM(GetWindowInfo) {
+     uint32_t p = ARG(c, 1);
+@@ -129,6 +246,7 @@ SHIM(MessageBoxA) {
+ }
+ // ---- gdi32 / comctl32 ----------------------------------------------------------------------------
+ SHIM(GetStockObject) { RET(c, 0x00040001, 1); }
++SHIM(GetDC) { RET(c, 0, 1); }
+ SHIM(CreateDCA) { RET(c, 0, 4); }
+ SHIM(ExtEscape) { RET(c, 0, 6); }
+ SHIM(DeleteDC) { RET(c, 1, 1); }
+@@ -137,6 +255,11 @@ SHIM(ImageList_LoadImageA) { RET(c, 0x00050001, 7); }
+ SHIM(ImageList_Destroy) { RET(c, 1, 1); }
+ 
+ // ---- advapi32: an empty registry (the game falls back to defaults / its INIs) -------------------
++SHIM(RegOpenKeyA) {
++    if (ARG(c, 2))
++        P32(ARG(c, 2), 0);
++    RET(c, 2, 3); // ERROR_FILE_NOT_FOUND in the probe's empty registry.
++}
+ SHIM(RegOpenKeyExA) { RET(c, 2, 5); }                // ERROR_FILE_NOT_FOUND
+ SHIM(RegCreateKeyExA) { if (ARG(c, 7)) P32(ARG(c, 7), 0x00060001); RET(c, 0, 9); }
+ SHIM(RegQueryValueExA) { RET(c, 2, 6); }
+@@ -144,9 +267,46 @@ SHIM(RegSetValueExA) { RET(c, 0, 6); }
+ SHIM(RegCloseKey) { RET(c, 0, 1); }
+ SHIM(GetUserNameA) { const char *u = "Player"; strcpy((char *)MEM + ARG(c, 0), u); P32(ARG(c, 1), 7); RET(c, 1, 2); }
+ 
++SHIM(GetUserNameW) {
++    static const uint16_t player[] = {'P', 'l', 'a', 'y', 'e', 'r', 0};
++    uint32_t output = ARG(c, 0);
++    uint32_t size = ARG(c, 1);
++    uint32_t capacity = G32(size);
++    P32(size, sizeof(player) / sizeof(player[0]));
++    if (!output || capacity < sizeof(player) / sizeof(player[0])) {
++        SETERR(122); // ERROR_INSUFFICIENT_BUFFER
++        RET(c, 0, 2);
++        return;
++    }
++    memcpy(MEM + output, player, sizeof(player));
++    RET(c, 1, 2);
++}
++
+ const char *host_game_dir(void);
+ 
+ // ---- shell32: special folders live under SKYRIM_USER_DIR / FNV_USER_DIR (or UserDocuments) ------
++SHIM(SHGetFolderPathW) {
++    uint32_t folder = ARG(c, 1) & 0xffu;
++    uint32_t output = ARG(c, 4);
++    const char *app_data = "C:\\Games\\ShootManyRobots\\UserDocuments\\LocalAppData";
++    if (!output || (folder != 0x1c && folder != 0x1a)) {
++        RET(c, 0x80070057u, 5); // E_INVALIDARG
++        return;
++    }
++
++    char path[1024];
++    host_path(app_data, path, sizeof(path));
++    if (mkdir(path, 0755) != 0 && errno != EEXIST) {
++        RET(c, 0x80004005u, 5); // E_FAIL
++        return;
++    }
++    for (size_t index = 0; index <= strlen(app_data); index++) {
++        uint16_t code_unit = (unsigned char)app_data[index];
++        memcpy(MEM + output + 2 * index, &code_unit, sizeof(code_unit));
++    }
++    RET(c, 0, 5);
++}
++
+ SHIM(SHGetFolderPathA) {
+     uint32_t csidl = ARG(c, 1) & 0xFFu;
+     const char *gd = host_game_dir();
+@@ -236,18 +396,21 @@ SHIM(CoCreateInstance) {
+ // ---- winmm -------------------------------------------------------------------------------------
+ SHIM(timeGetTime) { RET(c, (uint32_t)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000000ull), 0); }
+ 
++SHIM(waveOutGetNumDevs) { RET(c, 0, 0); }
++SHIM(waveInGetNumDevs) { RET(c, 0, 0); }
++
+ SHIM_TABLE(win_shims,
+     E(RegisterClassA) E(CreateWindowExA) E(DestroyWindow) E(ShowWindow) E(UpdateWindow) E(SetWindowPos)
+-    E(SetWindowTextA) E(GetWindowTextA) E(GetClassNameA) E(GetWindow) E(GetWindowLongA) E(GetClassLongA)
+-    E(EnumChildWindows) E(FindWindowA) E(GetActiveWindow) E(GetForegroundWindow) E(GetFocus) E(SetForegroundWindow) E(GetClientRect)
+-    E(AdjustWindowRect) E(AdjustWindowRectEx) E(GetSystemMetrics) E(EnumDisplayDevicesA) E(LoadIconA)
+-    E(LoadCursorA) E(ShowCursor) E(GetDoubleClickTime) E(SwapMouseButton) E(GetAsyncKeyState)
+-    E(GetKeyState) E(GetKeyboardLayout) E(MapVirtualKeyA) E(ToUnicode) E(GetCursorPos)
++    E(SetWindowTextA) E(GetWindowTextA) E(GetClassNameA) E(GetWindow) E(GetWindowLongA) E(SetWindowLongA) E(GetClassLongA)
++    E(EnumChildWindows) E(FindWindowA) E(GetDesktopWindow) E(GetProcessWindowStation) E(GetUserObjectInformationW) E(GetActiveWindow) E(GetForegroundWindow) E(GetFocus) E(SetForegroundWindow) E(ScreenToClient) E(ClientToScreen) E(GetClientRect)
++    E(AdjustWindowRect) E(AdjustWindowRectEx) E(GetSystemMetrics) E(EnumDisplayDevicesA) E(LoadImageA) E(LoadIconA)
++    E(LoadCursorA) E(SetCursor) E(ShowCursor) E(GetDoubleClickTime) E(SwapMouseButton) E(GetAsyncKeyState)
++    E(GetKeyState) E(GetKeyboardLayout) E(MapVirtualKeyA) E(ToUnicode) E(ClipCursor) E(SetCursorPos) E(GetCursorPos)
+     E(GetDlgItem) E(GetWindowInfo) E(SendInput)
+     E(SetWindowsHookExA) E(UnhookWindowsHookEx) E(CallNextHookEx) E(PeekMessageA) E(TranslateMessage)
+     E(DispatchMessageA) E(SendMessageA) E(DefWindowProcA) E(MessageBoxA) E(GetStockObject)
+-    E(CreateDCA) E(ExtEscape) E(DeleteDC)
+-    E(InitCommonControlsEx) E(ImageList_LoadImageA) E(ImageList_Destroy) E(RegOpenKeyExA) E(RegCreateKeyExA)
+-    E(RegQueryValueExA) E(RegSetValueExA) E(RegCloseKey) E(GetUserNameA) E(SHGetFolderPathA) E(ShellExecuteA)
++    E(GetDC) E(CreateDCA) E(ExtEscape) E(DeleteDC)
++    E(InitCommonControlsEx) E(ImageList_LoadImageA) E(ImageList_Destroy) E(RegOpenKeyA) E(RegOpenKeyExA) E(RegCreateKeyExA)
++    E(RegQueryValueExA) E(RegSetValueExA) E(RegCloseKey) E(GetUserNameA) E(GetUserNameW) E(SHGetFolderPathA) E(SHGetFolderPathW) E(ShellExecuteA)
+     E(CommandLineToArgvW) E(CoInitialize) E(CoInitializeEx) E(CoUninitialize) E(CoFreeUnusedLibraries)
+-    E(CoTaskMemAlloc) E(CoTaskMemFree) E(CoCreateInstance) E(timeGetTime))
++    E(CoTaskMemAlloc) E(CoTaskMemFree) E(CoCreateInstance) E(timeGetTime) E(waveOutGetNumDevs) E(waveInGetNumDevs))
+diff --git a/upstream/recomp/host/shims_wsock.c b/upstream/recomp/host/shims_wsock.c
+index af94cca..fcc626a 100644
+--- a/upstream/recomp/host/shims_wsock.c
++++ b/upstream/recomp/host/shims_wsock.c
+@@ -56,7 +56,7 @@ SHIM(gethostname) {
+ }
+ SHIM(__WSAFDIsSet) { RET(c, 0, 2); }
+ 
+-#define O(ord, fn) { "wsock32#" #ord, fn##_ },
++#define O(ord, fn) { "wsock32#" #ord, fn##_ }, { "ws2_32#" #ord, fn##_ },
+ SHIM_TABLE(wsock_shims,
+     O(1, accept) O(2, bind) O(3, closesocket) O(4, connect)
+     O(9, htons) O(10, inet_addr) O(11, inet_ntoa) O(12, ioctlsocket) O(13, listen)
