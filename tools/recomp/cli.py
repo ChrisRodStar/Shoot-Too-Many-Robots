@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import doctor, explain, run, status, verify
+from . import doctor, explain, promote, run, status, verify
 
 COMMANDS = {
     "status": status.main,
     "verify": verify.main,
     "run": run.main,
     "build": None,  # handled below
+    "promote": promote.main,
     "explain": explain.main,
     "clean": None,  # handled below
     "doctor": doctor.main,
@@ -67,18 +68,21 @@ usage: ./scripts/recomp <command> [options]
   status                 coverage, last run, last equivalence check, next action
   verify [addresses...]  offline native-vs-x86 differential test (no game launch)
   run [--to tutorial]    build (incrementally) and run the guest hands-free
+  promote [addresses]    make hot Unicorn fallbacks native, then verify + run
   build [--full]         rebuild the host only, with cache statistics
   explain <address>      original instructions, calls, generated C, last verdict
   clean [--all]          drop rebuildable caches (testlib, indexes, reports)
   doctor                 check local inputs and tools
 
 common examples:
-  ./scripts/recomp verify                     check the 189-entry startup subset
+  ./scripts/recomp verify                     check the startup subset
   ./scripts/recomp verify --changed           only what was recompiled since last time
   ./scripts/recomp verify --full              check every exported game function
   ./scripts/recomp verify 0x83ed3e --all      one function, full failure detail
   ./scripts/recomp verify --failures          re-run the last failures
   ./scripts/recomp explain 0x83ed3e            why did this one mismatch?
+  ./scripts/recomp promote --dry-run          what would become native?
+  ./scripts/recomp promote                    take the last run's fallbacks native
   ./scripts/recomp run --to tutorial          build + boot + summarize
   ./scripts/recomp run --to tutorial --full   same with all 46k functions native
   ./scripts/recomp build --full               rebuild only

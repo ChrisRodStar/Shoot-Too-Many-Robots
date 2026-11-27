@@ -44,6 +44,9 @@ class FullMemoryWorker(upstream.Worker):
 
     def __init__(self, exe, lib, regs):
         super().__init__(exe, lib, regs)
+        # The PE is packed and may write outside its declared writable sections.
+        # Reset the whole image (not just IMAGE_SCN_MEM_WRITE) for every trial.
+        self.pristine = {upstream.IMAGE_BASE: self.img}
         image_end = upstream.IMAGE_BASE + aligned(len(self.img))
         windows = [
             (0, upstream.IMAGE_BASE),
@@ -54,6 +57,7 @@ class FullMemoryWorker(upstream.Worker):
             (upstream.IAT_MAGIC + 0x10000, 1 << 32),
         ]
         self._gaps = []
+        self._libc = ctypes.CDLL(None)
         for base, end in windows:
             size = end - base
             if size <= 0:
@@ -67,7 +71,25 @@ class FullMemoryWorker(upstream.Worker):
                 print(f"recomp: could not map {base:#x}..{end:#x}: {exc}", file=sys.stderr)
                 buffer.close()
                 continue
-            self._gaps.append(buffer)
+            self._gaps.append((base, size, buffer))
+
+    def _reset_gaps(self):
+        """Drop pages touched by the previous trial.
+
+        The randomized regions are re-poked by every trial, but the full-memory
+        gaps are not: without this, a function that writes into guest heap space
+        leaves state for the next function, and native/x86 diverge for reasons
+        that have nothing to do with the translation.  MADV_DONTNEED zero-fills
+        anonymous pages lazily on both engines and costs ~2 ms for the full map.
+        """
+        for base, size, buffer in self._gaps:
+            buffer.madvise(mmap.MADV_DONTNEED)
+            if self.mem:
+                self._libc.madvise(ctypes.c_void_p(self.mem + base), ctypes.c_size_t(size), 4)
+
+    def trial(self, entry, rng):
+        self._reset_gaps()
+        return super().trial(entry, rng)
 
 
 # run_pool() respawns the interpreter with this module's __file__, and worker_main

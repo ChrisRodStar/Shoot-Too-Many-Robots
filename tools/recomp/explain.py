@@ -58,15 +58,15 @@ def generated_source(variant: str, address: int) -> tuple[Path | None, str]:
     return owner, "\n".join(lines)
 
 
-def last_verdict(address: int) -> tuple[str, str, str]:
+def last_verdict(address: int) -> tuple[str, dict]:
     for variant in ("entry", "full"):
         data = common.load_json(common.DEV / f"verify-{variant}-last.json", None)
         if not data:
             continue
         for item in data.get("results", []):
             if int(item["entry"]) == address:
-                return variant, item["verdict"], item.get("detail", "")
-    return "", "", ""
+                return variant, item
+    return "", {}
 
 
 def main(argv=None):
@@ -127,11 +127,9 @@ def main(argv=None):
             else:
                 print("    " + line)
 
-    variant, verdict, detail = last_verdict(address)
-    if verdict:
-        category, reason = verify.classify(
-            {"verdict": verdict, "detail": detail}, strict_harness=False
-        )
+    variant, result = last_verdict(address)
+    if result:
+        category, reason = verify.classify(result, strict_harness=False)
         print()
         print(f"  last verify {variant}: {category}" + (f" — {reason}" if reason else ""))
     print()

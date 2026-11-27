@@ -58,11 +58,13 @@ touched memory. `scripts/recomp verify` turns it into a usable inner loop.
 | Command | What it does | Typical time |
 | --- | --- | --- |
 | `./scripts/recomp status` | Coverage, fallbacks, last run, last verify, next action. | < 1 s |
-| `./scripts/recomp verify` | Native-vs-x86 check of the 189-entry startup subset. | 5–8 s |
+| `./scripts/recomp verify` | Native-vs-x86 check of the default startup subset. | 5–8 s |
 | `./scripts/recomp verify --changed` | Only translation units whose C changed since the last verify. | 1–6 s |
 | `./scripts/recomp verify --full --sample 100` | Seeded random sample of the 46k-function build. | ~10 s after the first full testlib build |
 | `./scripts/recomp verify --failures --all` | Re-run the last mismatches with full detail. | seconds |
 | `./scripts/recomp explain 0x83ed3e` | Instructions, call targets, generated C, last verdict. | < 1 s |
+| `./scripts/recomp promote --dry-run` | Show which fallbacks would become native. | ~15 s first time, then fast |
+| `./scripts/recomp promote` | Promote, verify, rebuild, and re-run the tutorial. | ~4 min |
 | `./scripts/recomp clean` | Drop rebuildable caches (testlib, indexes, reports). | < 1 s |
 | `./scripts/recomp run --to tutorial` | Incremental build + boot to the tutorial + summary + deltas. | 2–3 min (entry), ~1.5 min (full) |
 | `./scripts/recomp build --full` | Rebuild only, report cache hits. | varies |
@@ -110,6 +112,12 @@ cleanly on both sides. The instruction budget is lowered from 2M to 250k
 (`SMR_DIFF_BUDGET`) because a wild jump into zeroed memory would otherwise burn
 the full budget before being reported invalid.
 
+Every trial resets those gap pages on both engines (`MADV_DONTNEED`, ~2 ms for
+the whole map). Without that, a function that writes into guest heap space
+leaves state behind for the next function, and results depend on test order.
+That bug existed briefly in this harness and produced four phantom mismatches;
+fixing it turned them into passes.
+
 ## Reading the result
 
 | Category | Meaning | Action |
@@ -120,7 +128,13 @@ the full budget before being reported invalid.
 | `blocked:callee` | An indirect call reached an address that is not a native entry. | If the address is real game code, export/emit it; if it is random data, ignore. |
 | `blocked:fault` / `blocked:exception` / `blocked:budget` | The original x86 faults, traps or loops on randomized inputs. | Not a translation verdict. Prefer captured real inputs. |
 | `harness:cpuid` | `rt_cpuid()` deliberately reports a 2010-era SSE2 CPU; Unicorn answers the host CPU. | Known harness divergence, excluded by default. |
-| `fail` | A real state mismatch or native trap. | Investigate. `--all` shows the values. |
+| `harness:order` | The mismatch disappeared when the same entry was re-run alone in a fresh process. | Harness state leaked between functions, not a translation bug. |
+| `fail` | A real state mismatch or native trap that reproduces in isolation. | Investigate. `--all` shows the values. |
+
+Before a `fail` counts, `verify` re-runs that entry alone in a fresh process with
+the same seed. Real translation bugs reproduce; order-dependent harness leaks do
+not. `--no-confirm` skips this step, and `--strict-harness` counts both
+`harness:*` categories as failures.
 
 `harness:cpuid` currently catches the two `__get_sse2_info`-style helpers in the
 startup subset, which compare CPUID feature bits. They are not translation bugs:
@@ -210,9 +224,43 @@ Everything added by this tool lives under `work/recomp-dev/` (ignored by Git):
 
 The executable, DLLs, P-code, generated C and save data stay where they were.
 
+## Promoting hot fallbacks
+
+`./scripts/recomp promote` closes the loop the other way: it takes the
+`game.exe` addresses that fell back to Unicorn in the last run, adds them to the
+default native entry set, re-emits, verifies, rebuilds and re-runs the tutorial.
+
+```sh
+./scripts/recomp promote --dry-run      # preview
+./scripts/recomp promote                # do it
+./scripts/recomp promote 0x5c88f0 --no-closure
+```
+
+What it changes:
+
+- `work/smr-entrypoints.jsonl` — the P-code subset for the default build;
+- `work/smr-entry-generated/` — re-emitted C (previous copy kept under
+  `work/recomp-dev/backups/entry-*`);
+- `work/recomp-dev/entry-set.json` — the authoritative entry-address list.
+
+Safety gates:
+
+1. It only promotes addresses that exist as function entries in the P-code
+   export. Addresses missing from the export are reported and skipped.
+2. Direct callees are added unless `--no-closure` is given, so a promoted
+   function does not immediately fall back again. (For the current tutorial
+   roots this adds nothing: they are leaves.)
+3. `verify --changed` must pass before the host is rebuilt. On a real mismatch
+   the generated C is left in place but the host is not, and the backup path is
+   printed.
+4. The final re-run reports `game.exe fallbacks N -> M` and the fps delta.
+
+Promotion only affects game-exe code. Fallbacks inside `msvcr90`, `msvcp90`,
+PhysX, FMOD and friends remain; those need separate analysis and emission.
+
 ## What this does not solve (yet)
 
-- **Import-heavy functions.** About 147 of the 189 startup functions call a
+- **Import-heavy functions.** About 147 of the startup functions call a
   Windows API early, so isolated randomized testing cannot judge them. The next
   step is a captured-state replay: record the real guest registers, x87/XMM and
   stack/frame/TEB pages at a function entry during a scripted run, then replay

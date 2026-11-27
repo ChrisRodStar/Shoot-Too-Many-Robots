@@ -6,7 +6,7 @@
 # numbers are counted from that sync point.  That keeps the script independent
 # of startup timing and GPU shader-compile hitches.
 #
-# Title screen: ~150 draws.  Tutorial: ~500+ draws.  The default 189-entry
+# Title screen: ~150 draws.  Tutorial: ~500+ draws.  The default startup
 # build is slow because the tutorial's hot path falls back to Unicorn, so keep
 # the post-sync window short; use --full when fps matters.
 0 waitsteady 20 100

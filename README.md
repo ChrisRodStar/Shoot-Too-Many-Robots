@@ -37,6 +37,7 @@ Across the latest run (`run11`, 516 draws/frame, `ff-skipped 0`), the tutorial r
 ./scripts/recomp status                    # coverage, fallbacks, last run, next action
 ./scripts/recomp verify --changed          # native-vs-x86 check of what you just recompiled
 ./scripts/recomp verify --full --sample 100 # seeded sample of all 46k functions
+./scripts/recomp promote                   # make hot game.exe fallbacks native, then re-run
 ./scripts/recomp run --to tutorial         # hands-free build + boot + summary + deltas
 ```
 

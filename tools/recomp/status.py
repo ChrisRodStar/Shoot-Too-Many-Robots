@@ -118,27 +118,31 @@ def main(argv=None):
                 )
                 print(f"                skipped 0x{int(item.get('entry', 0)):x}: {reason}")
 
-    last_verify_path = common.DEV / "verify-entry-last.json"
-    if last_verify_path.is_file():
-        data = common.load_json(last_verify_path, {}) or {}
+    def verify_line(label, path):
+        data = common.load_json(path, None)
+        if not data:
+            return None
         summary = data.get("summary", {})
-        report["verify"]["entry"] = {"when": data.get("when"), "selection": data.get("selection"), "summary": summary}
-        print(
-            f"  verify (entry) {data.get('when', '?')} · "
-            f"{data.get('selection', 'all')} · "
-            + " · ".join(f"{k} {v}" for k, v in summary.items() if v)
-        )
-    full_verify_path = common.DEV / "verify-full-last.json"
-    if full_verify_path.is_file():
-        data = common.load_json(full_verify_path, {}) or {}
-        summary = data.get("summary", {})
-        report["verify"]["full"] = {"when": data.get("when"), "selection": data.get("selection"), "summary": summary}
-        if summary:
-            print(
-                f"  verify (full)  {data.get('when', '?')} · "
-                f"{data.get('selection', 'all')} · "
-                + " · ".join(f"{k} {v}" for k, v in summary.items() if v)
+        breakdown = data.get("breakdown")
+        if breakdown is None:
+            detail = " · ".join(f"{k} {v}" for k, v in summary.items() if v)
+        else:
+            blocked = sum(v for k, v in breakdown.items() if k.startswith("blocked"))
+            harness = sum(v for k, v in breakdown.items() if k.startswith("harness"))
+            real = sum(v for k, v in breakdown.items() if k.startswith("fail")) + breakdown.get("crash", 0)
+            detail = (
+                f"pass {summary.get('pass', 0)} · flags-only {summary.get('flags-only', 0)}"
+                f" · blocked {blocked} · harness {harness} · real {real}"
             )
+        report["verify"][label] = {"when": data.get("when"), "selection": data.get("selection"), "detail": detail}
+        print(
+            f"  verify ({label:<5}) {data.get('when', '?')} · {data.get('selection', 'all')} · {detail}"
+        )
+        return data
+
+    last_verify_path = common.DEV / "verify-entry-last.json"
+    verify_line("entry", last_verify_path)
+    verify_line("full", common.DEV / "verify-full-last.json")
     if run:
         perf = run.get("perf") or {}
         print()
@@ -213,8 +217,10 @@ def main(argv=None):
     if not last_verify_path.is_file():
         print("    ./scripts/recomp verify           # equivalence-check the startup subset offline")
     else:
-        summary = (common.load_json(last_verify_path, {}) or {}).get("summary", {})
-        if summary.get("fail") or summary.get("crash"):
+        data = common.load_json(last_verify_path, {}) or {}
+        breakdown = data.get("breakdown") or {}
+        real = sum(v for k, v in breakdown.items() if k.startswith("fail")) + breakdown.get("crash", 0)
+        if real:
             print("    ./scripts/recomp verify --failures --all")
         else:
             print("    ./scripts/recomp run --to tutorial   # hands-free boot to the tutorial")

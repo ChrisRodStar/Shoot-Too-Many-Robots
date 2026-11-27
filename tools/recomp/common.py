@@ -37,7 +37,7 @@ VARIANTS = {
         "generated": WORK / "smr-entry-generated",
         "build": WORK / "window-host",
         "cache": WORK / "startup-cache",
-        "description": "189-entry startup subset (fast, default)",
+        "description": "startup subset (fast, default)",
     },
     "full": {
         "generated": WORK / "smr-generated",

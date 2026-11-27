@@ -15,7 +15,7 @@ readable report and verdict classification.
 
 Typical use:
 
-    ./scripts/recomp verify                 # the 189-entry startup subset
+    ./scripts/recomp verify                 # the default startup subset
     ./scripts/recomp verify --full          # every exported game function
     ./scripts/recomp verify 0x83ed3e        # one function, useful after a fix
     ./scripts/recomp verify --failures      # re-run whatever failed last time
@@ -177,6 +177,12 @@ def classify(result: dict, strict_harness: bool = False) -> tuple[str, str]:
     """Turn a difftest result into a short category and a human explanation."""
     verdict = result["verdict"]
     detail = result.get("detail", "")
+    isolated = result.get("isolated") or {}
+    if verdict == "fail" and isolated and not strict_harness and (isolated.get("verdict") not in ("fail", "crash")):
+        return (
+            "harness:order",
+            "did not reproduce in a fresh process (order-dependent harness state)",
+        )
     if verdict == "pass":
         return verdict, ""
     if verdict == "flags-only":
@@ -212,6 +218,68 @@ def load_baseline(path: Path | None) -> dict[int, str]:
     if not data:
         return {}
     return {int(item["entry"]): item["verdict"] for item in data.get("results", [])}
+
+
+def run_harness(harness: Path, dylib: Path, out: Path, entries: list[int], trials: int, jobs: int, seed: int) -> dict:
+    cmd = [
+        common.python(),
+        str(harness),
+        str(common.EXE),
+        str(dylib),
+        str(common.REGS),
+        str(out),
+        "--trials", str(trials),
+        "--jobs", str(jobs),
+        "--seed", str(seed),
+        "--only", ",".join(f"{address:x}" for address in entries),
+    ]
+    common.run(cmd, timeout=3600)
+    return common.load_json(out, {}) or {}
+
+
+def confirm_in_isolation(harness: Path, variant: str, dylib: Path, results: list, args) -> list[int]:
+    """Re-run every suspected mismatch in a fresh process.
+
+    A real translation bug reproduces from the same seed in a clean process.  A
+    mismatch that disappears is harness state leaking between functions; the
+    result is kept as `isolated` and classified as `harness:order`.
+    """
+    suspects = [
+        item for item in results
+        if item["verdict"] in ("fail", "crash")
+        and (item["verdict"] == "crash" or classify(item, args.strict_harness)[0].startswith("fail"))
+    ]
+    if not suspects:
+        return []
+    out_dir = common.ensure_dev() / "isolated"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(
+        f"recomp verify: confirming {len(suspects)} suspect(s) in fresh processes",
+        file=sys.stderr,
+    )
+    cleared = []
+    for item in suspects:
+        entry = int(item["entry"])
+        report = run_harness(
+            harness,
+            dylib,
+            out_dir / f"{variant}-{entry:x}.json",
+            [entry],
+            args.trials,
+            1,
+            args.seed,
+        )
+        found = next(
+            (candidate for candidate in report.get("results", []) if int(candidate["entry"]) == entry),
+            {},
+        )
+        item["isolated"] = {
+            "verdict": found.get("verdict", "missing"),
+            "detail": found.get("detail", ""),
+        }
+        if found.get("verdict") not in ("fail", "crash"):
+            cleared.append(entry)
+    return cleared
 
 
 def print_report(variant, results, addresses, build_info, elapsed, baseline, show_all, strict_harness):
@@ -295,6 +363,11 @@ def main(argv=None):
     parser.add_argument("--sample", type=int, help="randomly sample this many functions (seeded)")
     parser.add_argument("--failures", action="store_true", help="re-run entries that failed last time")
     parser.add_argument("--strict", action="store_true", help="also fail on flags-only and blocked functions")
+    parser.add_argument(
+        "--no-confirm",
+        action="store_true",
+        help="do not re-run suspected mismatches in a fresh process",
+    )
     parser.add_argument(
         "--strict-harness",
         action="store_true",
@@ -409,6 +482,17 @@ def main(argv=None):
                 file=sys.stderr,
             )
 
+    if not args.no_confirm:
+        cleared = confirm_in_isolation(harness, variant, dylib, results, args)
+        if cleared and not args.quiet:
+            print(
+                "recomp verify: order-dependent only: "
+                + ", ".join(f"0x{address:x}" for address in cleared),
+                file=sys.stderr,
+            )
+        report["results"] = results
+        common.save_json(raw_path, report)
+
     baseline = load_baseline(args.baseline)
     counts = print_report(
         variant,
@@ -420,6 +504,11 @@ def main(argv=None):
         args.all,
         args.strict_harness,
     )
+    breakdown = {}
+    for item in results:
+        category, _ = classify(item, args.strict_harness)
+        if category != "pass":
+            breakdown[category] = breakdown.get(category, 0) + 1
 
     common.save_json(
         last_path,
@@ -430,6 +519,7 @@ def main(argv=None):
             "trials": args.trials,
             "selection": selection,
             "summary": counts,
+            "breakdown": breakdown,
             "results": results,
         },
     )

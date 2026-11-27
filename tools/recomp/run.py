@@ -182,7 +182,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         )
         print(f"  fallbacks       {len(parsed['fallback_roots'])} unique ({by_module})")
         if variant == "entry":
-            print("                  (the 189-entry build interprets the tutorial's hot path; use --full for fps)")
+            print("                  (the default build still interprets some paths; use --full for fps)")
         if parsed["fallback_exe"]:
             print(
                 "  game.exe gaps   "
