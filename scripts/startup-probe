@@ -19,11 +19,13 @@ for input in "$generated/table.c" "$boot/ShootManyRobots.exe" "$runtime/tools/st
     fi
 done
 
-patch="$project/patches/macos-startup-host.patch"
-if git -C "$runtime" apply --check "$patch" >/dev/null 2>&1; then
-    git -C "$runtime" apply "$patch"
-else
-    git -C "$runtime" apply --reverse --check "$patch"
+if [[ -d "$runtime/.git" ]]; then
+    patch="$project/patches/macos-startup-host.patch"
+    if git -C "$runtime" apply --check "$patch" >/dev/null 2>&1; then
+        git -C "$runtime" apply "$patch"
+    else
+        git -C "$runtime" apply --reverse --check "$patch"
+    fi
 fi
 cp "$project/runtime/msvcr90.c" "$runtime/upstream/recomp/host/smr_msvcr90.c"
 cp "$project/runtime/pe_modules.c" "$runtime/upstream/recomp/host/smr_pe_modules.c"

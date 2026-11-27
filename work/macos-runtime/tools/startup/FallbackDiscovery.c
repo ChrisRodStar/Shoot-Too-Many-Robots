@@ -1,0 +1,235 @@
+#include <stdbool.h>
+// Diagnostic-only copy from thetheoryofR/Fallout-NV-MacOS, MIT, pinned at
+// ff8e0d791e3e1f0148a2245c12c7706855e66926. See upstream/LICENSE.
+// This file is NEVER linked into the iPhone app. It collects missed entries on Mac.
+// x86 fallback interpreter. When dispatch finds no native function for a guest address (code that
+// static analysis missed, or code a plugin patched at runtime), the call runs in Unicorn instead,
+// on the SAME guest memory. Inside it, import thunks go to the native shims and calls into known
+// native functions jump back out to native code. Every fallback root is logged so the next
+// analysis pass can make it native.
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unicorn/unicorn.h>
+#include "host.h"
+
+extern int rt_has_fn(uint32_t a);
+#define MAXDEPTH 32
+// Leave room for guest calls made by native import shims.
+#define MAX_NATIVE_HANDOFF_DEPTH (MAXDEPTH / 2)
+static _Thread_local uc_engine *engines[MAXDEPTH];
+static _Thread_local int depth;
+static _Thread_local CPU *cur_cpu[MAXDEPTH];
+static _Thread_local uint32_t cur_root[MAXDEPTH];
+static _Thread_local uint32_t previous_pc[MAXDEPTH];
+static pthread_mutex_t evidence_lock=PTHREAD_MUTEX_INITIALIZER;
+static unsigned trace_count;
+
+static void trace_instruction(uc_engine *uc,uint64_t address,uint32_t size,void *unused) {
+    (void)unused;
+    if(!getenv("FNV_FALLBACK_TRACE") || !depth) return;
+    int d=depth-1;
+    uint32_t eax,ecx,edx,esp,ebp,flags;
+    uc_reg_read(uc,UC_X86_REG_EAX,&eax);uc_reg_read(uc,UC_X86_REG_ECX,&ecx);
+    uc_reg_read(uc,UC_X86_REG_EDX,&edx);uc_reg_read(uc,UC_X86_REG_ESP,&esp);
+    uc_reg_read(uc,UC_X86_REG_EBP,&ebp);uc_reg_read(uc,UC_X86_REG_EFLAGS,&flags);
+    pthread_mutex_lock(&evidence_lock);
+    if(trace_count++<50000) {
+        FILE *f=fopen("fallback-instructions.jsonl","a");
+        if(f) {
+            fprintf(f,"{\"root\":%u,\"pc\":%u,\"from_pc\":%u,\"size\":%u,\"eax\":%u,\"ecx\":%u,\"edx\":%u,\"esp\":%u,\"ebp\":%u,\"eflags\":%u,\"bytes\":\"",
+                cur_root[d],(uint32_t)address,previous_pc[d],size,eax,ecx,edx,esp,ebp,flags);
+            for(uint32_t i=0;i<size && i<15;i++) fprintf(f,"%02x",MEM[(uint32_t)address+i]);
+            fprintf(f,"\"}\n");fclose(f);
+        }
+    }
+    pthread_mutex_unlock(&evidence_lock);
+    previous_pc[d]=(uint32_t)address;
+}
+
+static void snapshot_root(CPU *c,uint32_t a) {
+    uint32_t sp=REG(c,R_ESP),bp=REG(c,20),teb=REG(c,272),source=0;
+#ifdef RT_CALLTRACE
+    extern _Thread_local uint32_t rt_ct_ring[256],rt_ct_pos;
+    if(rt_ct_pos) source=rt_ct_ring[(rt_ct_pos-1)&255];
+#endif
+    uint32_t frame=bp>=0x800 ? (bp-0x800)&~0xfffu : 0;
+    uint32_t stack=sp&~0xfffu;
+    char name[100];
+    snprintf(name,sizeof name,"fallback-%08x-state.json",a);
+    FILE *f=fopen(name,"w");
+    if(f) {
+        fprintf(f,"{\"root\":%u,\"source_entry\":%u,\"return_pc\":%u,\"saved_eip_approx\":%u,\"stack_base\":%u,\"frame_base\":%u,\"teb_base\":%u,\"region_size\":8192,\"gpr\":[",
+            a,source,sp<=0xfffffffbu?G32(sp):0,REG(c,644),stack,frame,teb);
+        for(int i=0;i<8;i++) fprintf(f,"%s%u",i?",":"",REG(c,4*i));
+        fprintf(f,"]}\n");fclose(f);
+    }
+    snprintf(name,sizeof name,"fallback-%08x-cpu.bin",a);
+    f=fopen(name,"wb");if(f){fwrite(c->r,1,sizeof c->r,f);fclose(f);}
+    uint32_t bases[]={stack,frame,teb};const char *kinds[]={"stack","frame","teb"};
+    for(int i=0;i<3;i++) if(bases[i]<=0xffffdfffu) {
+        snprintf(name,sizeof name,"fallback-%08x-%s.bin",a,kinds[i]);
+        f=fopen(name,"wb");if(f){fwrite(MEM+bases[i],1,8192,f);fclose(f);}
+    }
+    fprintf(stderr,"[fallback-root] target=%#x source_entry=%#x return_pc=%#x saved_eip_approx=%#x\n",a,source,sp<=0xfffffffbu?G32(sp):0,REG(c,644));
+}
+
+// Ghidra register-file offsets
+#define O_EFL_CF 512
+#define O_ST0 4352
+#define O_XMM0 4608
+#define O_FPUCW 4256
+#define O_C0 4240
+static const int gpr_uc[8] = {UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX,
+                              UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI};
+static const struct { int off, bit; } flag_bits[] = {{512, 0}, {514, 2}, {516, 4}, {518, 6}, {519, 7}, {522, 10}, {523, 11}};
+
+static void cpu_to_uc(CPU *c, uc_engine *uc) {
+    for (int i = 0; i < 8; i++) { uint32_t v = REG(c, 4 * i); uc_reg_write(uc, gpr_uc[i], &v); }
+    uint32_t efl = 2;
+    for (size_t i = 0; i < sizeof flag_bits / sizeof *flag_bits; i++) efl |= (uint32_t)(c->r[flag_bits[i].off] & 1) << flag_bits[i].bit;
+    uc_reg_write(uc, UC_X86_REG_EFLAGS, &efl);
+    uint32_t top = c->r[REG_TOP] & 7;
+    for (int i = 0; i < 8; i++) {
+        uint8_t f[16] = {0}; double d; memcpy(&d, c->r + O_ST0 + 16 * i, 8); f80_put(f, d);   // double -> 80-bit
+        uc_reg_write(uc, UC_X86_REG_FP0 + (int)((top + (uint32_t)i) & 7), f);
+    }
+    uint32_t sw = (top << 11) | ((uint32_t)(c->r[O_C0] & 1) << 8) | ((uint32_t)(c->r[O_C0 + 1] & 1) << 9) |
+                  ((uint32_t)(c->r[O_C0 + 2] & 1) << 10) | ((uint32_t)(c->r[O_C0 + 3] & 1) << 14);
+    uint32_t cw = (uint32_t)LD(c->r + O_FPUCW, 2), tag = 0;
+    uc_reg_write(uc, UC_X86_REG_FPSW, &sw); uc_reg_write(uc, UC_X86_REG_FPCW, &cw); uc_reg_write(uc, UC_X86_REG_FPTAG, &tag);
+    for (int i = 0; i < 8; i++) { uint64_t x[2]; memcpy(x, c->r + O_XMM0 + 64 * i, 16); uc_reg_write(uc, UC_X86_REG_XMM0 + i, x); }
+}
+
+static void uc_to_cpu(uc_engine *uc, CPU *c) {
+    for (int i = 0; i < 8; i++) { uint32_t v; uc_reg_read(uc, gpr_uc[i], &v); SETREG(c, 4 * i, v); }
+    uint32_t efl; uc_reg_read(uc, UC_X86_REG_EFLAGS, &efl);
+    for (size_t i = 0; i < sizeof flag_bits / sizeof *flag_bits; i++) c->r[flag_bits[i].off] = (efl >> flag_bits[i].bit) & 1;
+    uint32_t sw; uc_reg_read(uc, UC_X86_REG_FPSW, &sw);
+    uint32_t top = (sw >> 11) & 7;
+    c->r[REG_TOP] = (uint8_t)top;
+    c->r[O_C0] = (sw >> 8) & 1; c->r[O_C0 + 1] = (sw >> 9) & 1; c->r[O_C0 + 2] = (sw >> 10) & 1; c->r[O_C0 + 3] = (sw >> 14) & 1;
+    for (int i = 0; i < 8; i++) {
+        uint8_t f[16] = {0}; uc_reg_read(uc, UC_X86_REG_FP0 + (int)((top + (uint32_t)i) & 7), f);
+        double d = f80_get(f); memcpy(c->r + O_ST0 + 16 * i, &d, 8);
+    }
+    for (int i = 0; i < 8; i++) { uint64_t x[2]; uc_reg_read(uc, UC_X86_REG_XMM0 + i, x); memcpy(c->r + O_XMM0 + 64 * i, x, 16); }
+}
+
+// block hook: import thunks -> native shims; known native entries -> native code
+enum { RECENT_BLOCKS = 32 };
+typedef struct { uint32_t address, size; } GuestBlock;
+static _Thread_local GuestBlock recent_blocks[MAXDEPTH][RECENT_BLOCKS];
+static _Thread_local unsigned recent_count[MAXDEPTH];
+static _Thread_local uint32_t illegal_target[MAXDEPTH];
+static _Thread_local bool left_code[MAXDEPTH];
+bool smr_module_executable_address(uint32_t address);
+
+static bool executable_guest_address(uint32_t address) {
+    return (address >= host_text_start && address < host_text_end)
+        || smr_module_executable_address(address);
+}
+
+static _Thread_local uint32_t prev_end[MAXDEPTH];   // end address of the previous block, per engine
+
+static void on_block(uc_engine *uc, uint64_t address, uint32_t size, void *user) {
+    (void)user;
+    int d = depth - 1;
+    CPU *c = cur_cpu[d];
+    uint32_t a = (uint32_t)address;
+    uint32_t came_from = prev_end[d];
+    prev_end[d] = a + size;
+    int is_import = a >= IMPORT_THUNK_BASE && a < IMPORT_THUNK_BASE + 0x10000;
+    if (!is_import && !executable_guest_address(a)) {
+        left_code[d] = true;
+        illegal_target[d] = a;
+        uc_emu_stop(uc);
+        return;
+    }
+    recent_blocks[d][recent_count[d]++ % RECENT_BLOCKS] = (GuestBlock){a, size};
+    if (!is_import && (depth >= MAX_NATIVE_HANDOFF_DEPTH || a == cur_root[d] || !rt_has_fn(a))) return;
+    uint32_t esp; uc_reg_read(uc, UC_X86_REG_ESP, &esp);
+    uint32_t ret = G32(esp);
+    // Hand off to native code only when this block was entered by a CALL: then [ESP] is the
+    // address right after the calling block. A jump or fall-through into a native entry keeps
+    // interpreting (always correct, just slower) â€” treating it as a call would "return" to
+    // whatever value happens to sit on top of the stack.
+    if (!is_import && ret != came_from) return;
+    uc_to_cpu(uc, c);
+    if (is_import) rt_import_call(c, a);
+    else rt_call(c, a);                     // may itself fall back (nested engine)
+    cpu_to_uc(c, uc);
+    uc_reg_write(uc, UC_X86_REG_EIP, &ret);
+}
+
+static uc_engine *engine(CPU *c) {
+    if (engines[depth]) return engines[depth];
+    uc_engine *uc;
+    if (uc_open(UC_ARCH_X86, UC_MODE_32, &uc) != UC_ERR_OK) { fprintf(stderr, "[fallback] uc_open failed\n"); abort(); }
+    uc_err e = uc_mem_map_ptr(uc, 0, (size_t)1 << 32, UC_PROT_ALL, MEM);
+    if (e != UC_ERR_OK) { fprintf(stderr, "[fallback] map: %s\n", uc_strerror(e)); abort(); }
+    // GDT: flat 32-bit code/data + FS -> this thread's TEB (stored just past the TEB page)
+    uint32_t teb = REG(c, 272), gdt = teb + 0x1F00;
+    uint8_t table[32] = {0};
+    uint8_t code[8] = {0xFF, 0xFF, 0, 0, 0, 0x9B, 0xCF, 0}, data[8] = {0xFF, 0xFF, 0, 0, 0, 0x93, 0xCF, 0};
+    uint8_t fs[8] = {0xFF, 0x0F, (uint8_t)teb, (uint8_t)(teb >> 8), (uint8_t)(teb >> 16), 0x93, 0x40, (uint8_t)(teb >> 24)};
+    memcpy(table + 8, code, 8); memcpy(table + 16, data, 8); memcpy(table + 24, fs, 8);
+    memcpy(MEM + gdt, table, 32);
+    uc_x86_mmr g = {0, gdt, 31, 0};
+    uc_reg_write(uc, UC_X86_REG_GDTR, &g);
+    uint32_t sel = 1 << 3; uc_reg_write(uc, UC_X86_REG_CS, &sel);
+    sel = 2 << 3; uc_reg_write(uc, UC_X86_REG_SS, &sel); uc_reg_write(uc, UC_X86_REG_DS, &sel); uc_reg_write(uc, UC_X86_REG_ES, &sel);
+    sel = 3 << 3; uc_reg_write(uc, UC_X86_REG_FS, &sel);
+    uc_hook h; uc_hook_add(uc, &h, UC_HOOK_BLOCK, (void *)on_block, NULL, 1, 0);
+    if(getenv("FNV_FALLBACK_TRACE")) {
+        uc_hook instruction_hook;
+        uc_hook_add(uc,&instruction_hook,UC_HOOK_CODE,(void *)trace_instruction,NULL,1,0);
+    }
+    engines[depth] = uc;
+    return uc;
+}
+
+static int log_root(uint32_t a) {
+    static uint32_t seen[65536]; static int n;
+    for (int i = 0; i < n; i++) if (seen[i] == a) return 0;
+    if (n < 65536) seen[n++] = a;
+    FILE *f = fopen("fallback_entries.txt", "a");
+    if (f) { fprintf(f, "%#x\n", a); fclose(f); }
+    if (getenv("FNV_TRACE")) fprintf(stderr, "[fallback] interpreting %#x\n", a);
+    return 1;
+}
+
+void rt_fallback(CPU *c, uint32_t a) {
+    if (depth >= MAXDEPTH) {
+        fprintf(stderr, "[fallback] engine nesting limit %d reached at %#x\n", MAXDEPTH, a);
+        rt_trap(c, TRAP_NOFN, a);
+    }
+    if (!executable_guest_address(a)) rt_trap(c, TRAP_NOFN, a);
+    if(log_root(a)) snapshot_root(c,a);
+    uc_engine *uc = engine(c);
+    cur_cpu[depth] = c; cur_root[depth] = a; prev_end[depth] = 0;previous_pc[depth]=0;recent_count[depth]=0;left_code[depth]=false;
+    depth++;
+    uint32_t ret = G32(REG(c, R_ESP));      // the CALL already pushed it
+    cpu_to_uc(c, uc);
+    uc_err e = uc_emu_start(uc, a, ret, 0, 0);
+    depth--;
+    if (left_code[depth] || e != UC_ERR_OK) {
+        uint32_t eip;
+        if (left_code[depth])
+            eip = illegal_target[depth];
+        else
+            uc_reg_read(uc, UC_X86_REG_EIP, &eip);
+        uc_to_cpu(uc, c);
+        fprintf(stderr, "[fallback] %s at %#x (root %#x)\n",
+                left_code[depth] ? "left executable guest code" : uc_strerror(e), eip, a);
+        unsigned end = recent_count[depth];
+        unsigned start = end > RECENT_BLOCKS ? end - RECENT_BLOCKS : 0;
+        for (unsigned i = start; i < end; i++) {
+            GuestBlock block = recent_blocks[depth][i % RECENT_BLOCKS];
+            fprintf(stderr, "[fallback-block] %#x + %#x\n", block.address, block.size);
+        }
+        rt_trap(c, TRAP_NOFN, eip);
+    }
+    uc_to_cpu(uc, c);
+    // emulate the RET that brought us to `ret`: Unicorn stopped *at* ret with ESP already popped
+}

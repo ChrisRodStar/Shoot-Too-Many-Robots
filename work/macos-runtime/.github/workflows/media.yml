@@ -1,0 +1,56 @@
+name: Check native media and input
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Standard macOS runner image
+        type: choice
+        default: macos-15
+        options: [macos-15, macos-26, macos-15-intel, macos-26-intel]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  portable:
+    if: ${{ !endsWith(inputs.runner, '-intel') }}
+    uses: ./.github/workflows/portable.yml
+    with:
+      suite: media
+  media:
+    needs: portable
+    if: ${{ !endsWith(inputs.runner, '-intel') }}
+    runs-on: ${{ inputs.runner || 'macos-15' }}
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 tests/dshow_source_test.py --reference
+      - run: python3 tests/dshow_source_test.py
+      - run: python3 tools/fetch_codecs.py macos --out build/codecs-macos
+      - run: python3 tests/vorbis_bridge_test.py build/codecs-macos
+      - run: python3 tests/native_video_test.py
+      - run: python3 tests/movie_draw_test.py --reference
+      - run: python3 tests/movie_draw_test.py
+      - run: python3 tests/touch_settings_test.py
+      - run: python3 tests/touch_overlay_test.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FNV-touch-overlay-checks
+          path: build/touch-overlay-checks
+          if-no-files-found: ignore
+          retention-days: 3
+      - run: python3 tests/app_icon_test.py
+      - run: python3 tests/display_preferences_test.py --reference
+      - run: python3 tests/display_preferences_test.py
+      - run: python3 tools/fetch_codecs.py ios --out build/codecs-ios
+      - run: python3 tools/build.py host-check --codec-prefix build/codecs-ios
+      - run: python3 tools/startup_build.py --host-check --out build/startup
+  media-repairs-intel:
+    if: ${{ endsWith(inputs.runner, '-intel') }}
+    uses: ./.github/workflows/media-repair.yml
+    with:
+      runner: ${{ inputs.runner }}

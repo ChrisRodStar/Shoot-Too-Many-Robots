@@ -1,0 +1,12 @@
+build/
+__pycache__/
+*.ipa
+*.exe
+*.esm
+*.bsa
+*.jsonl
+gen/
+!upstream/recomp/host/gen/
+
+.DS_Store
+._*

@@ -247,9 +247,18 @@ index 601c243..26571cb 100644
                  '-Wl,-stack_size,0x1000000']
          subprocess.run([*link, '-o', str(binary)], check=True)
 diff --git a/upstream/recomp/host/d3d9.c b/upstream/recomp/host/d3d9.c
-index 86010c1..d97ff63 100644
+index 86010c1..5b38f20 100644
 --- a/upstream/recomp/host/d3d9.c
 +++ b/upstream/recomp/host/d3d9.c
+@@ -243,7 +243,7 @@ static const Ov surf_ov[] = {
+ 
+ // ---- textures (2D, cube) -------------------------------------------------------------------------
+ // fields: 0 width, 1 height/edge, 2 levels, 3 format, 4 usage, 5 pool, 6 surfaces array ptr (levels*faces)
+-enum { T_W, T_H, T_LEVELS, T_FMT, T_USAGE, T_POOL, T_SURFS, T_FACES, T_LOD, T_DIRTY, T_HOST, T_NF };
++enum { T_W, T_H, T_LEVELS, T_FMT, T_USAGE, T_POOL, T_SURFS, T_FACES, T_LOD, T_DIRTY, T_HOST, T_DEPTH, T_NF };
+ void d3d9_texture_check(uint32_t tex,uint32_t caller,const char *stage);
+ extern D3DState g_d3d;
+ static uint32_t new_texture(uint32_t dev, int kind, uint32_t w, uint32_t h, uint32_t levels, uint32_t usage, uint32_t fmt, uint32_t pool) {
 @@ -472,6 +472,8 @@ static void present_guest(CPU *c, unsigned arguments, const char *interface) {
      if (first) fprintf(stderr,"[checkpoint] first Present entered interface=%s guest_return=%#x\n",interface,caller);
      d3d_backend_present(&g_d3d); reap(); RET(c, 0, arguments);
@@ -259,6 +268,194 @@ index 86010c1..d97ff63 100644
  }
  static void Swap_Present(CPU *c) { present_guest(c, 6, "swapchain"); }
  static void Swap_GetDisplayMode(CPU *c) { uint32_t m = ARG(c, 1); P32(m, g_d3d.width); P32(m + 4, g_d3d.height); P32(m + 8, 60); P32(m + 12, 22); RET(c, 0, 2); }
+@@ -505,8 +507,9 @@ static void Dev_CreateTexture(CPU *c) {
+     P32(ARG(c, 7), t); RET(c, 0, 9);
+ }
+ static void Dev_CreateVolumeTexture(CPU *c) {
+-    // rare in FNV; a 2D stand-in with depth folded into height keeps the object usable
+-    uint32_t t = new_texture(COM_THIS(c), K_TEX, ARG(c, 1), ARG(c, 2) * ARG(c, 3), ARG(c, 4), ARG(c, 5), ARG(c, 6), ARG(c, 7));
++    uint32_t d = ARG(c, 3);
++    uint32_t t = new_texture(COM_THIS(c), K_TEX, ARG(c, 1), ARG(c, 2) * (d ? d : 1), ARG(c, 4), ARG(c, 5), ARG(c, 6), ARG(c, 7));
++    P32(OBJ_F(t, T_DEPTH), d ? d : 1);
+     P32(ARG(c, 8), t); RET(c, 0, 10);
+ }
+ static void Dev_CreateCubeTexture(CPU *c) {
+diff --git a/upstream/recomp/host/d3d9_metal.m b/upstream/recomp/host/d3d9_metal.m
+index d4e2b89..d1d30ae 100644
+--- a/upstream/recomp/host/d3d9_metal.m
++++ b/upstream/recomp/host/d3d9_metal.m
+@@ -38,7 +38,7 @@
+ #define OBJ_F(o, i) ((o) + 16 + 4 * (i))
+ enum { K_TEX = 1, K_CUBE, K_VOL, K_SURF, K_VB, K_IB, K_DECL, K_VS, K_PS };
+ enum { S_W, S_H, S_FMT, S_USAGE, S_POOL, S_DATA, S_PITCH, S_CONT, S_MS, S_LEVEL, S_DIRTY, S_HOST };
+-enum { T_W, T_H, T_LEVELS, T_FMT, T_USAGE, T_POOL, T_SURFS, T_FACES, T_LOD, T_DIRTY, T_HOST };
++enum { T_W, T_H, T_LEVELS, T_FMT, T_USAGE, T_POOL, T_SURFS, T_FACES, T_LOD, T_DIRTY, T_HOST, T_DEPTH };
+ enum { B_LEN, B_USAGE, B_FMT, B_POOL, B_DATA, B_HOST, B_DIRTY, B_UPS };
+ #define FCC(a, b, c_, d) ((uint32_t)(a) | ((uint32_t)(b) << 8) | ((uint32_t)(c_) << 16) | ((uint32_t)(d) << 24))
+ 
+@@ -178,23 +178,30 @@ static Fmt fmt_map(uint32_t f) {
+ // ---- textures ---------------------------------------------------------------------------------------
+ @interface HTex : NSObject
+ @property(nonatomic, strong) id<MTLTexture> tex, view;   // view: swizzled / for sampling
+-@property(nonatomic) uint32_t fmt, w, h, levels, faces, ms;
++@property(nonatomic) uint32_t fmt, w, h, d, levels, faces, ms;
+ @end
+ @implementation HTex
+ @end
+ 
+-static HTex *make_tex(uint32_t fmt, uint32_t w, uint32_t h, uint32_t levels, uint32_t faces, uint32_t ms, int rt) {
++static HTex *make_tex(uint32_t fmt, uint32_t w, uint32_t h, uint32_t d3d_depth, uint32_t levels, uint32_t faces, uint32_t ms, int rt) {
+     Fmt f = fmt_map(fmt);
+     if (f.pf == MTLPixelFormatInvalid) return nil;
+     MTLTextureDescriptor *d = [MTLTextureDescriptor new];
+-    d.pixelFormat = f.pf; d.width = w ? w : 1; d.height = h ? h : 1; d.mipmapLevelCount = levels ? levels : 1;
+-    d.textureType = faces == 6 ? MTLTextureTypeCube : MTLTextureType2D;
+-    if (ms > 1 && faces == 1) { d.textureType = MTLTextureType2DMultisample; d.sampleCount = ms; d.mipmapLevelCount = 1; }
++    d.pixelFormat = f.pf; d.width = w ? w : 1; d.mipmapLevelCount = levels ? levels : 1;
++    if (d3d_depth > 0) {
++        d.textureType = MTLTextureType3D;
++        d.height = (h / d3d_depth) ? (h / d3d_depth) : 1;
++        d.depth = d3d_depth;
++    } else {
++        d.height = h ? h : 1;
++        d.textureType = faces == 6 ? MTLTextureTypeCube : MTLTextureType2D;
++    }
++    if (ms > 1 && faces == 1 && d3d_depth == 0) { d.textureType = MTLTextureType2DMultisample; d.sampleCount = ms; d.mipmapLevelCount = 1; }
+     d.usage = MTLTextureUsageShaderRead | (rt || is_depth_fmt(fmt) ? MTLTextureUsageRenderTarget : 0) | MTLTextureUsagePixelFormatView;
+     d.storageMode = (rt || is_depth_fmt(fmt) || ms > 1) ? MTLStorageModePrivate : MTLStorageModeShared;
+     HTex *t = [HTex new];
+     t.tex = [dev newTextureWithDescriptor:d];
+-    t.fmt = fmt; t.w = w; t.h = h; t.levels = (uint32_t)d.mipmapLevelCount; t.faces = faces; t.ms = ms;
++    t.fmt = fmt; t.w = w; t.h = (uint32_t)d.height; t.d = d3d_depth; t.levels = (uint32_t)d.mipmapLevelCount; t.faces = faces; t.ms = ms;
+     t.view = f.has_sw && ms <= 1 ? [t.tex newTextureViewWithPixelFormat:f.pf textureType:d.textureType levels:NSMakeRange(0, t.levels)
+                                                                 slices:NSMakeRange(0, faces) swizzle:f.sw] : t.tex;
+     return t;
+@@ -217,6 +224,12 @@ static void upload_level(HTex *t, uint32_t surf, uint32_t face, uint32_t level)
+                        bytesPerRow:w * 4 bytesPerImage:(size_t)w * 4 * h];
+             free(px);
+         }
++    } else if (bytes && t.d > 0) {
++        uint32_t td = t.d >> level; if (!td) td = 1;
++        uint32_t th = (h / td) ? (h / td) : 1;
++        uint32_t rslice = blk ? (th + 3) / 4 : th;
++        [t.tex replaceRegion:MTLRegionMake3D(0, 0, 0, w, th, td) mipmapLevel:level slice:0 withBytes:bytes
++                   bytesPerRow:pitch bytesPerImage:pitch * rslice];
+     } else if (bytes) [t.tex replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:level slice:face withBytes:bytes
+                        bytesPerRow:pitch bytesPerImage:pitch * rows];
+     d3d_surf_end();
+@@ -231,14 +244,14 @@ static void upload_level(HTex *t, uint32_t surf, uint32_t face, uint32_t level)
+     HTex *t = (__bridge HTex *)host_get(o);     // strong: the creation path below assigns new objects to it
+     if (!t) {
+         if (kind == K_TEX || kind == K_CUBE) {
+-            t = make_tex(G32(OBJ_F(o, T_FMT)), G32(OBJ_F(o, T_W)), G32(OBJ_F(o, T_H)), G32(OBJ_F(o, T_LEVELS)), G32(OBJ_F(o, T_FACES)), 1,
++            t = make_tex(G32(OBJ_F(o, T_FMT)), G32(OBJ_F(o, T_W)), G32(OBJ_F(o, T_H)), G32(OBJ_F(o, T_DEPTH)), G32(OBJ_F(o, T_LEVELS)), G32(OBJ_F(o, T_FACES)), 1,
+                          (G32(OBJ_F(o, T_USAGE)) & 3) != 0);
+             if (!t) return nil;
+             host_set(o, t);
+             P32(OBJ_F(o, T_DIRTY), 1);
+             for (uint32_t i = 0; i < t.levels * t.faces; i++) P32(OBJ_F(G32(G32(OBJ_F(o, T_SURFS)) + 4 * i), S_DIRTY), 1);
+         } else if (kind == K_SURF) {
+-            t = make_tex(G32(OBJ_F(o, S_FMT)), G32(OBJ_F(o, S_W)), G32(OBJ_F(o, S_H)), 1, 1, G32(OBJ_F(o, S_MS)) > 1 ? G32(OBJ_F(o, S_MS)) : 1,
++            t = make_tex(G32(OBJ_F(o, S_FMT)), G32(OBJ_F(o, S_W)), G32(OBJ_F(o, S_H)), 0, 1, 1, G32(OBJ_F(o, S_MS)) > 1 ? G32(OBJ_F(o, S_MS)) : 1,
+                          (G32(OBJ_F(o, S_USAGE)) & 3) != 0);
+             if (!t) return nil;
+             host_set(o, t);
+@@ -614,7 +627,11 @@ static uint32_t decl_streams(D3DState *s) {
+ 
+ static int setup_draw(D3DState *s) {
+     int screen=screen_fvf(s);
+-    if ((!s->vs || !s->ps) && !screen) {
++    // The guest supplies a vertex shader for stencil/depth operations with color writes disabled.
++    int depth_only = !screen && s->vs && !s->ps && s->decl && s->ds && !s->rs[15] &&
++        !(s->rt[0] && s->rs[168]) && !(s->rt[1] && s->rs[190]) &&
++        !(s->rt[2] && s->rs[191]) && !(s->rt[3] && s->rs[192]);
++    if ((!s->vs || (!s->ps && !depth_only)) && !screen) {
+         if(ff_skipped++<8)fprintf(stderr,"[metal] unsupported fixed draw fvf=%#x stride=%u vs=%#x ps=%#x color=%u/%u/%u alpha=%u/%u/%u next=%u\n",
+             s->fvf,s->stream_stride[0],s->vs,s->ps,s->tss[0][1],s->tss[0][2],s->tss[0][3],s->tss[0][4],s->tss[0][5],s->tss[0][6],s->tss[1][1]);
+         return 0;
+@@ -654,18 +671,20 @@ static int setup_draw(D3DState *s) {
+         if (!memcmp(&e->k, &k, sizeof k)) { pe = e; break; }
+     }
+     if (!pe) return 0;
+-    __unsafe_unretained HShader *vs = screen?screen_shader(0):host_shader(s->vs), *ps = screen?screen_shader(1):host_shader(s->ps);
+-    if (!vs || !ps) return 0;
++    __unsafe_unretained HShader *vs = screen?screen_shader(0):host_shader(s->vs), *ps = screen?screen_shader(1):(depth_only?nil:host_shader(s->ps));
++    if (!vs || (!ps && !depth_only)) return 0;
+     if (!pe->pso) {
+         // miss: link the stages, translate/compile, describe vertices, build the pipeline
+         uint16_t extra[16]; int ne = 0;
+-        for (int i = 0; i < ps->info.n_io; i++) {
+-            int found = 0;
+-            for (int j = 0; j < vs->info.n_io; j++) if (vs->info.io_keys[j] == ps->info.io_keys[i]) found = 1;
+-            if (!found && ne < 16) extra[ne++] = ps->info.io_keys[i];
++        if (ps) {
++            for (int i = 0; i < ps->info.n_io; i++) {
++                int found = 0;
++                for (int j = 0; j < vs->info.n_io; j++) if (vs->info.io_keys[j] == ps->info.io_keys[i]) found = 1;
++                if (!found && ne < 16) extra[ne++] = ps->info.io_keys[i];
++            }
+         }
+-        id<MTLFunction> vf = screen?screen_function(0):shader_fn(s->vs, vs, extra, ne, 0), pf = screen?screen_function(1):shader_fn(s->ps, ps, NULL, 0, k.depth_mask);
+-        if (!vf || !pf) return 0;
++        id<MTLFunction> vf = screen?screen_function(0):shader_fn(s->vs, vs, extra, ne, 0), pf = screen?screen_function(1):(depth_only?nil:shader_fn(s->ps, ps, NULL, 0, k.depth_mask));
++        if (!vf || (!pf && !depth_only)) return 0;
+         NSMutableString *unused = [NSMutableString string];
+         uint32_t streams;
+         SMInfo vi = vs->info;
+@@ -764,7 +783,7 @@ static int setup_draw(D3DState *s) {
+     // constants: re-upload only what changed since the last draw in this frame's ring
+     // only the registers the bound shaders read (max_const from reflection); re-upload when the game
+     // changed constants, the ring rotated, or this shader reads past what the last upload covered
+-    uint32_t vn = (uint32_t)(vs->info.max_const + 1), pn = (uint32_t)(ps->info.max_const + 1);
++    uint32_t vn = (uint32_t)(vs->info.max_const + 1), pn = ps ? (uint32_t)(ps->info.max_const + 1) : 0;
+     if (vn > 256) vn = 256;
+     if (pn > 224) pn = 224;
+     if (s->vsc_dirty || last_ring_for_consts != ring_idx || vn > last_vs_n) {
+@@ -780,6 +799,7 @@ static int setup_draw(D3DState *s) {
+     float vsys[4] = {s->viewport[2] ? 1.0f / (float)s->viewport[2] : 0, s->viewport[3] ? -1.0f / (float)s->viewport[3] : 0, 0, 0};
+     if(screen)for(unsigned i=0;i<4;i++)vsys[i]=(float)s->viewport[i];
+     ec_vbytes(vsys, sizeof vsys, 23);
++    if (ps) {
+     ec_fbuf(ring[ring_idx], last_ps_off, 0);
+     ec_fbytes(s->psi, sizeof s->psi, 1);
+     ec_fbytes(s->psb, sizeof s->psb, 2);
+@@ -796,7 +816,7 @@ static int setup_draw(D3DState *s) {
+     _Static_assert(sizeof psys <= 256, "psys");
+     ec_fbytes(&psys, sizeof psys, 3);
+ 
+-    static id<MTLTexture> dummy_tex, dummy_dtex;
++    static id<MTLTexture> dummy_tex, dummy_dtex, dummy_3d;
+     for (int i = 0; i < 16; i++) {
+         if (!(ps->info.samplers & (1u << i))) continue;
+         __unsafe_unretained HTex *t = host_tex(s->tex[i]);
+@@ -822,6 +842,19 @@ static int setup_draw(D3DState *s) {
+             }
+             tv = dummy_tex;
+         }
++        if (ps->info.sampler_dim[i] == 4 && tv.textureType != MTLTextureType3D) {
++            if (!dummy_3d) {
++                MTLTextureDescriptor *d3 = [MTLTextureDescriptor new];
++                d3.textureType = MTLTextureType3D; d3.pixelFormat = MTLPixelFormatBGRA8Unorm;
++                d3.width = 2; d3.height = 2; d3.depth = 2; d3.usage = MTLTextureUsageShaderRead; d3.storageMode = MTLStorageModeShared;
++                dummy_3d = [dev newTextureWithDescriptor:d3];
++                uint32_t lut[8];
++                for (int z = 0; z < 2; z++) for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++)
++                    lut[z*4 + y*2 + x] = 0xFF000000u | (x ? 0xFF0000u : 0) | (y ? 0x00FF00u : 0) | (z ? 0x0000FFu : 0);
++                [dummy_3d replaceRegion:MTLRegionMake3D(0, 0, 0, 2, 2, 2) mipmapLevel:0 slice:0 withBytes:lut bytesPerRow:8 bytesPerImage:16];
++            }
++            tv = dummy_3d;
++        }
+         if (ec.ftex[i] != tv) { [enc setFragmentTexture:tv atIndex:i]; ec.ftex[i] = tv; }
+         id<MTLSamplerState> sm = sampler(s, i, 0);
+         if (ec.fsamp[i] != sm) { [enc setFragmentSamplerState:sm atIndex:i]; ec.fsamp[i] = sm; }
+@@ -831,6 +864,7 @@ static int setup_draw(D3DState *s) {
+             if (ec.fsamp[i + 16] != sc2) { [enc setFragmentSamplerState:sc2 atIndex:i + 16]; ec.fsamp[i + 16] = sc2; }
+         }
+ #endif
++    }
+     }
+     for (int i = 0; i < 4; i++) {
+         if (!(vs->info.samplers & (1u << i))) continue;
 diff --git a/upstream/recomp/host/dinput.c b/upstream/recomp/host/dinput.c
 index f0eb571..75ddf82 100644
 --- a/upstream/recomp/host/dinput.c
@@ -305,6 +502,21 @@ index f0eb571..75ddf82 100644
 +    {"XInputSetState", XInputSetState_}, {"XInputGetCapabilities", XInputGetCapabilities_},
 +    {"xinput1_3#5", XInputEnable_}, {"XInputEnable", XInputEnable_}
 +}, 8 };
+diff --git a/upstream/recomp/host/gheap.c b/upstream/recomp/host/gheap.c
+index 5dd8b7f..a54aa14 100644
+--- a/upstream/recomp/host/gheap.c
++++ b/upstream/recomp/host/gheap.c
+@@ -10,8 +10,8 @@ static pthread_mutex_t hl = PTHREAD_MUTEX_INITIALIZER;
+ #define L pthread_mutex_lock(&hl)
+ #define UL pthread_mutex_unlock(&hl)
+ 
+-#define HEAP_LO 0x40000000u
+-#define HEAP_HI 0xF0000000u
++#define HEAP_LO 0x18000000u
++#define HEAP_HI 0x40000000u
+ #define HDR 16                       // [size:4][class:4][pad:8] before every block (16-aligned)
+ #define NCLASS 20                    // 16 B .. 8 MB
+ static uint32_t brk_ = HEAP_LO;
 diff --git a/upstream/recomp/host/host.c b/upstream/recomp/host/host.c
 index 03f5794..101bdfc 100644
 --- a/upstream/recomp/host/host.c
@@ -1099,3 +1311,17 @@ index af94cca..fcc626a 100644
  SHIM_TABLE(wsock_shims,
      O(1, accept) O(2, bind) O(3, closesocket) O(4, connect)
      O(9, htons) O(10, inet_addr) O(11, inet_ntoa) O(12, ioctlsocket) O(13, listen)
+diff --git a/upstream/recomp/rt.h b/upstream/recomp/rt.h
+index d87654c..ca3fb69 100644
+--- a/upstream/recomp/rt.h
++++ b/upstream/recomp/rt.h
+@@ -155,6 +155,9 @@ static inline U DIVPS(U a, U b) { U r = a; for (int i = 0; i < 4; i++) r = SETF(
+ static inline U RSQRTPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, 1.0f / sqrtf(LANEF(s, i))); return r; }
+ static inline U RCPPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, 1.0f / LANEF(s, i)); return r; }
+ static inline U RSQRTSS(U d, U s) { return SETF(d, 0, 1.0f / sqrtf(LANEF(s, 0))); }
++static inline U SQRTPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, sqrtf(LANEF(s, i))); return r; }
++// MMX PSHUFW: each 16-bit result word i is source word (imm >> 2i) & 3 (64-bit register, upper bits zero).
++static inline U PSHUFW(U s, U imm) { U r = 0; for (int i = 0; i < 4; i++) r |= (U)(uint16_t)(s >> (16 * ((imm >> (2 * i)) & 3))) << (16 * i); return r; }
+ static inline U PADDUSW(U a, U b) { U r = 0; for (int i = 0; i < 8; i++) { uint32_t x = (uint32_t)(a >> (16 * i)) & 0xffff, y = (uint32_t)(b >> (16 * i)) & 0xffff, z = x + y; r |= (U)(z > 0xffff ? 0xffff : z) << (16 * i); } return r; }
+ 
+ // ---- fast path (narrow values, cached registers) ----------------------------------------------

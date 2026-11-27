@@ -1,0 +1,576 @@
+// kernel32 (and friends) shims, grown one trap at a time. Each shim reads its arguments from the
+// guest stack, does the work natively, sets EAX and pops like the real stdcall export.
+#include <mach/mach_time.h>
+#include <stdbool.h>
+#include <pthread.h>
+#include <sched.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
+#include "host.h"
+
+const char *host_saved_cmdline;
+_Thread_local uint32_t host_last_error;
+#define last_error host_last_error
+static uint32_t cmdline_a, cmdline_w;
+static uint32_t teb_main;
+static const char *game_binary_directory = "";
+
+#ifdef FNV_GAME_SKYRIM
+static char g_exe_name[128] = "TESV.exe";
+static char g_game_dir[64] = "Skyrim";
+#elif defined(FNV_GAME_FALLOUT3)
+static char g_exe_name[128] = "Fallout3.exe";
+static char g_game_dir[64] = "Fallout3";
+#else
+static char g_exe_name[128] = "FalloutNV.exe";
+static char g_game_dir[64] = "FalloutNV";
+#endif
+
+const char *host_exe_name(void) { return g_exe_name; }
+const char *host_game_dir(void) { return g_game_dir; }
+
+void host_init_args(int argc, char **argv) {
+    if (argc > 0 && argv[0] && argv[0][0]) {
+        const char *slash = strrchr(argv[0], '/');
+        const char *bslash = strrchr(argv[0], '\\');
+        const char *base = slash > bslash ? slash + 1 : (bslash ? bslash + 1 : argv[0]);
+        snprintf(g_exe_name, sizeof g_exe_name, "%s", base);
+        snprintf(g_game_dir, sizeof g_game_dir, "%s",
+                 strcasecmp(g_exe_name, "Fallout3.exe") == 0 ? "Fallout3"
+                 : strcasecmp(g_exe_name, "TESV.exe") == 0 ? "Skyrim"
+                 : strcasecmp(g_exe_name, "ShootManyRobots.exe") == 0 ? "ShootManyRobots"
+                 : "FalloutNV");
+        game_binary_directory = !strcmp(g_game_dir, "ShootManyRobots") ? "Binaries\\" : "";
+    }
+    char buf[4096];
+    snprintf(buf, sizeof buf, "%s", g_exe_name);
+    for (int i = 1; i < argc; i++) { strncat(buf, " ", sizeof buf - strlen(buf) - 1); strncat(buf, argv[i], sizeof buf - strlen(buf) - 1); }
+    // allocated lazily (heap needs MEM); stash in a static until first use
+    static char saved[4096];
+    memcpy(saved, buf, sizeof saved);
+    cmdline_a = 0;
+    host_saved_cmdline = saved;
+}
+
+// ---- thread / TEB ----------------------------------------------------------------------------
+#define TLS_SLOTS 64
+// Dynamic TLS (TlsAlloc) lives in the TEB's 64 inline slots at +0xE10. Slots must be reusable: the
+// engine frees and reallocates 8 slots on every save load, so without reuse they run out on the 5th
+// load, TlsAlloc returns TLS_OUT_OF_INDEXES and the task queue's hazard-pointer context breaks
+// (TRAP at 0xc3dd68 or an endless loop under g_6662a0). Like Windows, a newly allocated slot reads
+// as 0 on every thread, so it is cleared in every TEB. TEB pages are never freed, which keeps the
+// TEB list valid for threads that have already exited.
+static pthread_mutex_t tls_mu = PTHREAD_MUTEX_INITIALIZER;
+static uint8_t tls_used[TLS_SLOTS];
+static uint32_t *tls_tebs;
+static size_t tls_nteb, tls_cap;
+static void tls_register_teb(uint32_t teb) {
+    pthread_mutex_lock(&tls_mu);
+    if (tls_nteb == tls_cap) {
+        size_t cap = tls_cap ? tls_cap * 2 : 64;
+        uint32_t *n = realloc(tls_tebs, cap * sizeof *n);
+        if (!n) { pthread_mutex_unlock(&tls_mu); fprintf(stderr, "[tls] out of memory registering TEB\n"); abort(); }
+        tls_tebs = n; tls_cap = cap;
+    }
+    tls_tebs[tls_nteb++] = teb;
+    pthread_mutex_unlock(&tls_mu);
+}
+void host_thread_init(CPU *c, uint32_t stack_size) {
+    uint32_t stack = gpages(stack_size);
+    uint32_t teb = gpages(0x2000);
+    P32(teb + 0x00, 0xFFFFFFFFu);              // SEH chain end
+    P32(teb + 0x04, stack + stack_size);       // stack top
+    P32(teb + 0x08, stack);                    // stack limit
+    P32(teb + 0x18, teb);                      // self
+    P32(teb + 0x20, (uint32_t)getpid());       // ClientId.UniqueProcess
+    static uint32_t next_tid = 1;
+    P32(teb + 0x24, __atomic_fetch_add(&next_tid, 1, __ATOMIC_RELAXED));   // ClientId.UniqueThread
+    P32(teb + 0x2C, teb + 0x1000);             // ThreadLocalStoragePointer (static TLS array)
+    if (host_tls_template) {                   // this thread's copy of the static TLS block, slot 0
+        uint32_t blk = gmalloc(host_tls_block_size ? host_tls_block_size : 4);
+        memcpy(MEM + blk, host_tls_template, host_tls_template_size);
+        P32(teb + 0x1000, blk);
+    }
+    P32(teb + 0x30, gpages(0x1000));           // PEB
+    SETREG(c, 272, teb);                       // FS_OFFSET
+    SETREG(c, R_ESP, stack + stack_size - 64);
+    { uint16_t fcw = 0x037Fu; uint32_t mxcsr = 0x1F80u; memcpy(c->r + 4256, &fcw, 2); memcpy(c->r + 4244, &mxcsr, 4); }
+    if (!teb_main) teb_main = teb;
+    tls_register_teb(teb);
+}
+
+// ---- shims -----------------------------------------------------------------------------------
+#define SHIM(n) static void n(CPU *c)
+
+SHIM(GetLastError_) { RET(c, last_error, 0); }
+SHIM(SetLastError_) { last_error = ARG(c, 0); RET(c, 0, 1); }
+SHIM(GetVersion_) { RET(c, 0x0A280105u, 0); }            // "Windows XP SP2-ish": 5.1 build 2600
+SHIM(GetVersionExA_) {
+    uint32_t v = ARG(c, 0);
+    P32(v + 4, 5); P32(v + 8, 1); P32(v + 12, 2600); P32(v + 16, 2);
+    RET(c, 1, 1);
+}
+SHIM(GetCommandLineA_) {
+    if (!cmdline_a) { uint32_t n = (uint32_t)strlen(host_saved_cmdline) + 1; cmdline_a = gmalloc(n); memcpy(MEM + cmdline_a, host_saved_cmdline, n); }
+    RET(c, cmdline_a, 0);
+}
+SHIM(GetCommandLineW_) {
+    if (!cmdline_w) { uint32_t n = (uint32_t)strlen(host_saved_cmdline) + 1; cmdline_w = gmalloc(2 * n);
+        for (uint32_t i = 0; i < n; i++) { uint16_t ch = (uint8_t)host_saved_cmdline[i]; memcpy(MEM + cmdline_w + 2 * i, &ch, 2); } }
+    RET(c, cmdline_w, 0);
+}
+// ---- modules: system DLLs get fake handles; GetProcAddress hands out dynamic import thunks ----
+#define MOD_BASE 0xFD000000u
+#ifdef FNV_GAME_SKYRIM
+static const char *known_mods[] = {"kernel32", "user32", "gdi32", "advapi32", "shell32", "ole32",
+    "ntdll", "d3d9", "dinput8", "dsound", "xinput1_3", "xaudio2_6", "x3daudio1_7", "winmm", "comctl32",
+    "wsock32", "d3dx9_42", "d3dx9_38", "binkw32", "libvorbisfile", "steam_api", "atimgpud", "shlwapi",
+    "version", "mscoree", "msvcrt"};
+#else
+static const char *known_mods[] = {"kernel32", "user32", "gdi32", "advapi32", "shell32", "ole32",
+    "ntdll", "d3d9", "dinput8", "dsound", "xinput1_3", "winmm", "comctl32", "wsock32", "d3dx9_38", "d3dx9_42",
+    "binkw32", "libvorbisfile", "steam_api", "xlive", "shlwapi", "version", "mscoree", "msvcrt"};
+#endif
+#define NMODS (sizeof known_mods / sizeof *known_mods)
+
+uint32_t smr_module_by_name(const char *name);
+uint32_t smr_module_export_by_handle(uint32_t handle, const char *name);
+bool smr_mapped_module_handle(uint32_t handle);
+
+static uint32_t mod_handle(const char *name) {
+    if (!name) return host_image_base;
+    char low[128]; size_t n = 0;
+    for (const char *p = strrchr(name, '\\') ? strrchr(name, '\\') + 1 : name; *p && n < sizeof low - 1; p++)
+        low[n++] = (char)(*p >= 'A' && *p <= 'Z' ? *p + 32 : *p);
+    low[n] = 0;
+    uint32_t mapped = smr_module_by_name(low);
+    if (mapped)
+        return mapped;
+    char *dot = strstr(low, ".dll"); if (dot) *dot = 0;
+    if (!strcmp(low, "falloutnv") || !strcmp(low, "fallout3") ||
+        !strcmp(low, "tesv") || !strcmp(low, "tesv.exe") || !strcmp(low, "skyrim"))
+        return host_image_base;
+    for (size_t i = 0; i < NMODS; i++) if (!strcmp(low, known_mods[i])) return MOD_BASE + 0x10000u * (uint32_t)i;
+    return 0;
+}
+static void wide_to_ascii(uint32_t w, char *out, size_t n) {
+    size_t i = 0; uint16_t ch;
+    for (; i < n - 1; i++) { memcpy(&ch, MEM + w + 2 * i, 2); if (!ch) break; out[i] = (char)ch; }
+    out[i] = 0;
+}
+SHIM(GetModuleHandleA_) { uint32_t h = mod_handle(GSTR(ARG(c, 0))); if (!h) last_error = 126; RET(c, h, 1); }
+SHIM(GetModuleHandleW_) {
+    char nm[256]; uint32_t a = ARG(c, 0);
+    if (a) wide_to_ascii(a, nm, sizeof nm);
+    uint32_t h = mod_handle(a ? nm : NULL); if (!h) last_error = 126; RET(c, h, 1);
+}
+SHIM(LoadLibraryA_) {
+    const char *nm = GSTR(ARG(c, 0)); uint32_t h = mod_handle(nm);
+    fprintf(stderr, "[host] LoadLibraryA(%s) -> %#x\n", nm, h);
+    if (!h) last_error = 126; RET(c, h, 1);
+}
+SHIM(LoadLibraryW_) {
+    char nm[256]; wide_to_ascii(ARG(c, 0), nm, sizeof nm); uint32_t h = mod_handle(nm);
+    fprintf(stderr, "[host] LoadLibraryW(%s) -> %#x\n", nm, h);
+    if (!h) last_error = 126; RET(c, h, 1);
+}
+SHIM(LoadLibraryExW_) {
+    char nm[256]; wide_to_ascii(ARG(c, 0), nm, sizeof nm); uint32_t h = mod_handle(nm);
+    fprintf(stderr, "[host] LoadLibraryExW(%s) -> %#x\n", nm, h);
+    if (!h) last_error = 126; RET(c, h, 3);
+}
+SHIM(GetModuleHandleExW_) {
+    uint32_t fl = ARG(c, 0), name = ARG(c, 1), out = ARG(c, 2);
+    uint32_t h = 0;
+    if (fl & 4u) h = host_image_base;
+    else if (!name) h = host_image_base;
+    else { char nm[256]; wide_to_ascii(name, nm, sizeof nm); h = mod_handle(nm); }
+    if (out) P32(out, h);
+    if (!h) last_error = 126;
+    RET(c, h != 0, 3);
+}
+SHIM(FreeLibrary_) { RET(c, 1, 1); }
+SHIM(GetProcAddress_) {
+    uint32_t h = ARG(c, 0), pn = ARG(c, 1);
+    char name[96];
+    if (pn < 0x10000) snprintf(name, sizeof name, "#%u", pn); else snprintf(name, sizeof name, "%s", GSTR(pn));
+    if (smr_mapped_module_handle(h)) {
+        uint32_t exported = smr_module_export_by_handle(h, name);
+        if (!exported)
+            last_error = 127;
+        RET(c, exported, 2);
+        return;
+    }
+    const char *dll = h >= MOD_BASE && (h - MOD_BASE) / 0x10000u < NMODS ? known_mods[(h - MOD_BASE) / 0x10000u] : "?";
+    ShimFn fn = host_find_shim(dll, name);
+    if (!fn) { fprintf(stderr, "[host] GetProcAddress(%s, %s) -> 0 (no shim)\n", dll, name); last_error = 127; RET(c, 0, 2); return; }
+    for (int i = 0; i < host_import_count; i++)
+        if (host_imports[i].fn == fn) { RET(c, IMPORT_THUNK_BASE + 4u * (uint32_t)i, 2); return; }
+    HostImport *hi = &host_imports[host_import_count];
+    snprintf(hi->dll, sizeof hi->dll, "%s", dll); snprintf(hi->name, sizeof hi->name, "%s", name); hi->fn = fn;
+    RET(c, IMPORT_THUNK_BASE + 4u * (uint32_t)host_import_count++, 2);
+}
+SHIM(GetModuleFileNameA_) {
+    uint32_t buf = ARG(c, 1), n = ARG(c, 2);
+    char name[256];
+    snprintf(name, sizeof name, "C:\\Games\\%s\\%s%s", g_game_dir, game_binary_directory, g_exe_name);
+    uint32_t l = (uint32_t)strlen(name);
+    if (n) { if (l >= n) l = n - 1; memcpy(MEM + buf, name, l); MEM[buf + l] = 0; }
+    RET(c, l, 3);
+}
+SHIM(GetModuleFileNameW_) {
+    uint32_t buf = ARG(c, 1), n = ARG(c, 2);
+    char name[256];
+    snprintf(name, sizeof name, "C:\\Games\\%s\\%s%s", g_game_dir, game_binary_directory, g_exe_name);
+    uint32_t l = (uint32_t)strlen(name);
+    if (n) {
+        if (l >= n) l = n - 1;
+        for (uint32_t i = 0; i <= l; i++) { uint16_t ch = i < l ? (uint8_t)name[i] : 0; memcpy(MEM + buf + 2 * i, &ch, 2); }
+    }
+    RET(c, l, 3);
+}
+SHIM(GetSystemDirectoryA_) {
+    static const char system_dir[] = "C:\\Windows\\System32";
+    uint32_t buffer = ARG(c, 0);
+    uint32_t capacity = ARG(c, 1);
+    if (capacity < sizeof(system_dir)) {
+        RET(c, sizeof(system_dir), 2);
+        return;
+    }
+    memcpy(MEM + buffer, system_dir, sizeof(system_dir));
+    RET(c, sizeof(system_dir) - 1, 2);
+}
+SHIM(GetSystemDirectoryW_) {
+    uint32_t buf = ARG(c, 0), n = ARG(c, 1);
+    const char *sys = "C:\\Windows\\System32";
+    uint32_t l = (uint32_t)strlen(sys);
+    if (n > l) {
+        for (uint32_t i = 0; i <= l; i++) { uint16_t ch = i < l ? (uint8_t)sys[i] : 0; memcpy(MEM + buf + 2 * i, &ch, 2); }
+        RET(c, l, 2);
+    } else RET(c, l + 1, 2);
+}
+SHIM(LocalAlloc_) {
+    uint32_t fl = ARG(c, 0), n = ARG(c, 1);
+    uint32_t p = gmalloc(n ? n : 1);
+    if (p && (fl & 0x40u)) memset(MEM + p, 0, n ? n : 1);
+    RET(c, p, 2);
+}
+SHIM(VerifyVersionInfoW_) { RET(c, 1, 3); }
+SHIM(VerSetConditionMask_) { SETREG(c, R_EDX, 0); RET(c, 0, 4); }
+SHIM(CreateProcessA_) { last_error = 2; RET(c, 0, 10); }
+SHIM(CreateProcessW_) { last_error = 2; RET(c, 0, 10); }
+SHIM(GetCurrentProcess_) { RET(c, 0xFFFFFFFFu, 0); }
+SHIM(GetCurrentThread_) { RET(c, 0xFFFFFFFEu, 0); }
+SHIM(GetCurrentProcessId_) { RET(c, (uint32_t)getpid(), 0); }
+SHIM(GetCurrentThreadId_) { RET(c, G32(REG(c, 272) + 0x24) ? G32(REG(c, 272) + 0x24) : 1, 0); }
+SHIM(GetTickCount_) { RET(c, (uint32_t)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000000ull), 0); }
+static pthread_once_t qpc_once = PTHREAD_ONCE_INIT;
+static uint64_t qpc_t0_ns;
+static void qpc_init(void) { qpc_t0_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW); }
+SHIM(QueryPerformanceCounter_) {
+    pthread_once(&qpc_once, qpc_init);
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    /* 10 MHz counter with a 60s startup bias avoids (QPC * 1e6) uint64 overflow after ~5.1h uptime
+       and keeps initial delta checks non-zero across all threads. */
+    uint64_t t = 600000000ull + (now - qpc_t0_ns) / 100ull;
+    memcpy(MEM + ARG(c, 0), &t, 8); RET(c, 1, 1);
+}
+SHIM(QueryPerformanceFrequency_) { uint64_t f = 10000000ull; memcpy(MEM + ARG(c, 0), &f, 8); RET(c, 1, 1); }
+SHIM(GetSystemTimeAsFileTime_) {
+    struct timeval tv; gettimeofday(&tv, NULL);
+    uint64_t ft = ((uint64_t)tv.tv_sec + 11644473600ull) * 10000000ull + (uint64_t)tv.tv_usec * 10;
+    memcpy(MEM + ARG(c, 0), &ft, 8); RET(c, 0, 1);
+}
+SHIM(IsProcessorFeaturePresent_) { uint32_t f = ARG(c, 0); RET(c, f == 6 || f == 7 || f == 10 || f == 13, 1); } // SSE/SSE2/3DNow!-no/SSE3
+SHIM(IsDebuggerPresent_) { RET(c, 0, 0); }
+
+// heaps: one guest heap backs all of them
+SHIM(HeapCreate_) { RET(c, 0x00F00000u, 3); }
+SHIM(GetProcessHeap_) { RET(c, 0x00F00000u, 0); }
+SHIM(HeapDestroy_) { RET(c, 1, 1); }
+SHIM(HeapAlloc_) { uint32_t f = ARG(c, 1), n = ARG(c, 2); uint32_t p = gmalloc(n); (void)f; RET(c, p, 3); }
+SHIM(HeapFree_) { gfree(ARG(c, 2)); RET(c, 1, 3); }
+SHIM(HeapReAlloc_) { RET(c, grealloc(ARG(c, 2), ARG(c, 3)), 4); }
+SHIM(HeapSize_) { RET(c, gsize(ARG(c, 2)), 3); }
+// VirtualAlloc keeps a list of reserved ranges so a fixed-address reservation that overlaps the
+// image or an earlier reservation fails (ERROR_INVALID_ADDRESS) exactly like on Windows; the game's
+// allocator probes fixed addresses and falls back when they are taken.
+#define MAXRES 4096
+static struct { uint32_t lo, hi; } res[MAXRES];
+static int nres;
+static int overlaps(uint32_t lo, uint32_t hi) {
+    for (int i = 0; i < nres; i++) if (lo < res[i].hi && res[i].lo < hi) return i;
+    return -1;
+}
+static void reserve(uint32_t lo, uint32_t hi) { if (nres < MAXRES) { res[nres].lo = lo; res[nres].hi = hi; nres++; } }
+#include <pthread.h>
+#include <sched.h>
+static pthread_mutex_t va_lk = PTHREAD_MUTEX_INITIALIZER;
+int gheap_reserve_fixed(uint32_t lo,uint32_t hi);
+static void VirtualAlloc_locked(CPU *c);
+SHIM(VirtualAlloc_) { pthread_mutex_lock(&va_lk); VirtualAlloc_locked(c); pthread_mutex_unlock(&va_lk); }
+static void VirtualAlloc_locked(CPU *c) {
+    uint32_t a = ARG(c, 0), n = ARG(c, 1), type = ARG(c, 2);
+    if(!n || (uint64_t)a+n>0x100000000ull || !(type&0x3000)){last_error=87;RET(c,0,4);return;}
+    if (!nres) {    // first call: the image and the low 64 KB are taken
+        reserve(0, 0x10000);
+        reserve(host_image_base, host_image_base + G32(host_image_base + G32(host_image_base + 0x3C) + 24 + 56));
+    }
+    uint64_t end=((uint64_t)a+n+4095)&~4095ull;
+    if(end>0xffffffffu || n>0xeffff000u){last_error=87;RET(c,0,4);return;}
+    if (!a) { if(nres==MAXRES){last_error=8;RET(c,0,4);return;}uint32_t p = gpages(n); reserve(p, p + ((n + 0xFFF) & ~0xFFFu)); RET(c, p, 4); return; }
+    uint32_t lo = a & ((type&0x2000)?~0xffffu:~0xfffu), hi = (uint32_t)end;
+    int i = overlaps(lo, hi);
+    if (type & 0x2000) {                        // MEM_RESERVE at a fixed address
+        int ok=i<0&&nres<MAXRES&&gheap_reserve_fixed(lo,hi);
+        fprintf(stderr,"[address-map] fixed request=%#x bytes=%#x span=%#x..%#x result=%#x caller=%#x\n",a,n,lo,hi,ok?lo:0,G32(REG(c,R_ESP)));
+        if (!ok) { last_error = 487; RET(c, 0, 4); return; }
+        reserve(lo, hi); RET(c, lo, 4); return;
+    }
+    // A commit must be wholly inside an existing reservation, including already committed pages.
+    if(i<0 || lo<res[i].lo || hi>res[i].hi){
+        fprintf(stderr,"[address-map] rejected unreserved commit %#x..%#x caller=%#x\n",lo,hi,G32(REG(c,R_ESP)));
+        last_error=487;RET(c,0,4);return;
+    }
+    RET(c, lo, 4);
+}
+SHIM(VirtualFree_) {
+    uint32_t a = ARG(c, 0), n = ARG(c, 1), type = ARG(c, 2);
+    if ((type & 0x4000) && a && n && (uint64_t)a + n <= 0x100000000ull) memset(MEM + a, 0, n);
+    RET(c, 1, 3);
+}
+SHIM(VirtualQuery_) { RET(c, 0, 3); }
+
+// TLS / FLS
+// FlsAlloc draws from the same 64 slots and the same free list as TlsAlloc: Windows hands both APIs
+// indices out of one pool, and this emulation keeps FLS values in the same inline TEB array, so a
+// shared free list is what stops the two from handing the same index to different callers.
+static uint32_t tls_take_slot(void) {
+    uint32_t r = 0xFFFFFFFFu;
+    pthread_mutex_lock(&tls_mu);
+    for (uint32_t i = 0; i < TLS_SLOTS; i++) {
+        if (tls_used[i]) continue;
+        tls_used[i] = 1; r = i;
+        for (size_t t = 0; t < tls_nteb; t++) P32(tls_tebs[t] + 0xE10 + 4 * i, 0);
+        break;
+    }
+    pthread_mutex_unlock(&tls_mu);
+    return r;
+}
+static uint32_t tls_release_slot(uint32_t i) {
+    uint32_t ok = 0;
+    if (i < TLS_SLOTS) {
+        pthread_mutex_lock(&tls_mu);
+        if (tls_used[i]) { tls_used[i] = 0; ok = 1; }
+        pthread_mutex_unlock(&tls_mu);
+    }
+    return ok;
+}
+SHIM(TlsAlloc_) {
+    uint32_t r = tls_take_slot();
+    if (r == 0xFFFFFFFFu) { last_error = 8; fprintf(stderr, "[tls] TlsAlloc: all %d slots in use\n", TLS_SLOTS); } // ERROR_NOT_ENOUGH_MEMORY
+    RET(c, r, 0);
+}
+SHIM(TlsFree_) {
+    uint32_t ok = tls_release_slot(ARG(c, 0));
+    if (!ok) last_error = 87;                                // ERROR_INVALID_PARAMETER
+    RET(c, ok, 1);
+}
+SHIM(TlsGetValue_) {
+    uint32_t i = ARG(c, 0);
+    if (i >= TLS_SLOTS) { last_error = 87; RET(c, 0, 1); return; }
+    last_error = 0; RET(c, G32(REG(c, 272) + 0xE10 + 4 * i), 1);
+}
+SHIM(TlsSetValue_) {
+    uint32_t i = ARG(c, 0);
+    if (i >= TLS_SLOTS) { last_error = 87; RET(c, 0, 2); return; }
+    P32(REG(c, 272) + 0xE10 + 4 * i, ARG(c, 1)); RET(c, 1, 2);
+}
+SHIM(FlsAlloc_) {
+    (void)ARG(c, 0);
+    uint32_t r = tls_take_slot();
+    if (r == 0xFFFFFFFFu) { last_error = 8; fprintf(stderr, "[tls] FlsAlloc: all %d slots in use\n", TLS_SLOTS); }
+    RET(c, r, 1);
+}
+SHIM(FlsFree_) {
+    uint32_t ok = tls_release_slot(ARG(c, 0));
+    if (!ok) last_error = 87;
+    RET(c, ok, 1);
+}
+SHIM(FlsGetValue_) {
+    uint32_t i = ARG(c, 0);
+    if (i >= TLS_SLOTS) { last_error = 87; RET(c, 0, 1); return; }
+    last_error = 0; RET(c, G32(REG(c, 272) + 0xE10 + 4 * i), 1);
+}
+SHIM(FlsSetValue_) {
+    uint32_t i = ARG(c, 0);
+    if (i >= TLS_SLOTS) { last_error = 87; RET(c, 0, 2); return; }
+    P32(REG(c, 272) + 0xE10 + 4 * i, ARG(c, 1)); RET(c, 1, 2);
+}
+
+// environment / code pages / startup info
+SHIM(DisableThreadLibraryCalls_) {
+    bool known_module = smr_mapped_module_handle(ARG(c, 0));
+    if (!known_module)
+        last_error = 6; // ERROR_INVALID_HANDLE
+    RET(c, known_module, 1);
+}
+
+SHIM(SwitchToThread_) { RET(c, sched_yield() == 0, 0); }
+
+SHIM(GetProcessAffinityMask_) {
+    uint32_t process_mask = ARG(c, 1);
+    uint32_t system_mask = ARG(c, 2);
+    if (!process_mask || !system_mask) {
+        last_error = 87; // ERROR_INVALID_PARAMETER
+        RET(c, 0, 3);
+        return;
+    }
+    long online = sysconf(_SC_NPROCESSORS_ONLN);
+    uint32_t mask = online >= 32 ? UINT32_MAX : (1u << (online > 0 ? online : 1)) - 1u;
+    P32(process_mask, mask);
+    P32(system_mask, mask);
+    RET(c, 1, 3);
+}
+
+SHIM(CreateFileMappingA_) {
+    const char *name = GSTR(ARG(c, 5));
+    fprintf(stderr, "[smr] file mapping unavailable: %.160s\n", name ? name : "");
+    last_error = 120; // ERROR_CALL_NOT_IMPLEMENTED
+    RET(c, 0, 6);
+}
+
+SHIM(ConnectNamedPipe_) {
+    last_error = 6; // ERROR_INVALID_HANDLE
+    RET(c, 0, 2);
+}
+
+SHIM(DisconnectNamedPipe_) {
+    last_error = 6; // ERROR_INVALID_HANDLE
+    RET(c, 0, 1);
+}
+
+SHIM(CreateNamedPipeA_) {
+    const char *name = GSTR(ARG(c, 0));
+    fprintf(stderr, "[smr] named pipe unavailable: %.160s\n", name ? name : "");
+    last_error = 120; // ERROR_CALL_NOT_IMPLEMENTED
+    RET(c, UINT32_MAX, 8);
+}
+
+SHIM(GetEnvironmentVariableA_) {
+    last_error = 203; // An empty guest environment has no requested variable.
+    RET(c, 0, 3);
+}
+SHIM(GetEnvironmentVariableW_) { GetEnvironmentVariableA_(c); }
+SHIM(GetEnvironmentStringsW_) { uint32_t p = gmalloc(4); RET(c, p, 0); }
+SHIM(GetEnvironmentStrings_) { uint32_t p = gmalloc(2); RET(c, p, 0); }
+SHIM(FreeEnvironmentStringsW_) { RET(c, 1, 1); }
+SHIM(FreeEnvironmentStringsA_) { RET(c, 1, 1); }
+SHIM(GetACP_) { RET(c, 1252, 0); }
+SHIM(GetOEMCP_) { RET(c, 437, 0); }
+SHIM(GetCPInfo_) { uint32_t p = ARG(c, 1); memset(MEM + p, 0, 20); P32(p, 1); MEM[p + 4] = '?'; RET(c, 1, 2); }
+SHIM(IsValidCodePage_) { RET(c, 1, 1); }
+SHIM(GetStartupInfoA_) { uint32_t p = ARG(c, 0); memset(MEM + p, 0, 68); P32(p, 68); RET(c, 0, 1); }
+SHIM(GetStartupInfoW_) { uint32_t p = ARG(c, 0); memset(MEM + p, 0, 68); P32(p, 68); RET(c, 0, 1); }
+SHIM(GetStdHandle_) { RET(c, 0x10 + (ARG(c, 0) & 3), 1); }
+SHIM(GetFileType_) { RET(c, 2, 1); }                      // FILE_TYPE_CHAR
+SHIM(SetHandleCount_) { RET(c, ARG(c, 0), 1); }
+SHIM(SetUnhandledExceptionFilter_) { RET(c, 0, 1); }
+SHIM(UnhandledExceptionFilter_) { RET(c, 0, 1); }
+SHIM(SetConsoleCtrlHandler_) { RET(c, 1, 2); }
+SHIM(SetThreadAffinityMask_) { (void)ARG(c, 0); RET(c, 1, 2); }
+SHIM(IsBadWritePtr_) { uint32_t p = ARG(c, 0), sz = ARG(c, 1); RET(c, sz != 0 && p == 0, 2); }
+SHIM(OutputDebugStringA_) { fprintf(stderr, "[guest] %s", GSTR(ARG(c, 0))); RET(c, 0, 1); }
+SHIM(OutputDebugStringW_) { char s[512]; wide_to_ascii(ARG(c, 0), s, sizeof s); fprintf(stderr, "[guest] %s", s); RET(c, 0, 1); }
+SHIM(EncodePointer_) { RET(c, ARG(c, 0), 1); }
+SHIM(DecodePointer_) { RET(c, ARG(c, 0), 1); }
+SHIM(Sleep_) {
+    uint32_t ms = ARG(c, 0);
+    if (ms == 0xFFFFFFFFu) { fprintf(stderr, "[host] Sleep(INFINITE) — guest waits forever\n"); exit(4); }
+    static int trace = -1;
+    if (trace < 0) trace = getenv("FNV_TRACE_SLEEP") != NULL;
+    if (trace) {                                             // histogram of (caller, ms) every 2000 calls
+        static uint64_t n; static uint32_t hist[64][3]; static int nh;
+        uint32_t ra = G32(REG(c, R_ESP));
+        int i; for (i = 0; i < nh && !(hist[i][0] == ra && hist[i][1] == ms); i++) {}
+        if (i == nh && nh < 64) { hist[nh][0] = ra; hist[nh][1] = ms; nh++; }
+        if (i < 64) hist[i][2]++;
+        if (++n % 2000 == 0) { for (int k = 0; k < nh; k++) fprintf(stderr, "[sleep] ra=%#x ms=%u n=%u\n", hist[k][0], hist[k][1], hist[k][2]); }
+    }
+    usleep((useconds_t)ms * 1000);
+    RET(c, 0, 1);
+}
+SHIM(ExitProcess_) {
+    fprintf(stderr, "[host] ExitProcess(%u) — guest stack (code-looking words):\n", ARG(c, 0));
+    uint32_t sp = REG(c, R_ESP);
+    for (int i = 0, shown = 0; i < 4096 && shown < 40; i++) {
+        uint32_t v = G32(sp + 4 * (uint32_t)i);
+        if (v >= 0x401000 && v < 0x1200000) { fprintf(stderr, "  [esp+%#x] %#x\n", 4 * i, v); shown++; }
+    }
+    exit((int)ARG(c, 0));
+}
+
+typedef struct { const char *name; ShimFn fn; } Shim;
+static const Shim kernel32[] = {
+#define E(n) { #n, n##_ },
+    E(GetLastError) E(SetLastError) E(GetVersion) E(GetVersionExA) E(GetCommandLineA) E(GetCommandLineW)
+    E(GetModuleHandleA) E(GetModuleHandleW) E(GetModuleHandleExW) E(GetModuleFileNameA) E(GetModuleFileNameW)
+    E(GetSystemDirectoryA) E(GetSystemDirectoryW) E(LoadLibraryA) E(LoadLibraryW) E(LoadLibraryExW)
+    E(FreeLibrary) E(GetProcAddress) E(GetCurrentProcess) E(GetCurrentThread)
+    E(GetCurrentProcessId) E(GetCurrentThreadId) E(GetTickCount) E(QueryPerformanceCounter)
+    E(QueryPerformanceFrequency) E(GetSystemTimeAsFileTime) E(IsProcessorFeaturePresent) E(IsDebuggerPresent)
+    E(HeapCreate) E(GetProcessHeap) E(HeapDestroy) E(HeapAlloc) E(HeapFree) E(HeapReAlloc) E(HeapSize) E(LocalAlloc)
+    E(VirtualAlloc) E(VirtualFree) E(VirtualQuery) E(TlsAlloc) E(TlsFree) E(TlsGetValue) E(TlsSetValue)
+    E(FlsAlloc) E(FlsFree) E(FlsGetValue) E(FlsSetValue)
+    E(SwitchToThread) E(GetProcessAffinityMask) E(CreateFileMappingA) E(CreateNamedPipeA) E(ConnectNamedPipe) E(DisconnectNamedPipe) E(DisableThreadLibraryCalls) E(GetEnvironmentVariableA) E(GetEnvironmentVariableW)
+    E(GetEnvironmentStringsW) E(GetEnvironmentStrings) E(FreeEnvironmentStringsW) E(FreeEnvironmentStringsA)
+    E(GetACP) E(GetOEMCP) E(GetCPInfo) E(IsValidCodePage) E(GetStartupInfoA) E(GetStartupInfoW)
+    E(GetStdHandle) E(GetFileType) E(SetHandleCount) E(SetUnhandledExceptionFilter)
+    E(UnhandledExceptionFilter) E(SetConsoleCtrlHandler) E(OutputDebugStringA) E(OutputDebugStringW)
+    E(Sleep) E(ExitProcess) E(EncodePointer) E(DecodePointer)
+    E(SetThreadAffinityMask) E(IsBadWritePtr)
+    E(VerifyVersionInfoW) E(VerSetConditionMask) E(CreateProcessA) E(CreateProcessW)
+#undef E
+};
+
+typedef struct { const Shim *list; int count; } ShimTable;
+#ifdef FNV_GAME_SKYRIM
+extern const ShimTable sync_shims, file_shims, text_shims, win_shims, steam_shims, wsock_shims, dinput_shims, dsound_shims, d3d9_shims, d3dx_shims, xinput_shims, media_shims, mmio_shims, xaudio_shims;
+#else
+extern const ShimTable sync_shims, file_shims, text_shims, win_shims, steam_shims, xlive_shims, wsock_shims, dinput_shims, dsound_shims, d3d9_shims, d3dx_shims, xinput_shims, media_shims, mmio_shims;
+#endif
+ShimFn smr_find_msvcr90_shim(const char *name);
+
+ShimFn host_find_shim(const char *dll, const char *name) {
+    if (!strcasecmp(dll, "msvcr90.dll"))
+        return smr_find_msvcr90_shim(name);
+    // ordinal imports collide across DLLs: look them up as "<dll basename, lowercase>#<n>"
+    char key[160];
+    if (name[0] == '#') {
+        size_t k = 0;
+        for (const char *p = dll; *p && *p != '.' && k < sizeof key - 1; p++) key[k++] = (char)(*p >= 'A' && *p <= 'Z' ? *p + 32 : *p);
+        key[k] = 0;
+        strncat(key, name, sizeof key - strlen(key) - 1);
+        name = key;
+    }
+    for (size_t i = 0; i < sizeof kernel32 / sizeof *kernel32; i++)
+        if (!strcmp(kernel32[i].name, name)) return kernel32[i].fn;
+#ifdef FNV_GAME_SKYRIM
+    const ShimTable *tabs[] = {&sync_shims, &file_shims, &text_shims, &win_shims, &steam_shims, &wsock_shims, &dinput_shims, &dsound_shims, &d3d9_shims, &d3dx_shims, &xinput_shims, &media_shims, &mmio_shims, &xaudio_shims};
+#else
+    const ShimTable *tabs[] = {&sync_shims, &file_shims, &text_shims, &win_shims, &steam_shims, &xlive_shims, &wsock_shims, &dinput_shims, &dsound_shims, &d3d9_shims, &d3dx_shims, &xinput_shims, &media_shims, &mmio_shims};
+#endif
+    for (size_t t = 0; t < sizeof tabs / sizeof *tabs; t++)
+        for (int i = 0; i < tabs[t]->count; i++)
+            if (!strcmp(tabs[t]->list[i].name, name)) return tabs[t]->list[i].fn;
+    return NULL;
+}
+
+int host_shimmed_count(void) {
+    int n = 0;
+    for (int i = 0; i < host_import_count; i++) n += host_imports[i].fn != NULL;
+    return n;
+}

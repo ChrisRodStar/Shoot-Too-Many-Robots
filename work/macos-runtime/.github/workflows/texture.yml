@@ -1,0 +1,20 @@
+name: Diagnose texture residency
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  portable:
+    uses: ./.github/workflows/portable.yml
+    with:
+      suite: texture
+  texture:
+    needs: portable
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 tests/virtual_alloc_test.py --reference
+      - run: python3 tests/virtual_alloc_test.py
+      - run: python3 tools/build.py host-check

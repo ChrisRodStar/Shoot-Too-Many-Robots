@@ -1,0 +1,27 @@
+diff --git a/recomp/emit.py b/recomp/emit.py
+index c9d079d..b33806a 100644
+--- a/recomp/emit.py
++++ b/recomp/emit.py
+@@ -487,6 +487,8 @@ class FnEmitter:
+             "maxps": f"MAXPS({a[0]},{a[1]})" if len(a) > 1 else None,
+             "divps": f"DIVPS({a[0]},{a[1]})" if len(a) > 1 else None,
+             "rsqrtps": f"RSQRTPS({a[-1]})" if a else None,
++            "sqrtps": f"SQRTPS({a[-1]})" if a else None,
++            "pshufw": f"PSHUFW({a[1]},{a[2]})" if len(a) > 2 else None,
+             "rcpps": f"RCPPS({a[-1]})" if a else None,
+             "rsqrtss": f"RSQRTSS({a[0]},{a[-1]})" if a else None,
+             "paddusw": f"PADDUSW({a[0]},{a[1]})" if len(a) > 1 else None,
+diff --git a/recomp/rt.h b/recomp/rt.h
+index 82eb08b..3271ed8 100644
+--- a/recomp/rt.h
++++ b/recomp/rt.h
+@@ -138,6 +138,9 @@ static inline U DIVPS(U a, U b) { U r = a; for (int i = 0; i < 4; i++) r = SETF(
+ static inline U RSQRTPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, 1.0f / sqrtf(LANEF(s, i))); return r; }
+ static inline U RCPPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, 1.0f / LANEF(s, i)); return r; }
+ static inline U RSQRTSS(U d, U s) { return SETF(d, 0, 1.0f / sqrtf(LANEF(s, 0))); }
++static inline U SQRTPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, sqrtf(LANEF(s, i))); return r; }
++// MMX PSHUFW: each 16-bit result word i is source word (imm >> 2i) & 3 (64-bit register, upper bits zero).
++static inline U PSHUFW(U s, U imm) { U r = 0; for (int i = 0; i < 4; i++) r |= (U)(uint16_t)(s >> (16 * ((imm >> (2 * i)) & 3))) << (16 * i); return r; }
+ static inline U PADDUSW(U a, U b) { U r = 0; for (int i = 0; i < 8; i++) { uint32_t x = (uint32_t)(a >> (16 * i)) & 0xffff, y = (uint32_t)(b >> (16 * i)) & 0xffff, z = x + y; r |= (U)(z > 0xffff ? 0xffff : z) << (16 * i); } return r; }
+ 
+ // ---- fast path (narrow values, cached registers) ----------------------------------------------

@@ -4,12 +4,12 @@ Apple Silicon compatibility research for the Windows release of *Shoot Many Robo
 
 ## Current status
 
-The original Windows executable reaches the first tutorial in a 1280 × 720 AppKit window on the Apple M4. Pressing Space advances past the title screen. Metal displays the chapter loading artwork and the tutorial prompt, while the scene area remains magenta. See the [title screen](work/boot/window-frames/title-window.png), [chapter loading screen](work/boot/window-frames/frame_2138.png), and [windowed log](work/boot/window-startup.log).
+The original Windows executable reaches the first tutorial in a 1280 × 720 AppKit window on the Apple M4. Pressing Space advances past the title screen and loading screen into the tutorial (`50,195` functions emitted; `~26–28 fps` in the 500+ draw/frame tutorial with `ff-skipped 0`). See the [title screen](work/boot/window-frames/title-window.png), [chapter loading screen](work/boot/window-frames/frame_2138.png), and [full-build log](work/boot/window-full-startup.log).
 
-- **Resolved startup crash.** The old x86 fallback appeared to stop at `0x40000c`. An executable-range guard traced the failure to a null call after `SteamApps()` returned no object in offline mode. The guest requests `ISteamApps004`. Its offline proxy provides the startup language and reports the observed app query as unavailable. The [diagnostic trace](work/boot/steam-null-startup.log) records the original failure.
-- **Resolved follow-up stop.** The game now runs past the missing dedicated-server callback pump. The offline host has no server callback queue, so the pump has no events to deliver. The [follow-up trace](work/boot/steam-callback-startup.log) records the earlier stop.
+- **Resolved startup & tagged-pointer crashes.** Re-running Ghidra with `ResolveJumpTables`, `FixNoReturn`, and `FixEntries` resolved the `0x5c88f0` window-procedure switch table (`SMR_NATIVE_WNDPROC=1`). Added `SQRTPS`/`PSHUFW` support to fix the `0x83f6e0` trap. Moved the guest heap in `gheap.c` from `0x40000000` to `0x18000000–0x40000000` because the game's handle resolver (`0x764a80`) treats bit 30 (`0x40000000`) as a tagged-index flag, which caused the `0x5c9c86` null-call trap.
+- **Scene rendering diagnosis.** Supporting depth-only (`ps=0`) draws eliminated all skipped fixed-function draws (`ff-skipped 0`), and adding a `texture3d` LUT fallback in `d3d9_metal.m` eliminated the solid magenta backbuffer. The G-buffer geometry and normals (`frame_9000.png` / `frame_9999.png`) render cleanly, and the albedo buffer (`frame_9010.png`) shows the scene geometry (tinted magenta), while the deferred directional-light HDR pass currently outputs black because its pixel shader constants (`cf0..cf2`) are all zero.
 - **Input.** The window forwards keyboard input, mouse buttons, and relative mouse motion to the guest. A focused input test verified Space and left-click delivery, including button release after the window loses focus.
-- **Next milestone.** Render the tutorial scene and verify gameplay and sound in the windowed run.
+- **Next milestone.** Fix the zeroed pixel shader constants (`cf0..cf2`) in the deferred lighting pass and the magenta tint in the G-buffer albedo so the tutorial scene renders lit and textured; audio and DLL-fallback optimization (`~198` DLL roots) come later.
 
 ## Run the startup probe
 
@@ -25,9 +25,9 @@ Set `SMR_TRACE=1` to log individual Windows API calls. For non-windowed runs, `S
 
 The default ARM64 host runs recompiled startup functions and uses Unicorn for remaining x86 code. To test the full translation, run `SMR_FULL=1 SMR_WINDOW=1 ./scripts/startup-probe`. This uses a separate build, log, frame directory, and save directory. Add `SMR_BUILD_ONLY=1` to build without launching. Network access is disabled and probe output and saves stay under `work/boot/`.
 
-The full build runs one entry at `0x5c88f0` in Unicorn after its translated version failed during startup. Windows DLL code also still runs in Unicorn. A fallback root in the log identifies a distinct entry address and does not measure CPU time spent there.
+The full build with `SMR_NATIVE_WNDPROC=1` runs `0x5c88f0` natively; only 1 game-exe address (`0x626770`) and ~198 Windows DLL addresses still fall back to Unicorn.
 
-The full build reaches the opening scene. Across the first ten two-second intervals with at least 500 draws per frame and no shader compilation, the median rose from 13.3 to 16.2 FPS while main-thread CPU time fell from 68 to 53 ms per frame. GPU time stayed near 1.5 ms. The scene still renders magenta. See the [focused run](work/tutorial-test/original-window.log), [full run](work/boot/window-full-startup.log), and [full-run CPU sample](work/perf/full-tutorial.sample.txt).
+Across the latest run (`run11`, 516 draws/frame, `ff-skipped 0`), the tutorial runs at **~26–28 fps** (`main_cpu_ms` ~34–35 ms, `gpu_ms` ~1.4 ms) and exits cleanly on scripted quit. See the [full run](work/boot/window-full-startup.log) and [full-run CPU sample](work/perf/full-tutorial.sample.txt).
 
 The executable extracted from the installer is a 32-bit Windows PE whose entry point lands in `.bind` and whose `.text` section is packed. The diagnostic uses the loose executable from Downloads, which differs from the installer executable. The Microsoft Visual C++, PhysX, DirectX, and FMOD DLLs come from the installer and its bundled redistributables.
 
