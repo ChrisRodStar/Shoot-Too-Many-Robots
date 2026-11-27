@@ -318,36 +318,53 @@ SHIM(HeapSize_) { RET(c, gsize(ARG(c, 2)), 3); }
 // image or an earlier reservation fails (ERROR_INVALID_ADDRESS) exactly like on Windows; the game's
 // allocator probes fixed addresses and falls back when they are taken.
 #define MAXRES 4096
-static struct { uint32_t lo, hi; } res[MAXRES];
+static struct { uint32_t lo, hi; int page; } res[MAXRES];   // page: backed by the gpages free list
 static int nres;
 static int overlaps(uint32_t lo, uint32_t hi) {
     for (int i = 0; i < nres; i++) if (lo < res[i].hi && res[i].lo < hi) return i;
     return -1;
 }
-static void reserve(uint32_t lo, uint32_t hi) { if (nres < MAXRES) { res[nres].lo = lo; res[nres].hi = hi; nres++; } }
+static void reserve(uint32_t lo, uint32_t hi, int page) { if (nres < MAXRES) { res[nres].lo = lo; res[nres].hi = hi; res[nres].page = page; nres++; } }
+// VirtualFree(MEM_RELEASE) drops the reservation. Without this, MAXRES is consumed by short-lived
+// page allocations and a long session eventually fails every VirtualAlloc with ERROR_NOT_ENOUGH_MEMORY.
+static int unreserve(uint32_t addr, uint32_t *lo, uint32_t *hi, int *page) {
+    for (int i = 0; i < nres; i++) if (res[i].lo == addr) {
+        *lo = res[i].lo; *hi = res[i].hi; *page = res[i].page;
+        res[i] = res[--nres];
+        return 1;
+    }
+    return 0;
+}
 #include <pthread.h>
 #include <sched.h>
 static pthread_mutex_t va_lk = PTHREAD_MUTEX_INITIALIZER;
 int gheap_reserve_fixed(uint32_t lo,uint32_t hi);
+int gpages_free(uint32_t addr, uint32_t size, int release, int zero);
 static void VirtualAlloc_locked(CPU *c);
 SHIM(VirtualAlloc_) { pthread_mutex_lock(&va_lk); VirtualAlloc_locked(c); pthread_mutex_unlock(&va_lk); }
 static void VirtualAlloc_locked(CPU *c) {
     uint32_t a = ARG(c, 0), n = ARG(c, 1), type = ARG(c, 2);
     if(!n || (uint64_t)a+n>0x100000000ull || !(type&0x3000)){last_error=87;RET(c,0,4);return;}
     if (!nres) {    // first call: the image and the low 64 KB are taken
-        reserve(0, 0x10000);
-        reserve(host_image_base, host_image_base + G32(host_image_base + G32(host_image_base + 0x3C) + 24 + 56));
+        reserve(0, 0x10000, 0);
+        reserve(host_image_base, host_image_base + G32(host_image_base + G32(host_image_base + 0x3C) + 24 + 56), 0);
     }
     uint64_t end=((uint64_t)a+n+4095)&~4095ull;
     if(end>0xffffffffu || n>0xeffff000u){last_error=87;RET(c,0,4);return;}
-    if (!a) { if(nres==MAXRES){last_error=8;RET(c,0,4);return;}uint32_t p = gpages(n); reserve(p, p + ((n + 0xFFF) & ~0xFFFu)); RET(c, p, 4); return; }
+    if (!a) {
+        if(nres==MAXRES){last_error=8;RET(c,0,4);return;}
+        uint32_t span = (n + 0xFFFFu) & ~0xFFFFu;   // VirtualAlloc granularity; gpages rounds the same way
+        uint32_t p = gpages(n);
+        reserve(p, p + span, 1);
+        RET(c, p, 4); return;
+    }
     uint32_t lo = a & ((type&0x2000)?~0xffffu:~0xfffu), hi = (uint32_t)end;
     int i = overlaps(lo, hi);
     if (type & 0x2000) {                        // MEM_RESERVE at a fixed address
         int ok=i<0&&nres<MAXRES&&gheap_reserve_fixed(lo,hi);
         fprintf(stderr,"[address-map] fixed request=%#x bytes=%#x span=%#x..%#x result=%#x caller=%#x\n",a,n,lo,hi,ok?lo:0,G32(REG(c,R_ESP)));
         if (!ok) { last_error = 487; RET(c, 0, 4); return; }
-        reserve(lo, hi); RET(c, lo, 4); return;
+        reserve(lo, hi, 0); RET(c, lo, 4); return;
     }
     // A commit must be wholly inside an existing reservation, including already committed pages.
     if(i<0 || lo<res[i].lo || hi>res[i].hi){
@@ -358,7 +375,17 @@ static void VirtualAlloc_locked(CPU *c) {
 }
 SHIM(VirtualFree_) {
     uint32_t a = ARG(c, 0), n = ARG(c, 1), type = ARG(c, 2);
-    if ((type & 0x4000) && a && n && (uint64_t)a + n <= 0x100000000ull) memset(MEM + a, 0, n);
+    pthread_mutex_lock(&va_lk);
+    if (a && (type & 0x8000)) {                 // MEM_RELEASE: size is ignored, use the reservation
+        uint32_t lo = 0, hi = 0; int page = 0;
+        if (unreserve(a, &lo, &hi, &page)) {
+            if (page) gpages_free(lo, hi - lo, 1, 0);   // back to the heap free list for reuse
+            else gpages_free(lo, hi - lo, 0, 0);        // fixed reservation: reclaim physical pages only
+        } else if (n) gpages_free(a, n, 0, 0);
+    } else if (a && n && (type & 0x4000)) {     // MEM_DECOMMIT: keep the reservation, zero on read
+        gpages_free(a, n, 0, 1);
+    }
+    pthread_mutex_unlock(&va_lk);
     RET(c, 1, 3);
 }
 SHIM(VirtualQuery_) { RET(c, 0, 3); }

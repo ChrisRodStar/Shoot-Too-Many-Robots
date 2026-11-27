@@ -23,6 +23,7 @@ case "${1:-}" in
     python3 tests/texture_lifetime_test.py
     python3 tests/texture_copy_test.py
     python3 tests/heap_diagnostics_test.py
+    python3 tests/guest_page_reuse_test.py
     ;;
   *) echo "Usage: $0 {media|texture}" >&2; exit 2 ;;
 esac
