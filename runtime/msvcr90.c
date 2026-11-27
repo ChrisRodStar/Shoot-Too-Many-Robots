@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <strings.h>
 #include "shims.h"
 
 static uint32_t run_initializers(CPU *cpu, bool stop_on_error) {
@@ -228,6 +229,40 @@ SHIM(memcmp) {
     RET(c, (uint32_t)memcmp(MEM + left, MEM + right, size), 0);
 }
 
+SHIM(strcmp) {
+    uint32_t left = ARG(c, 0);
+    uint32_t right = ARG(c, 1);
+    if (!left || !right)
+        rt_trap(c, TRAP_IMPORT, left ? right : left);
+    RET(c, (uint32_t)strcmp((const char *)(MEM + left), (const char *)(MEM + right)), 0);
+}
+
+SHIM(strncmp) {
+    uint32_t left = ARG(c, 0);
+    uint32_t right = ARG(c, 1);
+    uint32_t size = ARG(c, 2);
+    if (size && (!left || !right))
+        rt_trap(c, TRAP_IMPORT, left ? right : left);
+    RET(c, (uint32_t)strncmp((const char *)(MEM + left), (const char *)(MEM + right), size), 0);
+}
+
+SHIM(_stricmp) {
+    uint32_t left = ARG(c, 0);
+    uint32_t right = ARG(c, 1);
+    if (!left || !right)
+        rt_trap(c, TRAP_IMPORT, left ? right : left);
+    RET(c, (uint32_t)strcasecmp((const char *)(MEM + left), (const char *)(MEM + right)), 0);
+}
+
+SHIM(_strnicmp) {
+    uint32_t left = ARG(c, 0);
+    uint32_t right = ARG(c, 1);
+    uint32_t size = ARG(c, 2);
+    if (size && (!left || !right))
+        rt_trap(c, TRAP_IMPORT, left ? right : left);
+    RET(c, (uint32_t)strncasecmp((const char *)(MEM + left), (const char *)(MEM + right), size), 0);
+}
+
 static uint32_t wide_command_line;
 
 static uint32_t get_wide_command_line(void) {
@@ -278,7 +313,28 @@ uint32_t smr_find_msvcr90_data(const char *name) {
     return 0;
 }
 
+ShimFn smr_find_msvcr90_fast_shim(const char *name) {
+    if (!strcmp(name, "memset"))
+        return memset_;
+    if (!strcmp(name, "memcpy") || !strcmp(name, "memmove"))
+        return memmove_;
+    if (!strcmp(name, "memcmp"))
+        return memcmp_;
+    if (!strcmp(name, "strcmp"))
+        return strcmp_;
+    if (!strcmp(name, "strncmp"))
+        return strncmp_;
+    if (!strcmp(name, "_stricmp"))
+        return _stricmp_;
+    if (!strcmp(name, "_strnicmp"))
+        return _strnicmp_;
+    return NULL;
+}
+
 ShimFn smr_find_msvcr90_shim(const char *name) {
+    ShimFn fast = smr_find_msvcr90_fast_shim(name);
+    if (fast)
+        return fast;
     if (!strcmp(name, "_initterm"))
         return _initterm_;
     if (!strcmp(name, "_initterm_e"))
@@ -287,12 +343,6 @@ ShimFn smr_find_msvcr90_shim(const char *name) {
         return _encode_pointer_;
     if (!strcmp(name, "_controlfp_s"))
         return _controlfp_s_;
-    if (!strcmp(name, "memset"))
-        return memset_;
-    if (!strcmp(name, "memcpy") || !strcmp(name, "memmove"))
-        return memmove_;
-    if (!strcmp(name, "memcmp"))
-        return memcmp_;
     if (!strcmp(name, "malloc"))
         return malloc_;
     if (!strcmp(name, "calloc"))
