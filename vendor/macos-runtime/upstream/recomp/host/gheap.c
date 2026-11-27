@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include "host.h"
 
 // one lock for the whole guest heap: the game allocates from many threads
@@ -32,8 +33,62 @@ int gheap_reserve_fixed(uint32_t lo,uint32_t hi){
 }
 // accounting (bytes taken from the bump pointer, by kind; live bytes handed out by gmalloc)
 static uint64_t st_bump_class, st_bump_huge, st_bump_pages, st_huge_freed, st_live;
+static uint64_t st_pages_freed, st_pages_reused, st_page_live, st_page_free_bytes;
 static uint32_t freelist[NCLASS];
 static uint32_t hugelist;            // freed huge blocks: [size:4][-1:4][next:4][capacity:4]
+
+// Guest page spans. VirtualAlloc works in 64 KiB granules, so page allocations are contiguous and a
+// released span can merge with its neighbours. gpages hands out spans from the bump pointer and from
+// this free list; VirtualFree(MEM_RELEASE) puts a span back here, which is what stops a long session
+// from consuming HEAP_HI. gpages_discard (MEM_DECOMMIT / a fixed reservation being released) only
+// returns the physical pages to macOS: the address range stays reserved.
+#define PAGE_GRAN 0x10000u
+typedef struct {uint32_t addr,size;} PageSpan;
+static PageSpan *page_free;
+static size_t page_free_count, page_free_cap;
+
+static uint32_t page_round(uint32_t n) { return n ? (n + PAGE_GRAN - 1) & ~(PAGE_GRAN - 1) : 0; }
+
+static void page_free_insert(uint32_t addr, uint32_t size) {
+    size_t at = 0;
+    while (at < page_free_count && page_free[at].addr < addr) at++;
+    // merge with the following span first, so a span bridging both neighbours merges all three
+    if (at < page_free_count && addr + size == page_free[at].addr) {
+        size += page_free[at].size;
+        memmove(&page_free[at], &page_free[at + 1], (page_free_count - at - 1) * sizeof *page_free);
+        page_free_count--;
+    }
+    if (at > 0 && page_free[at - 1].addr + page_free[at - 1].size == addr) {
+        page_free[at - 1].size += size;
+        return;
+    }
+    if (page_free_count == page_free_cap) {
+        size_t cap = page_free_cap ? page_free_cap * 2 : 64;
+        PageSpan *next = realloc(page_free, cap * sizeof *next);
+        if (!next) { fprintf(stderr, "[gheap] page free-list allocation failed\n"); abort(); }
+        page_free = next; page_free_cap = cap;
+    }
+    memmove(&page_free[at + 1], &page_free[at], (page_free_count - at) * sizeof *page_free);
+    page_free[at].addr = addr; page_free[at].size = size; page_free_count++;
+}
+
+// Best fit keeps large spans intact for large requests instead of slicing the first hole.
+static uint32_t page_take(uint32_t need) {
+    size_t best = page_free_count;
+    for (size_t i = 0; i < page_free_count; i++)
+        if (page_free[i].size >= need && (best == page_free_count || page_free[i].size < page_free[best].size)) best = i;
+    if (best == page_free_count) return 0;
+    uint32_t addr = page_free[best].addr;
+    if (page_free[best].size == need) {
+        memmove(&page_free[best], &page_free[best + 1], (page_free_count - best - 1) * sizeof *page_free);
+        page_free_count--;
+    } else {
+        page_free[best].addr += need;
+        page_free[best].size -= need;
+    }
+    st_page_free_bytes -= need;
+    return addr;
+}
 
 // Independent host ownership ledger. Guest writes cannot rewrite these records.
 // Guards use existing size-class slack, so guest addresses and capacities do not change.
@@ -167,23 +222,55 @@ static uint32_t grealloc_u(uint32_t q, uint32_t size) {
 }
 
 static uint32_t gpages_u(uint32_t size) {
-    brk_ = (brk_ + 0xFFFFu) & ~0xFFFFu;
-    uint32_t p = bump((size + 0xFFF) & ~0xFFFu);
-    st_bump_pages += (size + 0xFFF) & ~0xFFFu;
-    memset(MEM + p, 0, size);
+    if (!size) size = 1;
+    uint32_t need = page_round(size);
+    uint32_t p = page_take(need);
+    if (p) st_pages_reused += need;             // reused without moving brk_
+    else {
+        brk_ = (brk_ + PAGE_GRAN - 1) & ~(PAGE_GRAN - 1);
+        p = bump(need);
+        st_bump_pages += need;
+    }
+    st_page_live += need;
+    memset(MEM + p, 0, need);
     return p;
+}
+
+// release=1: a VirtualAlloc(NULL) span is returned to the free list (and coalesced).
+// release=0: MEM_DECOMMIT, or releasing a fixed reservation; only physical pages are reclaimed.
+// zero: the guest must observe zeroes on read (MEM_DECOMMIT); released spans are zeroed on reuse.
+static int gpages_free_u(uint32_t addr, uint32_t size, int release, int zero) {
+    if (!addr || !size) return 0;
+    uint32_t need = page_round(size);
+    if ((uint64_t)addr + need > 0x100000000ull) return 0;
+    // Ask the kernel to drop the physical pages. Darwin treats MADV_DONTNEED on dirty anonymous
+    // memory as advisory, so a released span is zeroed when it is handed out again (gpages_u).
+    (void)madvise(MEM + addr, need, MADV_DONTNEED);
+    if (zero) memset(MEM + addr, 0, need);
+    if (!release) return 1;
+    if (addr < HEAP_LO || (uint64_t)addr + need > brk_ || (addr & (PAGE_GRAN - 1))) return 1;
+    st_pages_freed += need;
+    st_page_live = st_page_live >= need ? st_page_live - need : 0;
+    st_page_free_bytes += need;
+    page_free_insert(addr, need);
+    return 1;
 }
 
 uint32_t gmalloc(uint32_t size) { L; uint32_t r = gmalloc_u(size); UL; return r; }
 void gfree(uint32_t q) { L; gfree_u(q); UL; }
 uint32_t grealloc(uint32_t q, uint32_t size) { L; uint32_t r = grealloc_u(q, size); UL; return r; }
 uint32_t gpages(uint32_t size) { L; uint32_t r = gpages_u(size); UL; return r; }
+int gpages_free(uint32_t addr, uint32_t size, int release, int zero) { L; int r = gpages_free_u(addr, size, release, zero); UL; return r; }
 
 void gheap_report(void) {
     L;
-    fprintf(stderr, "[gheap] used %u MB of %u: class %llu MB, huge %llu MB (freed-not-reused %llu MB), pages %llu MB, live %llu MB\n",
+    fprintf(stderr, "[gheap] used %u MB of %u: class %llu MB, huge %llu MB (freed-not-reused %llu MB), "
+            "pages bump %llu MB (live %llu MB, free-list %llu MB, reused %llu MB, released %llu MB), live %llu MB\n",
             (brk_ - HEAP_LO) >> 20, (HEAP_HI - HEAP_LO) >> 20, (unsigned long long)(st_bump_class >> 20),
             (unsigned long long)(st_bump_huge >> 20), (unsigned long long)(st_huge_freed >> 20),
-            (unsigned long long)(st_bump_pages >> 20), (unsigned long long)(st_live >> 20));
+            (unsigned long long)(st_bump_pages >> 20),
+            (unsigned long long)(st_page_live >> 20), (unsigned long long)(st_page_free_bytes >> 20),
+            (unsigned long long)(st_pages_reused >> 20), (unsigned long long)(st_pages_freed >> 20),
+            (unsigned long long)(st_live >> 20));
     UL;
 }
