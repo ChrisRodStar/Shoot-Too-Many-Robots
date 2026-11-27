@@ -200,6 +200,22 @@ SHIM(physx_Body_getLinearVelocity) {
     RET(c, out, 1);
 }
 
+// 0x114f5a40: Scene::get48c() -> [ecx + 0x48c]
+SHIM(physx_Scene_get48c) {
+    RET(c, G32(REG(c, R_ECX) + 0x48c), 0);
+}
+
+// 0x114f0ce0: get1c() -> [ecx + 0x1c]
+SHIM(physx_get1c) {
+    RET(c, G32(REG(c, R_ECX) + 0x1c), 0);
+}
+
+// 0x115261c0: NpActor::readFlag2c(flag) -> ([ecx + 0x2c] & flag) != 0
+SHIM(physx_NpActor_readFlag2c) {
+    uint32_t v = G32(REG(c, R_ECX) + 0x2c) & ARG(c, 0);
+    RET(c, v != 0, 1);
+}
+
 // 0x1157e490: Shape::getType() -> 9
 SHIM(physx_Shape_ret9) {
     RET(c, 9, 0);
@@ -231,6 +247,9 @@ ShimFn smr_find_addr_shim(uint32_t addr) {
     case 0x115af100u: return physx_Body_getGlobalOrientationQuat_;
     case 0x115aed30u: return physx_Body_isSleeping_;
     case 0x115aeec0u: return physx_Body_getLinearVelocity_;
+    case 0x114f5a40u: return physx_Scene_get48c_;
+    case 0x114f0ce0u: return physx_get1c_;
+    case 0x115261c0u: return physx_NpActor_readFlag2c_;
     case 0x1157e490u: return physx_Shape_ret9_;
     case 0x1157e4e0u: return physx_Shape_get10_;
     case 0x1157e520u: return physx_Shape_get38_;
