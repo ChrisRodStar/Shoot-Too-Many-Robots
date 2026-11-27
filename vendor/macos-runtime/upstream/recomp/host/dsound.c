@@ -6,6 +6,9 @@
 #include "com.h"
 #include "FNVNativeMedia.h"
 
+// Host unit tests compile this file without rt_dispatch.c; the real runtime supplies the strong def.
+__attribute__((weak)) void rt_call(CPU *c, uint32_t a) { rt_trap(c, TRAP_NOFN, a); }
+
 static uint32_t vt_ds, vt_buf, vt_3dbuf, vt_listener;
 
 // buffer instance data (after the 12-byte COM header)
@@ -241,7 +244,7 @@ static const ComMethod ds_methods[] = {
     {"VerifyCertification", DS_VerifyCertification, 1},
 };
 
-static void DirectSoundCreate8_(CPU *c) {
+static void ds_create(CPU *c, const char *name) {
     if (!vt_ds) {
         vt_ds = com_vtable("IDirectSound8", ds_methods, (int)(sizeof ds_methods / sizeof *ds_methods));
         vt_buf = com_vtable("IDirectSoundBuffer8", buf_methods, (int)(sizeof buf_methods / sizeof *buf_methods));
@@ -249,8 +252,60 @@ static void DirectSoundCreate8_(CPU *c) {
         vt_listener = com_vtable("IDirectSound3DListener", listener_methods, (int)(sizeof listener_methods / sizeof *listener_methods));
     }
     P32(ARG(c, 1), com_new(vt_ds, 0));
-    fprintf(stderr, "[dsound] DirectSoundCreate8 -> native PCM device, output_ready=%d\n",fnv_audio_start());
+    fprintf(stderr, "[dsound] %s -> native PCM device, output_ready=%d\n", name, fnv_audio_start());
     RET(c, 0, 3);
 }
+static void DirectSoundCreate_(CPU *c) { ds_create(c, "DirectSoundCreate"); }
+static void DirectSoundCreate8_(CPU *c) { ds_create(c, "DirectSoundCreate8"); }
 
-const ShimTable dsound_shims = { (const Shim[]){ {"dsound#11", DirectSoundCreate8_}, {"DirectSoundCreate8", DirectSoundCreate8_} }, 2 };
+// DirectSoundEnumerateA/W run the guest's DSEnumCallback once with the primary device (lpGuid = NULL).
+// The callback is stdcall and is entered with HOST_EXIT_THUNK as its return address, exactly like
+// the user32 window-procedure bridge in shims_win.c. Strings live in the shim's own frame, above the
+// guest callee's stack pointer, and ESP is restored afterwards.
+static void ds_enumerate(CPU *c, int wide) {
+    uint32_t cb = ARG(c, 0);
+    if (!cb) { RET(c, 0x80070057u /* DSERR_INVALIDPARAM */, 2); return; }
+    static const char description[] = "Primary Sound Driver";
+    uint32_t esp = REG(c, R_ESP) - 160;
+    P32(esp, HOST_EXIT_THUNK);
+    P32(esp + 4, 0);                 // lpGuid: NULL selects the primary device
+    P32(esp + 16, ARG(c, 1));        // lpContext
+    uint32_t desc = esp + 32, module = wide ? esp + 80 : esp + 64;
+    if (wide) {
+        for (int i = 0; i < (int)sizeof description; i++)
+            ST(MEM + desc + 2 * i, (uint16_t)(unsigned char)description[i], 2);
+        ST(MEM + module, 0, 2);      // empty lpcstrModule (UTF-16)
+    } else {
+        memcpy(MEM + desc, description, sizeof description);
+        MEM[module] = 0;             // empty lpcstrModule
+    }
+    P32(esp + 8, desc);
+    P32(esp + 12, module);
+    SETREG(c, R_ESP, esp);
+    rt_call(c, cb);
+    SETREG(c, R_ESP, esp + 160);
+    RET(c, 0, 2);
+}
+static void DirectSoundEnumerateA_(CPU *c) { ds_enumerate(c, 0); }
+static void DirectSoundEnumerateW_(CPU *c) { ds_enumerate(c, 1); }
+
+// No capture hardware is bridged to CoreAudio: report zero capture devices and decline create.
+static void ds_capture_enumerate(CPU *c) {
+    if (!ARG(c, 0)) { RET(c, 0x80070057u, 2); return; }
+    RET(c, 0, 2);
+}
+static void DirectSoundCaptureEnumerateA_(CPU *c) { ds_capture_enumerate(c); }
+static void DirectSoundCaptureEnumerateW_(CPU *c) { ds_capture_enumerate(c); }
+static void DirectSoundCaptureCreate_(CPU *c) { P32(ARG(c, 1), 0); RET(c, 0x88780078u /* DSERR_NODRIVER */, 3); }
+static void DirectSoundCaptureCreate8_(CPU *c) { P32(ARG(c, 1), 0); RET(c, 0x88780078u /* DSERR_NODRIVER */, 3); }
+
+const ShimTable dsound_shims = { (const Shim[]){
+    {"dsound#1", DirectSoundCreate_}, {"dsound#2", DirectSoundEnumerateA_}, {"dsound#3", DirectSoundEnumerateW_},
+    {"dsound#6", DirectSoundCaptureCreate_}, {"dsound#7", DirectSoundCaptureEnumerateA_},
+    {"dsound#8", DirectSoundCaptureEnumerateW_}, {"dsound#11", DirectSoundCreate8_}, {"dsound#12", DirectSoundCaptureCreate8_},
+    {"DirectSoundCreate", DirectSoundCreate_}, {"DirectSoundCreate8", DirectSoundCreate8_},
+    {"DirectSoundEnumerateA", DirectSoundEnumerateA_}, {"DirectSoundEnumerateW", DirectSoundEnumerateW_},
+    {"DirectSoundCaptureCreate", DirectSoundCaptureCreate_}, {"DirectSoundCaptureCreate8", DirectSoundCaptureCreate8_},
+    {"DirectSoundCaptureEnumerateA", DirectSoundCaptureEnumerateA_},
+    {"DirectSoundCaptureEnumerateW", DirectSoundCaptureEnumerateW_},
+}, 16 };
