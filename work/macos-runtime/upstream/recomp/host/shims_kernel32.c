@@ -139,6 +139,7 @@ static const char *known_mods[] = {"kernel32", "user32", "gdi32", "advapi32", "s
 uint32_t smr_module_by_name(const char *name);
 uint32_t smr_module_export_by_handle(uint32_t handle, const char *name);
 bool smr_mapped_module_handle(uint32_t handle);
+ShimFn smr_find_msvcr90_fast_shim(const char *name);
 
 static uint32_t mod_handle(const char *name) {
     if (!name) return host_image_base;
@@ -198,6 +199,23 @@ SHIM(GetProcAddress_) {
     char name[96];
     if (pn < 0x10000) snprintf(name, sizeof name, "#%u", pn); else snprintf(name, sizeof name, "%s", GSTR(pn));
     if (smr_mapped_module_handle(h)) {
+        // Dynamic msvcr90 lookups must prefer the same native shims as static imports.
+        // Returning the raw DLL export address makes every call re-enter Unicorn even
+        // when the host already implements that CRT entry point.
+        if (h == smr_module_by_name("msvcr90.dll")) {
+            ShimFn fast = smr_find_msvcr90_fast_shim(name);
+            if (fast) {
+                for (int i = 0; i < host_import_count; i++)
+                    if (host_imports[i].fn == fast) { RET(c, IMPORT_THUNK_BASE + 4u * (uint32_t)i, 2); return; }
+                HostImport *hi = &host_imports[host_import_count];
+                snprintf(hi->dll, sizeof hi->dll, "%s", "msvcr90.dll");
+                snprintf(hi->name, sizeof hi->name, "%s", name);
+                hi->fn = fast;
+                uint32_t thunk = IMPORT_THUNK_BASE + 4u * (uint32_t)host_import_count++;
+                RET(c, thunk, 2);
+                return;
+            }
+        }
         uint32_t exported = smr_module_export_by_handle(h, name);
         if (!exported)
             last_error = 127;

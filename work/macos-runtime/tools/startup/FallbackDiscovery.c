@@ -199,12 +199,41 @@ static int log_root(uint32_t a) {
     return 1;
 }
 
+// Optional dynamic hotness counter: FNV_FALLBACK_COUNTS=<path> writes "address hits"
+// on exit. The normal root log intentionally deduplicates; this preserves frequency.
+static pthread_mutex_t hit_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t hit_addr[65536], hit_count[65536];
+static int hit_n, hit_registered;
+
+static void dump_hits(void) {
+    const char *path = getenv("FNV_FALLBACK_COUNTS");
+    if (!path || !*path) return;
+    FILE *f = fopen(path, "w");
+    if (!f) return;
+    pthread_mutex_lock(&hit_lock);
+    for (int i = 0; i < hit_n; i++) fprintf(f, "%#x %u\n", hit_addr[i], hit_count[i]);
+    pthread_mutex_unlock(&hit_lock);
+    fclose(f);
+}
+
+static void count_hit(uint32_t a) {
+    const char *path = getenv("FNV_FALLBACK_COUNTS");
+    if (!path || !*path) return;
+    pthread_mutex_lock(&hit_lock);
+    if (!hit_registered) { hit_registered = 1; atexit(dump_hits); }
+    for (int i = 0; i < hit_n; i++)
+        if (hit_addr[i] == a) { hit_count[i]++; pthread_mutex_unlock(&hit_lock); return; }
+    if (hit_n < 65536) { hit_addr[hit_n] = a; hit_count[hit_n] = 1; hit_n++; }
+    pthread_mutex_unlock(&hit_lock);
+}
+
 void rt_fallback(CPU *c, uint32_t a) {
     if (depth >= MAXDEPTH) {
         fprintf(stderr, "[fallback] engine nesting limit %d reached at %#x\n", MAXDEPTH, a);
         rt_trap(c, TRAP_NOFN, a);
     }
     if (!executable_guest_address(a)) rt_trap(c, TRAP_NOFN, a);
+    count_hit(a);
     if(log_root(a)) snapshot_root(c,a);
     uc_engine *uc = engine(c);
     cur_cpu[depth] = c; cur_root[depth] = a; prev_end[depth] = 0;previous_pc[depth]=0;recent_count[depth]=0;left_code[depth]=false;

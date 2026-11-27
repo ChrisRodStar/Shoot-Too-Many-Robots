@@ -1,7 +1,10 @@
+#include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include "shims.h"
 
@@ -263,6 +266,98 @@ SHIM(_strnicmp) {
     RET(c, (uint32_t)strncasecmp((const char *)(MEM + left), (const char *)(MEM + right), size), 0);
 }
 
+// Hot single-byte classification/conversion exports. MSVC uses the C locale by default;
+// returning a normalized boolean (rather than the host table's bit value) is sufficient for
+// the game's boolean tests and avoids leaking glibc's ctype table values into guest code.
+#define CTYPE_SHIM(name) SHIM(name) { RET(c, (uint32_t)!!name((unsigned char)ARG(c, 0)), 0); }
+CTYPE_SHIM(isspace)
+CTYPE_SHIM(isalnum)
+CTYPE_SHIM(isalpha)
+CTYPE_SHIM(isdigit)
+CTYPE_SHIM(isxdigit)
+#undef CTYPE_SHIM
+
+SHIM(tolower) { RET(c, (uint32_t)tolower((unsigned char)ARG(c, 0)), 0); }
+SHIM(toupper) { RET(c, (uint32_t)toupper((unsigned char)ARG(c, 0)), 0); }
+
+SHIM(strchr) {
+    uint32_t string = ARG(c, 0);
+    if (!string) { RET(c, 0, 0); return; }
+    uint8_t *found = (uint8_t *)strchr((const char *)(MEM + string), (int)(unsigned char)ARG(c, 1));
+    RET(c, found ? (uint32_t)(found - MEM) : 0, 0);
+}
+
+SHIM(strspn) {
+    uint32_t string = ARG(c, 0), accept = ARG(c, 1);
+    if (!string || !accept) { RET(c, 0, 0); return; }
+    RET(c, (uint32_t)strspn((const char *)(MEM + string), (const char *)(MEM + accept)), 0);
+}
+
+SHIM(strstr) {
+    uint32_t haystack = ARG(c, 0), needle = ARG(c, 1);
+    if (!haystack || !needle) { RET(c, 0, 0); return; }
+    uint8_t *found = (uint8_t *)strstr((const char *)(MEM + haystack), (const char *)(MEM + needle));
+    RET(c, found ? (uint32_t)(found - MEM) : 0, 0);
+}
+
+SHIM(memchr) {
+    uint32_t string = ARG(c, 0), size = ARG(c, 2);
+    if (!string || !size) { RET(c, 0, 0); return; }
+    uint8_t *found = (uint8_t *)memchr(MEM + string, (int)(unsigned char)ARG(c, 1), size);
+    RET(c, found ? (uint32_t)(found - MEM) : 0, 0);
+}
+
+SHIM(atoi) {
+    uint32_t string = ARG(c, 0);
+    RET(c, string ? (uint32_t)atoi((const char *)(MEM + string)) : 0, 0);
+}
+
+// MSVC's rand/srand use a 32-bit LCG, not the host libc sequence. Keep the original
+// algorithm so replacing the fallback does not change determinism.
+static uint32_t msvc_rand_state = 1;
+static pthread_mutex_t msvc_rand_lock = PTHREAD_MUTEX_INITIALIZER;
+
+SHIM(srand) {
+    pthread_mutex_lock(&msvc_rand_lock);
+    msvc_rand_state = ARG(c, 0);
+    pthread_mutex_unlock(&msvc_rand_lock);
+    RET(c, 0, 0);
+}
+
+SHIM(rand) {
+    pthread_mutex_lock(&msvc_rand_lock);
+    msvc_rand_state = msvc_rand_state * 214013u + 2531011u;
+    uint32_t value = (msvc_rand_state >> 16) & 0x7fff;
+    pthread_mutex_unlock(&msvc_rand_lock);
+    RET(c, value, 0);
+}
+
+// MSVC cdecl double arguments live at [ESP+4..]; the return value is ST0, matching the
+// native generated-code convention (no TOP change at a call boundary).
+static double guest_double_arg(CPU *c, int index) {
+    double value;
+    memcpy(&value, MEM + REG(c, R_ESP) + 4 + 8 * index, sizeof value);
+    return value;
+}
+
+static void return_double(CPU *c, double value) {
+    memcpy(c->r + 4352, &value, sizeof value);
+}
+
+SHIM(floor) { double x = guest_double_arg(c, 0); return_double(c, floor(x)); RET(c, 0, 0); }
+SHIM(ceil) { double x = guest_double_arg(c, 0); return_double(c, ceil(x)); RET(c, 0, 0); }
+SHIM(atof) {
+    uint32_t string = ARG(c, 0);
+    return_double(c, string ? atof((const char *)(MEM + string)) : 0.0);
+    RET(c, 0, 0);
+}
+
+// The _CI* CRT intrinsics take their argument in ST0 rather than on the stack. They are
+// not routed through fast shims yet; leave them on the interpreter path until that ABI is
+// implemented and verified. floor/ceil/atof below are ordinary cdecl stack-argument functions.
+SHIM(_isnan) { RET(c, (uint32_t)isnan(guest_double_arg(c, 0)), 0); }
+SHIM(_finite) { RET(c, (uint32_t)isfinite(guest_double_arg(c, 0)), 0); }
+
 static uint32_t wide_command_line;
 
 static uint32_t get_wide_command_line(void) {
@@ -328,6 +423,60 @@ ShimFn smr_find_msvcr90_fast_shim(const char *name) {
         return _stricmp_;
     if (!strcmp(name, "_strnicmp"))
         return _strnicmp_;
+    if (!strcmp(name, "isspace"))
+        return isspace_;
+    if (!strcmp(name, "isalnum"))
+        return isalnum_;
+    if (!strcmp(name, "isalpha"))
+        return isalpha_;
+    if (!strcmp(name, "isdigit"))
+        return isdigit_;
+    if (!strcmp(name, "isxdigit"))
+        return isxdigit_;
+    if (!strcmp(name, "tolower"))
+        return tolower_;
+    if (!strcmp(name, "toupper"))
+        return toupper_;
+    if (!strcmp(name, "strchr"))
+        return strchr_;
+    if (!strcmp(name, "strspn"))
+        return strspn_;
+    if (!strcmp(name, "strstr"))
+        return strstr_;
+    if (!strcmp(name, "memchr"))
+        return memchr_;
+    if (!strcmp(name, "atoi"))
+        return atoi_;
+    if (!strcmp(name, "atof"))
+        return atof_;
+    if (!strcmp(name, "rand"))
+        return rand_;
+    if (!strcmp(name, "srand"))
+        return srand_;
+    if (!strcmp(name, "floor"))
+        return floor_;
+    if (!strcmp(name, "ceil"))
+        return ceil_;
+    if (!strcmp(name, "_isnan"))
+        return _isnan_;
+    if (!strcmp(name, "_finite"))
+        return _finite_;
+    if (!strcmp(name, "_encode_pointer") || !strcmp(name, "_decode_pointer"))
+        return _encode_pointer_;
+    if (!strcmp(name, "_onexit"))
+        return _onexit_;
+    if (!strcmp(name, "_controlfp_s"))
+        return _controlfp_s_;
+    if (!strcmp(name, "malloc"))
+        return malloc_;
+    if (!strcmp(name, "calloc"))
+        return calloc_;
+    if (!strcmp(name, "realloc"))
+        return realloc_;
+    if (!strcmp(name, "_msize"))
+        return _msize_;
+    if (!strcmp(name, "free"))
+        return free_;
     return NULL;
 }
 
