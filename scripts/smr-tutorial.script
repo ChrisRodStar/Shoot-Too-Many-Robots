@@ -11,7 +11,7 @@
 # the post-sync window short; use --full when fps matters.
 0 waitsteady 20 100
 60 tap 57
-120 waitsteady 30 400
+120 waitsteady 30 400 57 90
 360 dump
 480 dump
 600 dump

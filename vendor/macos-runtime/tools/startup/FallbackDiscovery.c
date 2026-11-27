@@ -10,8 +10,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <time.h>
 #include <unicorn/unicorn.h>
 #include "host.h"
+
+// Fallback time accounting, read and reset by the [perf] reporter.
+extern void smr_fallback_perf_add(uint64_t ns);
+extern void smr_fallback_perf_call(void);
+static uint64_t fb_now_ns(void) {
+    struct timespec t;
+    // Thread CPU time: comparable to main_cpu_ms in [perf], and immune to descheduling.
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
+    return (uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec;
+}
 
 extern int rt_has_fn(uint32_t a);
 #define MAXDEPTH 32
@@ -234,13 +245,19 @@ void rt_fallback(CPU *c, uint32_t a) {
     }
     if (!executable_guest_address(a)) rt_trap(c, TRAP_NOFN, a);
     count_hit(a);
+    smr_fallback_perf_call();
+    // Time only the outermost run: nested fallbacks execute inside this one's uc_emu_start,
+    // so counting them too would multiply the same wall time by the nesting depth.
+    int outermost = depth == 0;
     if(log_root(a)) snapshot_root(c,a);
     uc_engine *uc = engine(c);
     cur_cpu[depth] = c; cur_root[depth] = a; prev_end[depth] = 0;previous_pc[depth]=0;recent_count[depth]=0;left_code[depth]=false;
     depth++;
     uint32_t ret = G32(REG(c, R_ESP));      // the CALL already pushed it
     cpu_to_uc(c, uc);
+    uint64_t fb_t0 = outermost ? fb_now_ns() : 0;
     uc_err e = uc_emu_start(uc, a, ret, 0, 0);
+    if (outermost) smr_fallback_perf_add(fb_now_ns() - fb_t0);
     depth--;
     if (left_code[depth] || e != UC_ERR_OK) {
         uint32_t eip;

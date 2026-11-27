@@ -139,7 +139,11 @@ int input_pop_event(int dev, uint32_t *ofs, uint32_t *data, int peek_index) {
 //                                     pause until the draw count stays unchanged for <frames>
 //                                     consecutive frames and is at least <min_draws> (default 0);
 //                                     use this to sync to a static menu regardless of its count
-typedef struct { uint64_t frame; char cmd[16]; int a, b; } Step;
+//   <frame> waitsteady <frames> <min_draws> <dik> <every>
+//                                     same, but while waiting tap <dik> every <every> frames.
+//                                     Use this for screens that need a key press to advance:
+//                                     a one-shot tap can land before the prompt is ready.
+typedef struct { uint64_t frame; char cmd[16]; int a, b, c, d; } Step;
 static Step *steps; static int nsteps, cursor;
 static int64_t shift;
 static volatile int dump_req;
@@ -158,9 +162,10 @@ static void load_script(void) {
     int cap = 256; steps = malloc(sizeof(Step) * (size_t)cap);
     while (fgets(line, sizeof line, f)) {
         if (line[0] == '#' || line[0] == '\n') continue;
-        Step s = {0}; char a[32] = "", b[32] = "";
-        if (sscanf(line, "%llu %15s %31s %31s", (unsigned long long *)&s.frame, s.cmd, a, b) < 2) continue;
+        Step s = {0}; char a[32] = "", b[32] = "", c[32] = "", d[32] = "";
+        if (sscanf(line, "%llu %15s %31s %31s %31s %31s", (unsigned long long *)&s.frame, s.cmd, a, b, c, d) < 2) continue;
         s.a = atoi(a); s.b = !strcmp(b, "down") ? 1 : !strcmp(b, "up") ? 0 : atoi(b);
+        s.c = atoi(c); s.d = atoi(d);
         if (!strcmp(s.cmd, "tap") || !strcmp(s.cmd, "click") || !strcmp(s.cmd, "hold")) {
             int len = !strcmp(s.cmd, "hold") ? s.b : 3;
             Step dn = s, up = s;
@@ -211,7 +216,25 @@ void input_script_tick(uint64_t frame) {
             if (last_draws < min) steady_run = 0;
             else if (last_draws == steady_draws) steady_run++;
             else { steady_draws = last_draws; steady_run = 1; }
-            if (steady_run < need) return;
+            if (steady_run < need) {
+                // Optional auto-tap while waiting: screens that require a key press would
+                // otherwise stall the whole script if the one-shot tap arrived too early.
+                if (s->c > 0 && s->d > 0) {
+                    uint64_t phase = frame % (uint64_t)s->d;
+                    if (phase == 3) {
+                        input_key(s->c, 0);
+                    } else if (phase == 0) {
+                        input_key(s->c, 1);
+                        static uint64_t last_log; static int taps;
+                        if (frame - last_log >= 600) {
+                            last_log = frame;
+                            fprintf(stderr, "[input] auto-tap %d while waiting for steady draws (%d so far)\n", s->c, ++taps);
+                        }
+                    }
+                }
+                return;
+            }
+            if (s->c > 0) input_key(s->c, 0);   // don't leave an auto-tap held down
             fprintf(stderr, "[input] waitsteady %llu frames at %llu draws, frame %llu\n",
                     (unsigned long long)need, (unsigned long long)steady_draws, (unsigned long long)frame);
             shift = (int64_t)frame - (int64_t)s->frame;

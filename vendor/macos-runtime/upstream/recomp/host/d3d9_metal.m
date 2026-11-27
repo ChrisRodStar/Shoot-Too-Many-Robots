@@ -27,6 +27,7 @@
 #include "sm2msl.h"
 #include "input.h"
 
+extern void smr_fallback_perf(uint64_t *, uint64_t *, uint64_t *);
 extern unsigned fnv_output_width(void);
 extern unsigned fnv_output_height(void);
 extern int fnv_display_refresh(void);
@@ -384,9 +385,11 @@ static void perf_report(void) {
     pthread_mutex_unlock(&perf_gpu_lock);
     task_vm_info_data_t memory = {0}; mach_msg_type_number_t n = TASK_VM_INFO_COUNT;
     int memory_ok = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&memory, &n) == KERN_SUCCESS;
+    uint64_t fb_emu = 0, fb_native = 0, fb_calls = 0;
+    smr_fallback_perf(&fb_emu, &fb_native, &fb_calls);
     double frames = frame_perf.presents ? (double)frame_perf.presents : 1;
     NSProcessInfo *process = NSProcessInfo.processInfo;
-    fprintf(stderr, "[perf] intervals=%llu interval_ms=%.2f max_interval_ms=%.2f main_cpu_ms=%.2f cpu_intervals=%llu cpu_rejected=%llu present_ms=%.2f drawable_wait_ms=%.2f inflight_wait_ms=%.2f gpu_ms=%.2f gpu_completed=%llu gpu_unknown=%llu compile_ms_total=%.2f upload_peak_kib=%llu footprint_mib=%.1f thermal=%ld low_power=%d\n",
+    fprintf(stderr, "[perf] intervals=%llu interval_ms=%.2f max_interval_ms=%.2f main_cpu_ms=%.2f cpu_intervals=%llu cpu_rejected=%llu present_ms=%.2f drawable_wait_ms=%.2f inflight_wait_ms=%.2f gpu_ms=%.2f gpu_completed=%llu gpu_unknown=%llu compile_ms_total=%.2f upload_peak_kib=%llu footprint_mib=%.1f thermal=%ld low_power=%d fallback_ms=%.2f fallback_native_ms=%.2f fallback_calls=%llu\n",
         (unsigned long long)frame_perf.intervals,
         frame_perf.intervals ? frame_perf.wall_ns / (1e6 * frame_perf.intervals) : -1,
         frame_perf.max_interval_ns / 1e6,
@@ -395,7 +398,8 @@ static void perf_report(void) {
         frame_perf.present_ns / (1e6 * frames), frame_perf.drawable_ns / (1e6 * frames), frame_perf.inflight_ns / (1e6 * frames),
         gpu_count ? gpu_ns / (1e6 * gpu_count) : -1,
         (unsigned long long)gpu_count, (unsigned long long)unavailable, (stall_ns - perf_last_stall) / 1e6,
-        (unsigned long long)(frame_perf.upload_peak / 1024), memory_ok ? memory.phys_footprint / 1048576.0 : -1, (long)process.thermalState, (int)process.lowPowerModeEnabled);
+        (unsigned long long)(frame_perf.upload_peak / 1024), memory_ok ? memory.phys_footprint / 1048576.0 : -1, (long)process.thermalState, (int)process.lowPowerModeEnabled,
+        fb_emu / (1e6 * frames), fb_native / (1e6 * frames), (unsigned long long)fb_calls);
     perf_last_stall = stall_ns; perf_reset_window(&frame_perf);
 }
 static id<MTLFunction> shader_fn(uint32_t o, HShader *h, const uint16_t *extra, int n_extra, uint32_t depth_mask) {
