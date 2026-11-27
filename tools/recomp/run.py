@@ -68,6 +68,10 @@ def probe_env(args) -> dict:
         env["SMR_RELEASE"] = "1"
     else:
         env.pop("SMR_RELEASE", None)
+    if args.native:
+        env["SMR_NATIVE"] = "1"
+    else:
+        env.pop("SMR_NATIVE", None)
     if args.no_build:
         env["SMR_SKIP_BUILD"] = "1"
     if args.to and args.mode == "window":
@@ -120,7 +124,7 @@ def delta_line(label, before, after, unit="", better="higher"):
     return f"  {label:<16} {after:.1f}{unit}  ({mark}{abs(change):.1f} vs previous)"
 
 
-def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code, before, started_at, release=False) -> dict:
+def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code, before, started_at, release=False, native=False) -> dict:
     text = log_path.read_text(errors="replace") if log_path.is_file() else ""
     parsed = common.parse_log(text)
     def display_path(path: Path) -> str:
@@ -145,6 +149,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         "variant": variant,
         "mode": mode,
         "release": bool(release),
+        "native": bool(native),
         "entry_size": len(common.table_addresses(common.VARIANTS[variant]["generated"])),
         "exit": exit_code,
         "timed_out": timed_out,
@@ -158,6 +163,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         previous.get("variant") == variant
         and previous.get("mode") == mode
         and bool(previous.get("release")) == bool(release)
+        and bool(previous.get("native")) == bool(native)
         and previous.get("entry_size") == entry["entry_size"]
     )
     old_fallbacks = set(previous.get("fallback_roots", [])) if same_setup else set()
@@ -165,7 +171,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
     entry["new_fallbacks"] = new_fallbacks
 
     print()
-    print(f"  run            {variant}/{mode}" + (" release" if release else "") + f" — exit {exit_code}" + (" (timeout)" if timed_out else ""))
+    print(f"  run            {variant}/{mode}" + (" release" if release else "") + (" native" if native else "") + f" — exit {exit_code}" + (" (timeout)" if timed_out else ""))
     print(f"  wall time      {common.seconds(elapsed)}")
     if not perf:
         print("  no [perf] windows were recorded")
@@ -182,6 +188,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         and previous.get("variant") == variant
         and previous.get("mode") == mode
         and bool(previous.get("release")) == bool(release)
+        and bool(previous.get("native")) == bool(native)
         and previous.get("entry_size") == entry["entry_size"]
     )
     if previous_perf and not comparable:
@@ -228,6 +235,8 @@ def main(argv=None):
     parser.add_argument("--full", action="store_true", help="use the full 46k-function build")
     parser.add_argument("--release", action="store_true",
                         help="optimized host build (-O2, no RT_CALLTRACE); SMR_RELEASE=1 also enables it")
+    parser.add_argument("--native", action="store_true",
+                        help="launch the zero-Unicorn fnv-startup host instead of fnv-discovery; SMR_NATIVE=1 also enables it")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--window", dest="mode", action="store_const", const="window", help="AppKit window (default)")
     group.add_argument("--metal", dest="mode", action="store_const", const="metal", help="offscreen Metal probe")
@@ -245,6 +254,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if os.environ.get("SMR_RELEASE") == "1":
         args.release = True
+    if os.environ.get("SMR_NATIVE") == "1":
+        args.native = True
 
     if not common.STARTUP_PROBE.is_file():
         common.fail(f"missing {common.STARTUP_PROBE}")
@@ -290,7 +301,7 @@ def main(argv=None):
         )
     entry = summarize(
         args.variant, args.mode, log_path, frames_dir, elapsed, timed_out, code, before, wall_start,
-        args.release,
+        args.release, args.native,
     )
     entry["script"] = args.script or (f"{args.to}" if args.to else None)
 

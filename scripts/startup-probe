@@ -12,10 +12,15 @@ release=0
 if [[ "${SMR_RELEASE:-0}" == 1 ]]; then
     release=1
 fi
+native=0
+if [[ "${SMR_NATIVE:-0}" == 1 ]]; then
+    native=1
+fi
 for arg in "$@"; do
     case "$arg" in
         --release) release=1 ;;
-        -h|--help) printf 'usage: startup-probe [--release]\n'; exit 0 ;;
+        --native) native=1 ;;
+        -h|--help) printf 'usage: startup-probe [--release] [--native]\n'; exit 0 ;;
         *) printf 'startup-probe: unknown option %s\n' "$arg" >&2; exit 2 ;;
     esac
 done
@@ -39,7 +44,10 @@ for input in "$generated/table.c" "$boot/ShootManyRobots.exe" "$runtime/tools/st
     fi
 done
 
-unicorn_prefix="$("$python" -c 'import pathlib, unicorn; print(pathlib.Path(unicorn.__file__).parent)')"
+unicorn_prefix=""
+if [[ "$native" == 0 ]]; then
+    unicorn_prefix="$("$python" -c 'import pathlib, unicorn; print(pathlib.Path(unicorn.__file__).parent)')"
+fi
 build_out="$work/startup-host"
 build_flags=(--jobs "${SMR_BUILD_JOBS:-4}")
 if [[ -n "$variant" ]]; then
@@ -71,19 +79,27 @@ elif [[ "${SMR_METAL:-0}" == 1 ]]; then
     fi
 fi
 build_out="${build_out}${flavor}"
+if [[ "$native" == 1 ]]; then
+    host_bin="$build_out/fnv-startup"
+else
+    host_bin="$build_out/fnv-discovery"
+fi
 build_log="$logs/startup${flavor}-build.log"
 if [[ "${SMR_SKIP_BUILD:-0}" == 1 ]]; then
     # Reuse the existing host (scripts/recomp builds once, then launches separately).
-    if [[ ! -x "$build_out/fnv-discovery" ]]; then
-        printf 'No existing build at %s (run without SMR_SKIP_BUILD)\n' "$build_out" >&2
+    if [[ ! -x "$host_bin" ]]; then
+        printf 'No existing build at %s (run without SMR_SKIP_BUILD)\n' "$host_bin" >&2
         exit 2
     fi
 else
-    "$python" "$runtime/tools/startup_build.py" "${build_flags[@]}" \
-        --local-host "$local_host" \
-        --generated "$generated" --discovery-prefix "$unicorn_prefix" \
-        --out "$build_out" --cache "$work/startup${flavor}-cache" \
-        > "$build_log" 2>&1 || { tail -40 "$build_log" >&2; exit 1; }
+    build_cmd=("$python" "$runtime/tools/startup_build.py" "${build_flags[@]}"
+        --local-host "$local_host"
+        --generated "$generated"
+        --out "$build_out" --cache "$work/startup${flavor}-cache")
+    if [[ "$native" == 0 ]]; then
+        build_cmd+=(--discovery-prefix "$unicorn_prefix")
+    fi
+    "${build_cmd[@]}" > "$build_log" 2>&1 || { tail -40 "$build_log" >&2; exit 1; }
 fi
 
 if [[ "${SMR_BUILD_ONLY:-0}" == 1 ]]; then
@@ -113,7 +129,7 @@ if [[ "${SMR_WINDOW:-0}" == 1 ]]; then
     probe_log="$logs/window${flavor}-startup.log"
 fi
 probe_exit=0
-"$python" - "$project" "$boot" "$data" "$build_out/fnv-discovery" \
+"$python" - "$project" "$boot" "$data" "$host_bin" \
     > "$probe_log" 2>&1 <<'PY_TIMEOUT' || probe_exit=$?
 import os
 from pathlib import Path
