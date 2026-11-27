@@ -652,7 +652,10 @@ static uint32_t decl_streams(D3DState *s) {
 
 static int setup_draw(D3DState *s) {
     int screen=screen_fvf(s);
-    int depth_only = !screen && s->vs && !s->ps && s->decl;
+    // The guest supplies a vertex shader for stencil/depth operations with color writes disabled.
+    int depth_only = !screen && s->vs && !s->ps && s->decl && s->ds && !s->rs[15] &&
+        !(s->rt[0] && s->rs[168]) && !(s->rt[1] && s->rs[190]) &&
+        !(s->rt[2] && s->rs[191]) && !(s->rt[3] && s->rs[192]);
     if ((!s->vs || (!s->ps && !depth_only)) && !screen) {
         if(ff_skipped++<8)fprintf(stderr,"[metal] unsupported fixed draw fvf=%#x stride=%u vs=%#x ps=%#x color=%u/%u/%u alpha=%u/%u/%u next=%u\n",
             s->fvf,s->stream_stride[0],s->vs,s->ps,s->tss[0][1],s->tss[0][2],s->tss[0][3],s->tss[0][4],s->tss[0][5],s->tss[0][6],s->tss[1][1]);
