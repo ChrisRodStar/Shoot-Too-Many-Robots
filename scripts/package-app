@@ -1,0 +1,10 @@
+#!/bin/bash
+# Build work/dist/Shoot Too Many Robots.app from the current native host.
+# See tools/package_app.py for --dev, --standalone, --release and --native.
+set -euo pipefail
+project="$(cd "$(dirname "$0")/.." && pwd)"
+python="$project/.venv/bin/python"
+if [[ ! -x "$python" ]]; then
+    python=python3
+fi
+exec "$python" "$project/tools/package_app.py" "$@"

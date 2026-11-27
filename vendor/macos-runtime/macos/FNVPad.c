@@ -47,3 +47,13 @@ void fnv_pad_reset(void) {
     physical.packet = next_pkt;
     pthread_mutex_unlock(&lock);
 }
+
+// Weak fallbacks: a headless host (unit tests, the startup diagnostic) links FNVPad.c without
+// the Objective-C gamepad host. The windowed host links src/host/gamepad.m which provides the
+// strong definitions and overrides these at link time.
+__attribute__((weak)) void fnv_pad_poll(void) {}
+
+__attribute__((weak)) void fnv_pad_set_rumble(uint16_t left_motor, uint16_t right_motor) {
+    (void)left_motor;
+    (void)right_motor;
+}
