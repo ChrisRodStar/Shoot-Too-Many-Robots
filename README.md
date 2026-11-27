@@ -2,7 +2,7 @@
 
 **Apple Silicon (ARM64) static-recompilation port and compatibility runtime for the Windows release of *Shoot Many Robots* (Demiurge Studios / Seoul Engine).**
 
-This project lifts the 32-bit x86 Windows executable through Ghidra P-code into native ARM64 C, links it against a custom macOS Win32 + Direct3D 9 → Metal host runtime, and runs remaining third-party x86 middleware DLLs (`PhysXCore`, `d3dx9_43`, `fmodex`, `msvcr90`) under a transparent Unicorn fallback until shimmed or recompiled natively.
+This project lifts the 32-bit x86 Windows executable through Ghidra P-code into native ARM64 C, links it against a custom macOS Win32 + Direct3D 9 → Metal host runtime, statically recompiles the D3DX9 and FMOD audio middleware, and runs the remaining third-party x86 DLLs (`PhysXCore`, `msvcr90`) under a transparent Unicorn fallback until shimmed or recompiled natively.
 
 ---
 
@@ -14,8 +14,8 @@ This project lifts the 32-bit x86 Windows executable through Ghidra P-code into 
 | **Game Code Fallbacks** | **0 `game.exe` fallbacks** | 100% native `game.exe` execution in `--full` mode (`SMR_NATIVE_WNDPROC=1` by default) |
 | **3D Rendering (D3D9 → Metal)** | **Lit, textured, color-graded** | Deferred lighting, 343 2D textures, 32×32×32 3D LUT, hardware `_sRGB`, `ff-skipped 0` |
 | **Input & Windowing** | **Working** | 1280 × 720 AppKit window, keyboard/mouse forwarding, prefers secondary Dell display |
-| **Audio (FMOD)** | **Not yet wired** | `fmodex.dll` queries unshimmed `DirectSoundEnumerateW` in `dsound.c` |
-| **Latest Acceptance Run** | **Exit 0 · 28.9 fps** | `552` draws (`640` peak) · `34.5 ms` CPU · `3.6 ms` GPU · `217` DLL fallback roots · `0` faults/traps |
+| **Audio (FMOD)** | **Streaming** | `fmodex.dll` + `fmod_event.dll` statically recompiled; DirectSound shim → CoreAudio `FNVAudioMixer` PCM voices |
+| **Latest Acceptance Run** | **Exit 0 · 59.4 fps** | `487` draws (`646` peak) · `16.8 ms` CPU · `2.2 ms` GPU · `163` DLL fallback roots · `0` faults/traps |
 
 ### Milestones
 
@@ -25,8 +25,8 @@ This project lifts the 32-bit x86 Windows executable through Ghidra P-code into 
 - [x] Fast native shims for hot `msvcr90.dll` memory/string routines
 - [x] Offline differential verifier (`./scripts/recomp verify`) and automated tutorial acceptance runner
 - [ ] Interactive tutorial-to-combat playtesting (controls, combat physics, menus, saves)
-- [ ] Audio playback via FMOD → DirectSound / CoreAudio (`DirectSoundEnumerateW` & `dsound.c`)
-- [ ] Reduce remaining `217` DLL fallback roots (`PhysXCore`, `msvcr90`, `fmod_event`, `d3dx9_43`, `fmodex`) for 60 fps and faster loading
+- [x] Audio playback via FMOD → DirectSound / CoreAudio (`DirectSoundEnumerateW` & `dsound.c`)
+- [ ] Reduce remaining `163` DLL fallback roots (`PhysXCore`, `msvcr90`, `msvcp90`, `d3dcompiler_43`) for 60 fps and faster loading
 
 ---
 

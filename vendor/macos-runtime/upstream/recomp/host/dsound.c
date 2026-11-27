@@ -108,7 +108,8 @@ static void Buf_Play(CPU *c) {
     uint32_t cur = play_cursor(b);
     uint32_t voice=G32(d+B_VOICE);
     if(ds_trace_voice()&&voice)fprintf(stderr,"[voice +%llums] ds_play buf=%#x voice=%u loop=%u size=%u pos=%u was=%u\n",(unsigned long long)ds_trace_ms(),b,voice,ARG(c,3)&1,G32(d+B_SIZE),cur,G32(d+B_PLAYING));
-    if(voice){if(!G32(d+B_PLAYING))fnv_audio_voice_write(voice,0,MEM+G32(d+B_DATA),G32(d+B_SIZE));fnv_audio_voice_play(voice,ARG(c,3)&1);}
+    if(voice){if(!G32(d+B_PLAYING))fnv_audio_voice_write(voice,0,MEM+G32(d+B_DATA),G32(d+B_SIZE));fnv_audio_voice_play(voice,ARG(c,3)&1);
+        static unsigned playing_reported;if(playing_reported++<8)fprintf(stderr,"[audio] PCM buffer play voice=%u loop=%u bytes=%u\n",voice,ARG(c,3)&1,G32(d+B_SIZE));}
     if (!G32(d + B_PLAYING)) { P32(d + B_T0LO, (uint32_t)t); P32(d + B_T0HI, (uint32_t)(t >> 32)); }
     P32(d + B_PLAYING, 1); P32(d + B_LOOP, ARG(c, 3) & 1);
     RET(c, 0, 4);
@@ -129,7 +130,9 @@ static void Buf_SetPan(CPU *c){uint32_t d=COM_DATA(COM_THIS(c));int value=(int32
 static void Buf_SetFrequency(CPU *c){uint32_t d=COM_DATA(COM_THIS(c)),hz=ARG(c,1);if(!hz)hz=G32(d+B_FMT+4);P32(d+B_FREQUENCY,hz);fnv_audio_voice_frequency(G32(d+B_VOICE),hz);RET(c,0,2);}
 static void Buf_Unlock(CPU *c){
     uint32_t d=COM_DATA(COM_THIS(c)),voice=G32(d+B_VOICE),base=G32(d+B_DATA),size=G32(d+B_SIZE);
-    for(int i=0;i<2;i++){uint32_t p=ARG(c,1+2*i),n=ARG(c,2+2*i);if(p>=base&&p-base<size&&n<=size-(p-base))fnv_audio_voice_write(voice,p-base,MEM+p,n);}
+    uint32_t written=0;
+    for(int i=0;i<2;i++){uint32_t p=ARG(c,1+2*i),n=ARG(c,2+2*i);if(p>=base&&p-base<size&&n<=size-(p-base)){fnv_audio_voice_write(voice,p-base,MEM+p,n);written+=n;}}
+    if(written){static unsigned stream_reported;if(stream_reported++<4)fprintf(stderr,"[audio] PCM stream write voice=%u bytes=%u\n",voice,written);}
     RET(c,0,5);
 }
 static void Buf_Release(CPU *c){
@@ -258,19 +261,30 @@ static void ds_create(CPU *c, const char *name) {
 static void DirectSoundCreate_(CPU *c) { ds_create(c, "DirectSoundCreate"); }
 static void DirectSoundCreate8_(CPU *c) { ds_create(c, "DirectSoundCreate8"); }
 
-// DirectSoundEnumerateA/W run the guest's DSEnumCallback once with the primary device (lpGuid = NULL).
+// DirectSoundEnumerateA/W run the guest's DSEnumCallback once with the primary device.
 // The callback is stdcall and is entered with HOST_EXIT_THUNK as its return address, exactly like
 // the user32 window-procedure bridge in shims_win.c. Strings live in the shim's own frame, above the
 // guest callee's stack pointer, and ESP is restored afterwards.
+//
+// The device needs DSDEVID_DefaultPlayback, not a NULL lpGuid: FMOD Ex's enumerated-device callback
+// explicitly skips entries whose lpGuid is NULL (it only collects GUID devices), so a NULL guid
+// makes its DirectSound output think the machine has no devices and fall back to silence. The
+// create call ignores the guid and always binds the default CoreAudio device.
+static const uint8_t default_playback_guid[16] = {
+    0x00, 0x00, 0xf0, 0xde, 0x6d, 0x9c, 0xed, 0x47,
+    0xaa, 0x78, 0xdf, 0x02, 0xe0, 0x4c, 0x8d, 0x9e,
+};
 static void ds_enumerate(CPU *c, int wide) {
     uint32_t cb = ARG(c, 0);
     if (!cb) { RET(c, 0x80070057u /* DSERR_INVALIDPARAM */, 2); return; }
+    fprintf(stderr, "[dsound] DirectSoundEnumerate%s -> primary device\n", wide ? "W" : "A");
     static const char description[] = "Primary Sound Driver";
     uint32_t esp = REG(c, R_ESP) - 160;
     P32(esp, HOST_EXIT_THUNK);
-    P32(esp + 4, 0);                 // lpGuid: NULL selects the primary device
     P32(esp + 16, ARG(c, 1));        // lpContext
-    uint32_t desc = esp + 32, module = wide ? esp + 80 : esp + 64;
+    uint32_t desc = esp + 32, module = wide ? esp + 80 : esp + 64, guid = esp + 112;
+    memcpy(MEM + guid, default_playback_guid, sizeof default_playback_guid);
+    P32(esp + 4, guid);              // lpGuid: DSDEVID_DefaultPlayback
     if (wide) {
         for (int i = 0; i < (int)sizeof description; i++)
             ST(MEM + desc + 2 * i, (uint16_t)(unsigned char)description[i], 2);
