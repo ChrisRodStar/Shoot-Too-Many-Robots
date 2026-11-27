@@ -2,6 +2,7 @@
 #include <mach/mach_time.h>
 #include <os/lock.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include "rt.h"
 
 extern const uint32_t rt_fn_addr[];
@@ -15,31 +16,26 @@ __attribute__((weak)) void rt_import_call(CPU *c, uint32_t a) { rt_trap(c, TRAP_
 __attribute__((weak)) void rt_fallback(CPU *c, uint32_t a) { rt_trap(c, TRAP_NOFN, a); }
 __attribute__((weak)) void (*smr_find_addr_shim(uint32_t a))(CPU *c) { (void)a; return NULL; }
 
-// O(1) dispatch: one 32-bit slot per byte of the code range holds (function index + 1).
-#define DISP_LO 0x00400000u
-#define DISP_HI 0x01080000u
-static uint32_t *disp;
+// Allocate 16K-address pages only where the merged table has functions.
+#define PAGE_BITS 14
+#define PAGE_SIZE_ADDR (1u << PAGE_BITS)
+static uint32_t *pages[1u << (32 - PAGE_BITS)];
+static pthread_once_t once = PTHREAD_ONCE_INIT;
 static void disp_build(void) {
-    uint32_t *t = calloc(DISP_HI - DISP_LO, sizeof *t);
-    for (int i = 0; i < rt_fn_count; i++) {
-        uint32_t a = rt_fn_addr[i];
-        if (a >= DISP_LO && a < DISP_HI) t[a - DISP_LO] = (uint32_t)i + 1;
+    for (int i = 0; i < rt_fn_count; ++i) {
+        uint32_t addr = rt_fn_addr[i];
+        uint32_t **page = &pages[addr >> PAGE_BITS];
+        if (!*page) {
+            *page = calloc(PAGE_SIZE_ADDR, sizeof **page);
+            if (!*page) abort();
+        }
+        (*page)[addr & (PAGE_SIZE_ADDR - 1)] = (uint32_t)i + 1;
     }
-    if (!__sync_bool_compare_and_swap(&disp, NULL, t)) free(t);
 }
-static inline int fn_index(uint32_t a) {
-    if (a >= DISP_LO && a < DISP_HI) {
-        if (__builtin_expect(!disp, 0)) disp_build();
-        return (int)disp[a - DISP_LO] - 1;
-    }
-    int lo = 0, hi = rt_fn_count - 1;
-    while (lo <= hi) {
-        int mid = (lo + hi) >> 1;
-        uint32_t v = rt_fn_addr[mid];
-        if (v == a) return mid;
-        if (v < a) lo = mid + 1; else hi = mid - 1;
-    }
-    return -1;
+static inline int fn_index(uint32_t addr) {
+    pthread_once(&once, disp_build);
+    const uint32_t *page = pages[addr >> PAGE_BITS];
+    return page ? (int)page[addr & (PAGE_SIZE_ADDR - 1)] - 1 : -1;
 }
 
 #ifndef FNV_GAME_SKYRIM

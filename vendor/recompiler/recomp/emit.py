@@ -73,6 +73,7 @@ FLAG_BY_BIT = {b: o for o, b in flaglive.FLAG_BITS.items()}
 
 
 class FnEmitter:
+    external_flags = False  # unknown callers across separately lifted modules
     consumers, producers, reload = {}, {}, {}   # flag liveness (flaglive.py)
     entries = set()     # every guest function entry being emitted (filled by main)
     extras = {}         # function entry -> [secondary entry addresses] (FixEntries.java)
@@ -139,7 +140,7 @@ class FnEmitter:
                 raise Unsupported("register access spans GPRs")
             return "g"
         if off in FLAG_OFFS and n == 1:
-            return "f"
+            return None if self.external_flags else "f"
         if off < 1024 and n <= 4 and any(o <= off < o + 1 for o in FLAG_OFFS):
             raise Unsupported("flag access not byte-sized")
         return None
@@ -374,7 +375,8 @@ class FnEmitter:
             tgt = ins[0]
             cond = self.rd(ins[1]) if opc == "CBRANCH" else None
             if tgt[0] == "const":
-                rel = tgt[1] if tgt[1] < (1 << 63) else tgt[1] - (1 << 64)
+                width = 1 << (8 * tgt[2])
+                rel = (tgt[1] + width // 2) % width - width // 2
                 lab = self.plabel(a, idx + rel, len(insn["ops"]))
             else:
                 if tgt[1] not in self.addrs:
@@ -663,7 +665,10 @@ def main():
     ap.add_argument("--per-tu", type=int, default=400)
     ap.add_argument("--extra", help="extra_entries.json from FixEntries.java")
     ap.add_argument("--x87-abi", action="store_true", help="carry only ST0/ST1 across calls (experimental, slower)")
+    ap.add_argument("--external-flags", action="store_true",
+                    help="keep CPU flags visible across independently translated module boundaries")
     args = ap.parse_args()
+    FnEmitter.external_flags = args.external_flags
     global X87_ABI
     X87_ABI = args.x87_abi
     os.makedirs(args.outdir, exist_ok=True)
@@ -703,7 +708,8 @@ def main():
     del owner
     jump_targets.update(out_jumps)
     FnEmitter.jump_targets = jump_targets
-    FnEmitter.consumers, FnEmitter.producers, FnEmitter.reload = flaglive.analyze(summaries)
+    if not args.external_flags:
+        FnEmitter.consumers, FnEmitter.producers, FnEmitter.reload = flaglive.analyze(summaries)
     del summaries
     print(f"flag liveness: {sum(1 for v in FnEmitter.consumers.values() if v)} consumers, "
           f"{sum(1 for v in FnEmitter.producers.values() if v)} producers, {len(FnEmitter.reload)} reload sites", file=sys.stderr)
