@@ -61,7 +61,29 @@ static uint32_t newobj(uint32_t vt, int kind, uint32_t dev, int nfields) {
     return o;
 }
 static void addref(uint32_t o) { if (o) __atomic_fetch_add((uint32_t *)(void *)(MEM + o + 4), 1, __ATOMIC_RELAXED); }
-static void Unk_QueryInterface(CPU *c) { addref(COM_THIS(c)); P32(ARG(c, 2), COM_THIS(c)); RET(c, 0, 3); }
+static int guid_eq(uint32_t ptr, const uint8_t g[16]) { return ptr && memcmp(MEM + ptr, g, 16) == 0; }
+static void Unk_QueryInterface(CPU *c) {
+    // Reject Ex interfaces so d3dx9_43.dll treats this as a plain D3D9 device (allowing D3DPOOL_MANAGED),
+    // and reject mismatched texture-interface casts.
+    static const uint8_t iid_dev9ex[16]  = {0xce,0x10,0x8b,0xb1,0x49,0x26,0x5a,0x40,0x87,0x0f,0x95,0xf7,0x77,0xd4,0x31,0x3a};
+    static const uint8_t iid_d3d9ex[16]  = {0x41,0x72,0x17,0x02,0xfc,0x69,0x0c,0x40,0x8f,0xf1,0x93,0xa4,0x4d,0xf6,0x86,0x1d};
+    static const uint8_t iid_swap9ex[16] = {0xaf,0x6c,0x88,0x91,0x3d,0x1c,0x2e,0x4d,0xa0,0xab,0x3e,0x4c,0x7d,0x8d,0x33,0x03};
+    static const uint8_t iid_tex9[16]    = {0x27,0x12,0xc3,0x85,0xe5,0x3d,0x00,0x4f,0x9b,0x3a,0xf1,0x1a,0xc3,0x8c,0x18,0xb5};
+    static const uint8_t iid_voltex9[16] = {0x6c,0x52,0x18,0x25,0x89,0xe7,0x11,0x41,0xa7,0xb9,0x47,0xef,0x32,0x8d,0x13,0xe6};
+    static const uint8_t iid_cube9[16]   = {0x81,0x2f,0xf3,0xff,0x53,0xd9,0x3a,0x47,0x92,0x23,0x93,0xd6,0x52,0xab,0x93,0xf2};
+    uint32_t o = COM_THIS(c), riid = ARG(c, 1), out = ARG(c, 2);
+    if (!riid || !out) { if (out) P32(out, 0); RET(c, 0x80004003u /* E_POINTER */, 3); return; }
+    uint32_t k = OBJ_KIND(o);
+    if (guid_eq(riid, iid_dev9ex) || guid_eq(riid, iid_d3d9ex) || guid_eq(riid, iid_swap9ex) ||
+        (guid_eq(riid, iid_tex9) && k != K_TEX) ||
+        (guid_eq(riid, iid_voltex9) && k != K_VOL) ||
+        (guid_eq(riid, iid_cube9) && k != K_CUBE)) {
+        P32(out, 0);
+        RET(c, E_NOINTERFACE, 3);
+        return;
+    }
+    addref(o); P32(out, o); RET(c, 0, 3);
+}
 static void Unk_AddRef(CPU *c) { addref(COM_THIS(c)); RET(c, G32(COM_THIS(c) + 4), 1); }
 // Device bindings own real references. Released resources are freed a few frames later because
 // draws already encoded may still read the guest object. Shaders and
@@ -115,6 +137,13 @@ static void level_layout(uint32_t fmt, uint32_t w, uint32_t h, uint32_t *pitch, 
     if (blk) { uint32_t bw = (w + 3) / 4, bh = (h + 3) / 4; *pitch = bw * (uint32_t)blk; *size = *pitch * bh; }
     else { *pitch = w * (uint32_t)d3d_fmt_bpp(fmt); *size = *pitch * h; }
 }
+static void volume_layout(uint32_t fmt, uint32_t w, uint32_t h, uint32_t d, uint32_t *row_pitch, uint32_t *slice_pitch, uint32_t *size) {
+    uint32_t rp = 0, sp = 0;
+    level_layout(fmt, w, h, &rp, &sp);
+    *row_pitch = rp;
+    *slice_pitch = sp;
+    *size = sp * (d ? d : 1);
+}
 
 // ---- surfaces ------------------------------------------------------------------------------------
 // fields: 0 width, 1 height, 2 format, 3 usage, 4 pool, 5 data, 6 pitch, 7 container, 8 msaa, 9 level/face
@@ -134,7 +163,14 @@ static void surf_restore_locked(uint32_t s) {
     uint32_t e = G32(OBJ_F(s, S_EVICT));
     if (!e) {
         if (!G32(OBJ_F(s, S_DATA))) {                // never written: allocate on first use
-            uint32_t pitch, sz; level_layout(G32(OBJ_F(s, S_FMT)), G32(OBJ_F(s, S_W)), G32(OBJ_F(s, S_H)), &pitch, &sz);
+            uint32_t pitch, sp, sz;
+            if (OBJ_KIND(s) == K_VOLUME) {
+                uint32_t ld = G32(OBJ_F(s, S_MS)); if (!ld) ld = 1;
+                uint32_t lh = G32(OBJ_F(s, S_H)) / ld; if (!lh) lh = 1;
+                volume_layout(G32(OBJ_F(s, S_FMT)), G32(OBJ_F(s, S_W)), lh, ld, &pitch, &sp, &sz);
+            } else {
+                level_layout(G32(OBJ_F(s, S_FMT)), G32(OBJ_F(s, S_W)), G32(OBJ_F(s, S_H)), &pitch, &sz);
+            }
             P32(OBJ_F(s, S_DATA), gmalloc(sz ? sz : 4));
         }
         return;
@@ -241,6 +277,51 @@ static const Ov surf_ov[] = {
     {"UnlockRect", Surf_UnlockRect}, {"GetContainer", Surf_GetContainer}, {"GetDC", Surf_GetDC},
 };
 
+// ---- volumes (IDirect3DVolume9) ------------------------------------------------------------------
+static uint32_t new_volume(uint32_t dev, uint32_t w, uint32_t h, uint32_t d, uint32_t fmt, uint32_t usage, uint32_t pool, uint32_t container) {
+    uint32_t v = newobj(vt_volume, K_VOLUME, dev, S_NF);
+    uint32_t rp = 0, sp = 0, sz = 0;
+    volume_layout(fmt, w, h, d, &rp, &sp, &sz);
+    d3d_surf_bytes += sz; d3d_surf_live++;
+    P32(OBJ_F(v, S_W), w); P32(OBJ_F(v, S_H), h * (d ? d : 1)); P32(OBJ_F(v, S_FMT), fmt);
+    P32(OBJ_F(v, S_USAGE), usage); P32(OBJ_F(v, S_POOL), pool); P32(OBJ_F(v, S_DATA), 0);
+    P32(OBJ_F(v, S_PITCH), rp); P32(OBJ_F(v, S_CONT), container); P32(OBJ_F(v, S_MS), d ? d : 1);
+    d3d_backend_created(v);
+    return v;
+}
+static void fill_volume_desc(uint32_t v, uint32_t out) {
+    uint32_t ld = G32(OBJ_F(v, S_MS)); if (!ld) ld = 1;
+    uint32_t lh = G32(OBJ_F(v, S_H)) / ld; if (!lh) lh = 1;
+    P32(out, G32(OBJ_F(v, S_FMT))); P32(out + 4, 2 /* D3DRTYPE_VOLUME */);
+    P32(out + 8, G32(OBJ_F(v, S_USAGE))); P32(out + 12, G32(OBJ_F(v, S_POOL)));
+    P32(out + 16, G32(OBJ_F(v, S_W))); P32(out + 20, lh); P32(out + 24, ld);
+}
+static void lock_volume_level(uint32_t v, uint32_t lb, uint32_t box) {
+    uint32_t data = surf_pin(v), rp = G32(OBJ_F(v, S_PITCH)), fmt = G32(OBJ_F(v, S_FMT));
+    uint32_t ld = G32(OBJ_F(v, S_MS)); if (!ld) ld = 1;
+    uint32_t lh = G32(OBJ_F(v, S_H)) / ld; if (!lh) lh = 1;
+    int blk = d3d_fmt_block(fmt);
+    uint32_t sp = rp * (blk ? (lh + 3) / 4 : lh);
+    if (box) {
+        uint32_t left = G32(box), top = G32(box + 4), front = G32(box + 16);
+        data += front * sp + (blk ? (top / 4) * rp + (left / 4) * (uint32_t)blk : top * rp + left * (uint32_t)d3d_fmt_bpp(fmt));
+    }
+    P32(lb, rp); P32(lb + 4, sp); P32(lb + 8, data);
+}
+static void Vol_GetDesc(CPU *c) { fill_volume_desc(COM_THIS(c), ARG(c, 1)); RET(c, 0, 2); }
+static void Vol_LockBox(CPU *c) { lock_volume_level(COM_THIS(c), ARG(c, 1), ARG(c, 2)); RET(c, 0, 4); }
+static void Vol_UnlockBox(CPU *c) { surf_unpin(COM_THIS(c)); d3d_backend_dirty(COM_THIS(c)); RET(c, 0, 1); }
+static const char *const IDirect3DVolume9_names[] = {
+    "QueryInterface", "AddRef", "Release", "GetDevice", "SetPrivateData", "GetPrivateData",
+    "FreePrivateData", "GetContainer", "GetDesc", "LockBox", "UnlockBox"
+};
+static const unsigned char IDirect3DVolume9_nargs[] = {2, 0, 0, 1, 4, 3, 1, 2, 1, 3, 0};
+enum { IDirect3DVolume9_COUNT = 11 };
+static const Ov volume_ov[] = {
+    {"QueryInterface", Unk_QueryInterface}, {"AddRef", Unk_AddRef}, {"Release", Unk_Release}, {"GetDevice", Res_GetDevice},
+    {"GetContainer", Surf_GetContainer}, {"GetDesc", Vol_GetDesc}, {"LockBox", Vol_LockBox}, {"UnlockBox", Vol_UnlockBox},
+};
+
 // ---- textures (2D, cube) -------------------------------------------------------------------------
 // fields: 0 width, 1 height/edge, 2 levels, 3 format, 4 usage, 5 pool, 6 surfaces array ptr (levels*faces)
 enum { T_W, T_H, T_LEVELS, T_FMT, T_USAGE, T_POOL, T_SURFS, T_FACES, T_LOD, T_DIRTY, T_HOST, T_DEPTH, T_NF };
@@ -268,9 +349,35 @@ static uint32_t new_texture(uint32_t dev, int kind, uint32_t w, uint32_t h, uint
     d3d_backend_created(t);
     return t;
 }
+static uint32_t new_volume_texture(uint32_t dev, uint32_t w, uint32_t h, uint32_t d, uint32_t levels, uint32_t usage, uint32_t fmt, uint32_t pool) {
+    if (!w) w = 1;
+    if (!h) h = 1;
+    if (!d) d = 1;
+    if (!levels) {
+        levels = 1;
+        uint32_t m = w > h ? w : h;
+        if (d > m) m = d;
+        while (m > 1) { m >>= 1; levels++; }
+    }
+    if (usage & 0x400) levels = 1;
+    uint32_t t = newobj(vt_voltex, K_VOL, dev, T_NF);
+    P32(OBJ_F(t, T_W), w); P32(OBJ_F(t, T_H), h * d); P32(OBJ_F(t, T_LEVELS), levels); P32(OBJ_F(t, T_FMT), fmt);
+    P32(OBJ_F(t, T_USAGE), usage); P32(OBJ_F(t, T_POOL), pool); P32(OBJ_F(t, T_FACES), 1); P32(OBJ_F(t, T_DEPTH), d);
+    uint32_t arr = gmalloc(4 * levels);
+    for (uint32_t l = 0; l < levels; l++) {
+        uint32_t lw = w >> l ? w >> l : 1, lh = h >> l ? h >> l : 1, ld = d >> l ? d >> l : 1;
+        uint32_t v = new_volume(dev, lw, lh, ld, fmt, usage, pool, t);
+        P32(OBJ_F(v, S_LEVEL), l);
+        P32(arr + 4 * l, v);
+    }
+    P32(OBJ_F(t, T_SURFS), arr);
+    d3d_backend_created(t);
+    return t;
+}
 void d3d9_texture_check(uint32_t t,uint32_t caller,const char *stage){
     const char *why=NULL;uint32_t bad=t,kind=OBJ_KIND(t),w=G32(OBJ_F(t,T_W)),h=G32(OBJ_F(t,T_H));
     uint32_t levels=G32(OBJ_F(t,T_LEVELS)),faces=G32(OBJ_F(t,T_FACES)),arr=G32(OBJ_F(t,T_SURFS)),fmt=G32(OBJ_F(t,T_FMT));
+    if(kind==K_VOL)return;
     if(gsize(t)<16+4*T_NF || (kind!=K_TEX&&kind!=K_CUBE)||G32(t)!=(kind==K_CUBE?vt_cube:vt_tex))why="texture-identity";
     else if(!w||!h||w>8192||h>8192||!levels||levels>14||faces!=(kind==K_CUBE?6u:1u))why="texture-geometry";
     else if(!arr||gsize(arr)<4*levels*faces)why="surface-array";
@@ -332,6 +439,40 @@ static const Ov tex_ov[] = {
     {"GetPriority", Res_GetPriority}, {"GetType", Res_GetType}, {"SetLOD", Tex_SetLOD}, {"GetLOD", Tex_GetLOD},
     {"GetLevelCount", Tex_GetLevelCount}, {"GetAutoGenFilterType", Tex_GetAutoGen}, {"GetLevelDesc", Tex_GetLevelDesc},
     {"GetSurfaceLevel", Tex_GetSurfaceLevel}, {"LockRect", Tex_LockRect}, {"UnlockRect", Tex_UnlockRect},
+};
+static void VTex_GetLevelDesc(CPU *c) {
+    uint32_t v = tex_surf(COM_THIS(c), 0, ARG(c, 1));
+    if (!v) { RET(c, D3DERR_INVALIDCALL, 3); return; }
+    fill_volume_desc(v, ARG(c, 2)); RET(c, 0, 3);
+}
+static void VTex_GetVolumeLevel(CPU *c) {
+    uint32_t v = tex_surf(COM_THIS(c), 0, ARG(c, 1));
+    if (!v) { RET(c, D3DERR_INVALIDCALL, 3); return; }
+    addref(v); P32(ARG(c, 2), v); RET(c, 0, 3);
+}
+static void VTex_LockBox(CPU *c) {
+    uint32_t v = tex_surf(COM_THIS(c), 0, ARG(c, 1));
+    if (!v) { RET(c, D3DERR_INVALIDCALL, 5); return; }
+    lock_volume_level(v, ARG(c, 2), ARG(c, 3)); RET(c, 0, 5);
+}
+static void VTex_UnlockBox(CPU *c) {
+    uint32_t v = tex_surf(COM_THIS(c), 0, ARG(c, 1));
+    if (v) { surf_unpin(v); d3d_backend_dirty(v); }
+    RET(c, 0, 2);
+}
+static const char *const IDirect3DVolumeTexture9_names[] = {
+    "QueryInterface", "AddRef", "Release", "GetDevice", "SetPrivateData", "GetPrivateData", "FreePrivateData",
+    "SetPriority", "GetPriority", "PreLoad", "GetType", "SetLOD", "GetLOD", "GetLevelCount",
+    "SetAutoGenFilterType", "GetAutoGenFilterType", "GenerateMipSubLevels", "GetLevelDesc", "GetVolumeLevel",
+    "LockBox", "UnlockBox", "AddDirtyBox"
+};
+static const unsigned char IDirect3DVolumeTexture9_nargs[] = {2, 0, 0, 1, 4, 3, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 2, 2, 4, 1, 1};
+enum { IDirect3DVolumeTexture9_COUNT = 22 };
+static const Ov voltex_ov[] = {
+    {"QueryInterface", Unk_QueryInterface}, {"AddRef", Unk_AddRef}, {"Release", Unk_Release}, {"GetDevice", Res_GetDevice},
+    {"GetPriority", Res_GetPriority}, {"GetType", Res_GetType}, {"SetLOD", Tex_SetLOD}, {"GetLOD", Tex_GetLOD},
+    {"GetLevelCount", Tex_GetLevelCount}, {"GetAutoGenFilterType", Tex_GetAutoGen}, {"GetLevelDesc", VTex_GetLevelDesc},
+    {"GetVolumeLevel", VTex_GetVolumeLevel}, {"LockBox", VTex_LockBox}, {"UnlockBox", VTex_UnlockBox},
 };
 static const Ov cube_ov[] = {
     {"QueryInterface", Unk_QueryInterface}, {"AddRef", Unk_AddRef}, {"Release", Unk_Release}, {"GetDevice", Res_GetDevice},
@@ -419,8 +560,8 @@ static int ngrave;
 static uint64_t grave_freed;
 static void bury_locked(uint32_t o) {
     int k = (int)OBJ_KIND(o);
-    if (k != K_TEX && k != K_CUBE && k != K_SURF && k != K_VB && k != K_IB) return;
-    if (k == K_SURF && G32(OBJ_F(o, S_CONT))) return;           // owned by a live texture
+    if (k != K_TEX && k != K_CUBE && k != K_VOL && k != K_SURF && k != K_VOLUME && k != K_VB && k != K_IB) return;
+    if ((k == K_SURF || k == K_VOLUME) && G32(OBJ_F(o, S_CONT))) return;           // owned by a live texture
     if (ngrave < GRAVE_N) { grave[ngrave].o = o; grave[ngrave].frame = g_d3d.frames; ngrave++; }
 }
 static void bury(uint32_t o) { pthread_mutex_lock(&grave_lk); bury_locked(o); pthread_mutex_unlock(&grave_lk); }
@@ -432,7 +573,7 @@ static int is_bound(uint32_t o) {
 }
 static void free_obj(uint32_t o) {
     int k = (int)OBJ_KIND(o);
-    if (k == K_TEX || k == K_CUBE) {
+    if (k == K_TEX || k == K_CUBE || k == K_VOL) {
         uint32_t arr = G32(OBJ_F(o, T_SURFS)), n = G32(OBJ_F(o, T_LEVELS)) * G32(OBJ_F(o, T_FACES));
         for (uint32_t i = 0; arr && i < n; i++) {
             uint32_t s = G32(arr + 4 * i);
@@ -442,7 +583,7 @@ static void free_obj(uint32_t o) {
             if (!r) { d3d_backend_release(s); bury_locked(s); }    // a level the game still holds stays alive
         }
         if (arr) gfree(arr);
-    } else if (k == K_SURF) {
+    } else if (k == K_SURF || k == K_VOLUME) {
         d3d_surf_live--;
         surf_drop_evicted(o);
         if (G32(OBJ_F(o, S_DATA))) { d3d_surf_bytes -= gsize(G32(OBJ_F(o, S_DATA))); gfree(G32(OBJ_F(o, S_DATA))); }
@@ -518,9 +659,8 @@ static void Dev_CreateTexture(CPU *c) {
     P32(ARG(c, 7), t); RET(c, 0, 9);
 }
 static void Dev_CreateVolumeTexture(CPU *c) {
-    uint32_t d = ARG(c, 3);
-    uint32_t t = new_texture(COM_THIS(c), K_TEX, ARG(c, 1), ARG(c, 2) * (d ? d : 1), ARG(c, 4), ARG(c, 5), ARG(c, 6), ARG(c, 7));
-    P32(OBJ_F(t, T_DEPTH), d ? d : 1);
+    uint32_t t = new_volume_texture(COM_THIS(c), ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), ARG(c, 5), ARG(c, 6), ARG(c, 7));
+    if (trace_d3d()) fprintf(stderr, "[d3d9] CreateVolumeTexture %ux%ux%u lv%u fmt %#x usage %#x -> %#x\n", ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), ARG(c, 6), ARG(c, 5), t);
     P32(ARG(c, 8), t); RET(c, 0, 10);
 }
 static void Dev_CreateCubeTexture(CPU *c) {
@@ -653,7 +793,8 @@ static void Dev_CreateQuery(CPU *c) {
 }
 static void Dev_StretchRect(CPU *c) { d3d_backend_stretch(&g_d3d, ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), ARG(c, 5)); RET(c, 0, 6); }
 static int copy_surface(uint32_t src, uint32_t rect, uint32_t dst, uint32_t point, uint32_t caller) {
-    if (!src || !dst || src == dst || OBJ_KIND(src) != K_SURF || OBJ_KIND(dst) != K_SURF) return 0;
+    if (!src || !dst || src == dst || OBJ_KIND(src) != OBJ_KIND(dst) ||
+        (OBJ_KIND(src) != K_SURF && OBJ_KIND(src) != K_VOLUME)) return 0;
     uint32_t sw=G32(OBJ_F(src,S_W)),sh=G32(OBJ_F(src,S_H)),dw=G32(OBJ_F(dst,S_W)),dh=G32(OBJ_F(dst,S_H));
     uint32_t fmt=G32(OBJ_F(src,S_FMT)),sp=G32(OBJ_F(src,S_PITCH)),dp=G32(OBJ_F(dst,S_PITCH));
     uint32_t x=rect?G32(rect):0,y=rect?G32(rect+4):0,right=rect?G32(rect+8):sw,bottom=rect?G32(rect+12):sh;
@@ -682,7 +823,7 @@ static void Dev_UpdateSurface(CPU *c) {
 static void Dev_UpdateTexture(CPU *c) {
     uint32_t src = ARG(c, 1), dst = ARG(c, 2);
     if(!src||!dst||src==dst||OBJ_KIND(src)!=OBJ_KIND(dst)||
-       (OBJ_KIND(src)!=K_TEX&&OBJ_KIND(src)!=K_CUBE)||G32(OBJ_F(src,T_FMT))!=G32(OBJ_F(dst,T_FMT))){RET(c,D3DERR_INVALIDCALL,3);return;}
+       (OBJ_KIND(src)!=K_TEX&&OBJ_KIND(src)!=K_CUBE&&OBJ_KIND(src)!=K_VOL)||G32(OBJ_F(src,T_FMT))!=G32(OBJ_F(dst,T_FMT))){RET(c,D3DERR_INVALIDCALL,3);return;}
     uint32_t sl=G32(OBJ_F(src,T_LEVELS)),lv=G32(OBJ_F(dst,T_LEVELS));
     if(sl<lv||!lv||sl>32||G32(OBJ_F(src,T_FACES))!=G32(OBJ_F(dst,T_FACES))){RET(c,D3DERR_INVALIDCALL,3);return;}
     uint32_t skip=sl-lv;
@@ -811,8 +952,10 @@ static void Dev_GetDeviceCaps(CPU *c) { fill_caps(ARG(c, 1)); RET(c, 0, 2); }
 static void make_vtables(void) {
     if (vt_dev) return;
     vt_surf = VT(IDirect3DSurface9, surf_ov);
+    vt_volume = VT(IDirect3DVolume9, volume_ov);
     vt_tex = VT(IDirect3DTexture9, tex_ov);
     vt_cube = VT(IDirect3DCubeTexture9, cube_ov);
+    vt_voltex = VT(IDirect3DVolumeTexture9, voltex_ov);
     vt_vb = VT(IDirect3DVertexBuffer9, buf_ov);
     vt_ib = VT(IDirect3DIndexBuffer9, buf_ov);
     vt_vs = VT(IDirect3DVertexShader9, shader_ov);

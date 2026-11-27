@@ -36,7 +36,7 @@ extern int fnv_graphics_aa(void);
 // ---- guest object layout (mirrors d3d9.c) ---------------------------------------------------------
 #define OBJ_KIND(o) G32((o) + 8)
 #define OBJ_F(o, i) ((o) + 16 + 4 * (i))
-enum { K_TEX = 1, K_CUBE, K_VOL, K_SURF, K_VB, K_IB, K_DECL, K_VS, K_PS };
+enum { K_TEX = 1, K_CUBE, K_VOL, K_SURF, K_VB, K_IB, K_DECL, K_VS, K_PS, K_QUERY, K_SB, K_SWAP, K_VOLUME };
 enum { S_W, S_H, S_FMT, S_USAGE, S_POOL, S_DATA, S_PITCH, S_CONT, S_MS, S_LEVEL, S_DIRTY, S_HOST };
 enum { T_W, T_H, T_LEVELS, T_FMT, T_USAGE, T_POOL, T_SURFS, T_FACES, T_LOD, T_DIRTY, T_HOST, T_DEPTH };
 enum { B_LEN, B_USAGE, B_FMT, B_POOL, B_DATA, B_HOST, B_DIRTY, B_UPS };
@@ -49,7 +49,7 @@ static CAMetalLayer *layer;
 
 static id<MTLCommandBuffer> cmd;
 static id<MTLRenderCommandEncoder> enc;
-static uint32_t enc_rt[4], enc_ds;
+static uint32_t enc_rt[4], enc_ds, enc_srgbw;
 static dispatch_semaphore_t inflight;
 #ifdef FNV_PROBE
 #define RING_SIZE (4u << 20)
@@ -90,8 +90,8 @@ static void ec_fbytes(const void *p, NSUInteger n, int i) {        // i < 4, n <
 static void **hostp; static uint32_t hostn, hostcap, *host_free, host_nfree, host_freecap;
 static uint32_t host_field(uint32_t o) {
     uint32_t k = OBJ_KIND(o);
-    if (k == K_TEX || k == K_CUBE) return OBJ_F(o, T_HOST);
-    if (k == K_SURF) return OBJ_F(o, S_HOST);
+    if (k == K_TEX || k == K_CUBE || k == K_VOL) return OBJ_F(o, T_HOST);
+    if (k == K_SURF || k == K_VOLUME) return OBJ_F(o, S_HOST);
     if (k == K_VB || k == K_IB) return OBJ_F(o, B_HOST);
     return OBJ_F(o, 2);                                       // shaders: code, ntok, host
 }
@@ -174,10 +174,20 @@ static Fmt fmt_map(uint32_t f) {
     return r;
 }
 static int is_depth_fmt(uint32_t f) { return f == 80 || f == 70 || f == 75 || f == 77 || f == 71 || f == FCC('I', 'N', 'T', 'Z'); }
+static MTLPixelFormat srgb_fmt(MTLPixelFormat pf) {
+    switch (pf) {
+    case MTLPixelFormatBGRA8Unorm: return MTLPixelFormatBGRA8Unorm_sRGB;
+    case MTLPixelFormatRGBA8Unorm: return MTLPixelFormatRGBA8Unorm_sRGB;
+    case MTLPixelFormatBC1_RGBA:   return MTLPixelFormatBC1_RGBA_sRGB;
+    case MTLPixelFormatBC2_RGBA:   return MTLPixelFormatBC2_RGBA_sRGB;
+    case MTLPixelFormatBC3_RGBA:   return MTLPixelFormatBC3_RGBA_sRGB;
+    default: return MTLPixelFormatInvalid;
+    }
+}
 
 // ---- textures ---------------------------------------------------------------------------------------
 @interface HTex : NSObject
-@property(nonatomic, strong) id<MTLTexture> tex, view;   // view: swizzled / for sampling
+@property(nonatomic, strong) id<MTLTexture> tex, view, srgb_view, srgb_rt;   // view: swizzled / for sampling
 @property(nonatomic) uint32_t fmt, w, h, d, levels, faces, ms;
 @end
 @implementation HTex
@@ -204,6 +214,13 @@ static HTex *make_tex(uint32_t fmt, uint32_t w, uint32_t h, uint32_t d3d_depth, 
     t.fmt = fmt; t.w = w; t.h = (uint32_t)d.height; t.d = d3d_depth; t.levels = (uint32_t)d.mipmapLevelCount; t.faces = faces; t.ms = ms;
     t.view = f.has_sw && ms <= 1 ? [t.tex newTextureViewWithPixelFormat:f.pf textureType:d.textureType levels:NSMakeRange(0, t.levels)
                                                                 slices:NSMakeRange(0, faces) swizzle:f.sw] : t.tex;
+    MTLPixelFormat spf = srgb_fmt(f.pf);
+    if (spf != MTLPixelFormatInvalid && ms <= 1) {
+        t.srgb_view = f.has_sw ? [t.tex newTextureViewWithPixelFormat:spf textureType:d.textureType levels:NSMakeRange(0, t.levels)
+                                                              slices:NSMakeRange(0, faces) swizzle:f.sw]
+                               : [t.tex newTextureViewWithPixelFormat:spf];
+        if (rt) t.srgb_rt = [t.tex newTextureViewWithPixelFormat:spf];
+    }
     return t;
 }
 
@@ -240,10 +257,10 @@ static HTex *host_tex(uint32_t o) __attribute__((ns_returns_not_retained));
 static HTex *host_tex(uint32_t o) {
     if (!o) return nil;
     uint32_t kind = OBJ_KIND(o);
-    if (kind == K_SURF && G32(OBJ_F(o, S_CONT))) return host_tex(G32(OBJ_F(o, S_CONT)));   // a level of a texture
+    if ((kind == K_SURF || kind == K_VOLUME) && G32(OBJ_F(o, S_CONT))) return host_tex(G32(OBJ_F(o, S_CONT)));   // a level of a texture
     HTex *t = (__bridge HTex *)host_get(o);     // strong: the creation path below assigns new objects to it
     if (!t) {
-        if (kind == K_TEX || kind == K_CUBE) {
+        if (kind == K_TEX || kind == K_CUBE || kind == K_VOL) {
             t = make_tex(G32(OBJ_F(o, T_FMT)), G32(OBJ_F(o, T_W)), G32(OBJ_F(o, T_H)), G32(OBJ_F(o, T_DEPTH)), G32(OBJ_F(o, T_LEVELS)), G32(OBJ_F(o, T_FACES)), 1,
                          (G32(OBJ_F(o, T_USAGE)) & 3) != 0);
             if (!t) return nil;
@@ -259,7 +276,7 @@ static HTex *host_tex(uint32_t o) {
             return t;
         } else return nil;
     }
-    if ((kind == K_TEX || kind == K_CUBE) && G32(OBJ_F(o, T_DIRTY))) {
+    if ((kind == K_TEX || kind == K_CUBE || kind == K_VOL) && G32(OBJ_F(o, T_DIRTY))) {
         P32(OBJ_F(o, T_DIRTY), 0);
         for (uint32_t f = 0; f < t.faces; f++)
             for (uint32_t l = 0; l < t.levels; l++) {
@@ -270,13 +287,17 @@ static HTex *host_tex(uint32_t o) {
     return t;
 }
 // the specific level/face slice a surface is (for render targets that are texture levels)
-static id<MTLTexture> surf_target(uint32_t s, NSUInteger *level, NSUInteger *slice) {
+static id<MTLTexture> surf_target_srgb(uint32_t s, uint32_t srgbw, NSUInteger *level, NSUInteger *slice) {
     *level = 0; *slice = 0;
     if (!s) return nil;
     uint32_t cont = G32(OBJ_F(s, S_CONT));
     HTex *t = host_tex(s);
+    if (!t) return nil;
     if (cont) { uint32_t lv = G32(OBJ_F(s, S_LEVEL)); *level = lv & 0xFFFF; *slice = lv >> 16; }
-    return t.tex;
+    return (srgbw && t.srgb_rt) ? t.srgb_rt : t.tex;
+}
+static id<MTLTexture> surf_target(uint32_t s, NSUInteger *level, NSUInteger *slice) {
+    return surf_target_srgb(s, 0, level, slice);
 }
 
 // ---- shaders & pipelines ----------------------------------------------------------------------------
@@ -505,9 +526,10 @@ static void begin_pass(D3DState *s, uint32_t clear_flags, uint32_t color, float 
                 (unsigned long)(t0 ? t0.pixelFormat : 0), s->backbuffer);
     }
     end_pass(); ensure_cmd();
+    uint32_t srgbw = (!(clear_flags & 1) && s->rs[194]) ? 1u : 0u;
     MTLRenderPassDescriptor *rp = [MTLRenderPassDescriptor renderPassDescriptor];
     for (int i = 0; i < 4; i++) {
-        NSUInteger lv, sl; id<MTLTexture> t = surf_target(s->rt[i], &lv, &sl);
+        NSUInteger lv, sl; id<MTLTexture> t = surf_target_srgb(s->rt[i], srgbw, &lv, &sl);
         if (!t) continue;
         rp.colorAttachments[i].texture = t; rp.colorAttachments[i].level = lv; rp.colorAttachments[i].slice = sl;
         rp.colorAttachments[i].loadAction = (clear_flags & 1) ? MTLLoadActionClear : MTLLoadActionLoad;
@@ -527,10 +549,11 @@ static void begin_pass(D3DState *s, uint32_t clear_flags, uint32_t color, float 
     }
     enc = [cmd renderCommandEncoderWithDescriptor:rp];
     ec_reset();
-    memcpy(enc_rt, s->rt, sizeof enc_rt); enc_ds = s->ds;
+    memcpy(enc_rt, s->rt, sizeof enc_rt); enc_ds = s->ds; enc_srgbw = srgbw;
 }
 static void ensure_pass(D3DState *s) {
-    if (enc && !memcmp(enc_rt, s->rt, sizeof enc_rt) && enc_ds == s->ds) return;
+    uint32_t srgbw = s->rs[194] ? 1u : 0u;
+    if (enc && !memcmp(enc_rt, s->rt, sizeof enc_rt) && enc_ds == s->ds && enc_srgbw == srgbw) return;
     begin_pass(s, 0, 0, 1, 0);
 }
 
@@ -678,7 +701,7 @@ static int setup_draw(D3DState *s) {
         }
     }
     for (int i = 0; i < 4; i++) {
-        NSUInteger lv, sl; id<MTLTexture> t = surf_target(s->rt[i], &lv, &sl);
+        NSUInteger lv, sl; id<MTLTexture> t = surf_target_srgb(s->rt[i], s->rs[194], &lv, &sl);
         if (!t) continue;
         k.rtfmt[i] = (uint32_t)t.pixelFormat; k.samples = (uint32_t)t.sampleCount;
         k.rtwm[i] = i == 0 ? s->rs[168] : s->rs[189 + i];
@@ -847,7 +870,9 @@ static int setup_draw(D3DState *s) {
         __unsafe_unretained HTex *t = host_tex(s->tex[i]);
         id<MTLTexture> tv = nil;
         if (t) {
-            tv = (k.depth_mask >> i) & 1 ? t.tex : t.view;
+            if ((k.depth_mask >> i) & 1) tv = t.tex;
+            else if (s->ss[i][11] && t.srgb_view) tv = t.srgb_view;
+            else tv = t.view;
         } else if ((k.depth_mask >> i) & 1) {
             if (!dummy_dtex) {
                 MTLTextureDescriptor *dd = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float_Stencil8 width:1 height:1 mipmapped:NO];
@@ -895,15 +920,18 @@ static int setup_draw(D3DState *s) {
         if (!(vs->info.samplers & (1u << i))) continue;
         __unsafe_unretained HTex *t = host_tex(s->tex[16 + i]);
         if (t) {
-            if (ec.vtex[i] != t.view) { [enc setVertexTexture:t.view atIndex:i]; ec.vtex[i] = t.view; }
+            id<MTLTexture> vtv = (s->ss[16 + i][11] && t.srgb_view) ? t.srgb_view : t.view;
+            if (ec.vtex[i] != vtv) { [enc setVertexTexture:vtv atIndex:i]; ec.vtex[i] = vtv; }
             id<MTLSamplerState> sm = sampler(s, 16 + i, 0);
             if (ec.vsamp[i] != sm) { [enc setVertexSamplerState:sm atIndex:i]; ec.vsamp[i] = sm; }
         }
     }
     if (smr_trace_active(s)) {
-        fprintf(stderr, "[trace-draw] vs=%#x ps=%#x decl=%#x rt0=%#x ds=%#x z=%u/%u/%u cull=%u blend=%u(%u,%u) wm=%#x vp=%.0f,%.0f,%.0fx%.0f(%.2f..%.2f)\n",
+        uint32_t srgb_mask = 0;
+        for (int i = 0; i < 16; i++) if (s->ss[i][11]) srgb_mask |= 1u << i;
+        fprintf(stderr, "[trace-draw] vs=%#x ps=%#x decl=%#x rt0=%#x ds=%#x z=%u/%u/%u cull=%u blend=%u(%u,%u) wm=%#x srgbw=%u srgbt=%#x vp=%.0f,%.0f,%.0fx%.0f(%.2f..%.2f)\n",
                 s->vs, s->ps, s->decl, s->rt[0], s->ds, s->rs[7], s->rs[14], s->rs[23], s->rs[22],
-                s->rs[27], s->rs[19], s->rs[20], s->rs[168],
+                s->rs[27], s->rs[19], s->rs[20], s->rs[168], s->rs[194], srgb_mask,
                 (double)s->viewport[0], (double)s->viewport[1], (double)s->viewport[2], (double)s->viewport[3],
                 (double)vpz0, (double)vpz1);
         if (s->rt[0] == s->backbuffer && ps) {
@@ -917,38 +945,6 @@ static int setup_draw(D3DState *s) {
                     s->psb[0], bmsl ? bmsl : berr);
             free(bmsl);
         }
-        static uint32_t gb_tex[32]; static int gb_tn = 0;
-        if (ps && rt0 && rt0.width == 1280 && rt0.height == 720 && rt0.pixelFormat == MTLPixelFormatBGRA8Unorm && gb_tn < 16) {
-            uint32_t tx = s->tex[0];
-            int seen = 0; for (int ti = 0; ti < gb_tn; ti++) if (gb_tex[ti] == tx) seen = 1;
-            if (!seen) {
-                gb_tex[gb_tn++] = tx;
-                HTex *th = host_tex(tx);
-                uint32_t px0 = 0;
-                if (th && th.tex.storageMode == MTLStorageModeShared && th.tex.textureType == MTLTextureType2D) {
-                    [th.tex getBytes:&px0 bytesPerRow:MAX(4, th.w * 4) fromRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0];
-                }
-                fprintf(stderr, "[trace-gb-tex %d] ps=%#x s0=%#x fmt=%u %ux%u px0=%#08x wm2=%#x\n",
-                        gb_tn, s->ps, tx, th ? th.fmt : 0, th ? th.w : 0, th ? th.h : 0, px0, s->rs[191]);
-            }
-        }
-        static uint32_t gb_ps[4]; static int gb_n = 0;
-        if (ps && rt0 && rt0.width == 1280 && rt0.height == 720 && rt0.pixelFormat == MTLPixelFormatBGRA8Unorm && gb_n < 3) {
-            int seen = 0; for (int gi = 0; gi < gb_n; gi++) if (gb_ps[gi] == s->ps) seen = 1;
-            if (!seen) {
-                gb_ps[gb_n++] = s->ps;
-                SMInfo gi = ps->info; char gerr[256];
-                char *gmsl = sm_translate((const uint32_t *)(void *)(MEM + G32(OBJ_F(s->ps, 0))), G32(OBJ_F(s->ps, 1)), &gi, NULL, 0, gerr, sizeof gerr);
-                fprintf(stderr, "[trace-gbuf-ps %d] ps=%#x max_const=%d samplers=%#x wm=(%#x,%#x,%#x,%#x) cf0=(%.3f,%.3f,%.3f,%.3f)\n%s\n",
-                        gb_n, s->ps, ps->info.max_const, ps->info.samplers, s->rs[168], s->rs[190], s->rs[191], s->rs[192],
-                        s->psc[0][0], s->psc[0][1], s->psc[0][2], s->psc[0][3], gmsl ? gmsl : gerr);
-                free(gmsl);
-                for (int i = 0; i < 8; i++) if (ps->info.samplers & (1u << i)) {
-                    HTex *th = host_tex(s->tex[i]);
-                    fprintf(stderr, "  gb s%d=%#x fmt=%u %ux%u\n", i, s->tex[i], th ? th.fmt : 0, th ? th.w : 0, th ? th.h : 0);
-                }
-            }
-        }
         static int hdr_logged = 0;
         if (ps && rt0 && rt0.width == 1280 && rt0.height == 720 && rt0.pixelFormat == MTLPixelFormatRGBA16Float && hdr_logged < 2) {
             hdr_logged++;
@@ -960,21 +956,9 @@ static int setup_draw(D3DState *s) {
                     s->psc[1][0], s->psc[1][1], s->psc[1][2], s->psc[1][3],
                     s->psc[2][0], s->psc[2][1], s->psc[2][2], s->psc[2][3], hmsl ? hmsl : herr);
             free(hmsl);
-            if (hdr_logged == 2) {
-                uint32_t vn = G32(OBJ_F(s->vs, 1)), vp = G32(OBJ_F(s->vs, 0));
-                fprintf(stderr, "[trace-hdr-vs-tok] ntok=%u:", vn);
-                for (uint32_t ti = 0; ti < vn && ti < 256; ti++) fprintf(stderr, " %08x", G32(vp + 4 * ti));
-                fprintf(stderr, "\n");
-                SMInfo vi2 = vs->info; char verr[256];
-                char *vmsl = sm_translate((const uint32_t *)(void *)(MEM + G32(OBJ_F(s->vs, 0))), G32(OBJ_F(s->vs, 1)), &vi2, NULL, 0, verr, sizeof verr);
-                fprintf(stderr, "[trace-hdr-vs 2] vs=%#x vsc0=(%.3f,%.3f,%.3f,%.3f)\n%s\n",
-                        s->vs, s->vsc[0][0], s->vsc[0][1], s->vsc[0][2], s->vsc[0][3], vmsl ? vmsl : verr);
-                free(vmsl);
-            }
             for (int i = 0; i < 8; i++) if (ps->info.samplers & (1u << i)) {
                 HTex *th = host_tex(s->tex[i]);
                 fprintf(stderr, "  s%d=%#x fmt=%u %ux%u\n", i, s->tex[i], th ? th.fmt : 0, th ? th.w : 0, th ? th.h : 0);
-                if (hdr_logged == 2 && i == 1 && th) dump_png(th.tex, 9010);
             }
         }
     }
@@ -1256,17 +1240,17 @@ static void d3d_backend_created_impl(uint32_t o) {
 static void d3d_backend_dirty_impl(uint32_t o) {
     if (!o) return;
     if (OBJ_KIND(o) == K_VB || OBJ_KIND(o) == K_IB) { P32(OBJ_F(o, B_DIRTY), 1); return; }
-    if (OBJ_KIND(o) != K_SURF) return;
+    if (OBJ_KIND(o) != K_SURF && OBJ_KIND(o) != K_VOLUME) return;
     P32(OBJ_F(o, S_DIRTY), 1);
     uint32_t cont = G32(OBJ_F(o, S_CONT));
     if (cont) P32(OBJ_F(cont, T_DIRTY), 1);
 }
 static void d3d_backend_release_impl(uint32_t o) {
     uint32_t k = OBJ_KIND(o);
-    if (k != K_TEX && k != K_CUBE && k != K_SURF && k != K_VS && k != K_PS && k != K_VB && k != K_IB) return;
+    if (k != K_TEX && k != K_CUBE && k != K_VOL && k != K_SURF && k != K_VOLUME && k != K_VS && k != K_PS && k != K_VB && k != K_IB) return;
     uint32_t i = G32(host_field(o));
     if (!i) return;
-    if (k == K_TEX || k == K_CUBE || k == K_SURF) { memset(ec.ftex, 0, sizeof ec.ftex); memset(ec.vtex, 0, sizeof ec.vtex); }
+    if (k == K_TEX || k == K_CUBE || k == K_VOL || k == K_SURF || k == K_VOLUME) { memset(ec.ftex, 0, sizeof ec.ftex); memset(ec.vtex, 0, sizeof ec.vtex); }
     if (k == K_VB || k == K_IB) memset(ec.vbuf, 0, sizeof ec.vbuf);
     host_drop(o);
 }

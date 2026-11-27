@@ -9,7 +9,7 @@
 [guest-dll] mapped d3dx9_43.dll at 0x12400000
 [guest-dll] mapped fmodex.dll at 0x13000000
 [guest-dll] mapped fmod_event.dll at 0x13200000
-[host] image @0x400000, entry 0x83e167, 1099 imports (924 shimmed)
+[host] image @0x400000, entry 0x83e167, 1183 imports (1008 shimmed)
 [guest-dll] attaching msvcr90.dll at 0x78542d40
 [fallback-root] target=0x78542d40 source_entry=0 return_pc=0xfedf0000 saved_eip_approx=0
 [host] GetProcAddress(kernel32, FindActCtxSectionStringW) -> 0 (no shim)
@@ -46,52 +46,38 @@
 [guest-dll] attached fmod_event.dll
 [fallback-root] target=0x78542211 source_entry=0x83ec24 return_pc=0x83df3f saved_eip_approx=0x83deb4
 [fallback-root] target=0x78541be0 source_entry=0x83e086 return_pc=0x83e0f2 saved_eip_approx=0x83deb4
-[fallback-root] target=0x78543582 source_entry=0x83e086 return_pc=0x83e0fa saved_eip_approx=0x83deb4
 [fallback-root] target=0x78542ace source_entry=0x83e086 return_pc=0x83e10c saved_eip_approx=0x83deb4
 [fallback-root] target=0x78542a99 source_entry=0x83e086 return_pc=0x83e11a saved_eip_approx=0x83deb4
-[fallback-root] target=0x7859a942 source_entry=0x83e3d4 return_pc=0x83ec3f saved_eip_approx=0x83e138
 [fallback-root] target=0x785421ee source_entry=0x83ec1e return_pc=0x83df68 saved_eip_approx=0x7854222a
-[fallback-root] target=0x78543607 source_entry=0x83e8a8 return_pc=0x83dd8a saved_eip_approx=0x83dd7c
-[fallback-root] target=0x7858ce3a source_entry=0x83e8a8 return_pc=0x83dd9c saved_eip_approx=0x83dd7c
 [fallback-root] target=0x7854271f source_entry=0x83e8ed return_pc=0x83de93 saved_eip_approx=0x83de67
-[fallback-root] target=0x78583d3f source_entry=0x820ae0 return_pc=0x820b00 saved_eip_approx=0x83ac34
-[fallback-root] target=0x78586182 source_entry=0x820b30 return_pc=0x820b49 saved_eip_approx=0x83aee7
 [fallback-root] target=0x7858f16a source_entry=0x8436b0 return_pc=0x8436ce saved_eip_approx=0x78542201
 [fallback-root] target=0x78498a50 source_entry=0x7a6e30 return_pc=0x7a6e64 saved_eip_approx=0x7a8010
 [host] SteamAPI_Init -> false (offline)
-[fallback-root] target=0x7855ec21 source_entry=0x83e29e return_pc=0x823657 saved_eip_approx=0x823629
 [smr] named pipe unavailable: \\.\Pipe\ShootManyRobots
 [fallback-root] target=0x7855774a source_entry=0x83ab20 return_pc=0x827ef2 saved_eip_approx=0x827ee5
-[fallback-root] target=0x7855b810 source_entry=0x822e20 return_pc=0x822ea4 saved_eip_approx=0x827627
-[fallback-root] target=0x7855be60 source_entry=0x822d10 return_pc=0x822d7d saved_eip_approx=0x83516a
-[fallback-root] target=0x7855beb0 source_entry=0x823140 return_pc=0x8231dd saved_eip_approx=0x82e55c
 [fallback-root] target=0x785556f0 source_entry=0x82c520 return_pc=0x82cfa4 saved_eip_approx=0x82cf99
 [fallback-root] target=0x785506a6 source_entry=0x82c570 return_pc=0x82c7a8 saved_eip_approx=0x82c78a
 [fallback-root] target=0x78550b55 source_entry=0x82d140 return_pc=0x82d17d saved_eip_approx=0x82c87a
 [fallback-root] target=0x7854a95f source_entry=0x8348e0 return_pc=0x82d0a0 saved_eip_approx=0x82d089
-[fallback-root] target=0x78583b4e source_entry=0x820b60 return_pc=0x83abb8 saved_eip_approx=0x83abb2
 [fallback-root] target=0x78554840 source_entry=0x823710 return_pc=0x823757 saved_eip_approx=0x8374f9
 [fallback-root] target=0x78554c89 source_entry=0x83e29e return_pc=0x82379c saved_eip_approx=0x823781
 [fallback-root] target=0x7855a4ac source_entry=0x83e8ed return_pc=0x714071 saved_eip_approx=0x71405e
-[fallback-root] target=0x78594f36 source_entry=0x83e780 return_pc=0x714086 saved_eip_approx=0x71407f
-[fallback-root] target=0x7855b190 source_entry=0x82a230 return_pc=0x82a749 saved_eip_approx=0x82a735
 [fallback-root] target=0x7855311f source_entry=0x824050 return_pc=0x82406d saved_eip_approx=0x404c69
 [fallback-root] target=0x7854e41e source_entry=0x82d6b0 return_pc=0x82d6fe saved_eip_approx=0x82ceea
 [fallback-root] target=0x7854fc61 source_entry=0x82c710 return_pc=0x82c754 saved_eip_approx=0x8261af
 [fallback-root] target=0x785434cd source_entry=0x82ed80 return_pc=0x82edb8 saved_eip_approx=0x74af42
-[thread] CreateThread start 0x7854345e param 0x184467b0 flags 0 -> handle 0x134 tid 2
+[thread] CreateThread start 0x7854345e param 0x184448b0 flags 0 -> handle 0x134 tid 2
 [thread] CreateThread start 0x7854345e param 0x18561010 flags 0 -> handle 0x138 tid 3
-[thread] CreateThread start 0x7854345e param 0x18561410 flags 0 -> handle 0x13c tid 4
 [fallback-root] target=0x7854345e source_entry=0 return_pc=0xfedf0000 saved_eip_approx=0
-[thread] CreateThread start 0x7854345e param 0x18670010 flags 0 -> handle 0x140 tid 5
-[thread] CreateThread start 0x7854345e param 0x18691010 flags 0 -> handle 0x144 tid 6
-[thread] CreateThread start 0x7854345e param 0x188d1010 flags 0 -> handle 0x148 tid 7
-[thread] CreateThread start 0x7854345e param 0x188d1410 flags 0 -> handle 0x14c tid 8
-[fallback-root] target=0x7855ed7f source_entry=0x83e29e return_pc=0x8234e7 saved_eip_approx=0x8234b9
+[thread] CreateThread start 0x7854345e param 0x18681010 flags 0 -> handle 0x13c tid 4
+[thread] CreateThread start 0x7854345e param 0x187a1010 flags 0 -> handle 0x140 tid 5
+[thread] CreateThread start 0x7854345e param 0x187a1410 flags 0 -> handle 0x144 tid 6
+[thread] CreateThread start 0x7854345e param 0x187a1810 flags 0 -> handle 0x148 tid 7
+[thread] CreateThread start 0x7854345e param 0x187a1c10 flags 0 -> handle 0x14c tid 8
 [fallback-root] target=0x1000a4f0 source_entry=0x83a940 return_pc=0x732b03 saved_eip_approx=0x732a82
 [host] LoadLibraryA(PhysXUpdateLoader.dll) -> 0
 [host] LoadLibraryA(PhysXCore.dll) -> 0x11400000
-[smr] file mapping unavailable: Global\PH71828182845_4221
+[smr] file mapping unavailable: Global\PH71828182845_561f
 [host] LoadLibraryA(NTDLL.DLL) -> 0xfd060000
 [host] GetProcAddress(ntdll, NtQueryInformationThread) -> 0 (no shim)
 [host] LoadLibraryA(AgPerfMon.dll) -> 0
@@ -102,14 +88,9 @@
 [d3d9] Direct3DCreate9(sdk 0x20)
 [host] RegisterClassA wndproc 0x5c88f0
 [host] CreateWindowExA("Shoot Many Robots v1.1.CL96283", 800x600) -> headless window
-[d3d9] CreateDevice 1280x720 fmt 0 windowed=1 msaa=0 -> 0x18d87250
+[d3d9] CreateDevice 1280x720 fmt 0 windowed=1 msaa=0 -> 0x18d76890
 [smr-window] opened 1280 x 720 Metal window
-[d3d9-return] CreateDevice hresult=0 output=0x18c9db7c device=0x18d87250 vtable=0x18c9d6b0 first_method=0xfee01394 guest_return=0x5d0850 esp_after=0x180ff7c0
-[d3d9-tex 1] caller=0x5cdbdd CreateTexture 2x2 lv1 fmt=0x15 usage=0 pool=1 -> 0x18d87b90
-  stack: 0x5cdbdd 0x9a0821 0x7422e6 0x9a59d7 0x7426ca 0x820ea1 0x9a5a05
-[d3d9-tex 2] caller=0x5cdbdd CreateTexture 1x1 lv1 fmt=0x15 usage=0 pool=1 -> 0x1914fbd0
-  stack: 0x5cdbdd 0x9a0821 0x73a313 0x72358f 0x9a5026 0x73ccaa 0x83af17
-[fallback-root] target=0x78594f4d source_entry=0x839790 return_pc=0x777d62 saved_eip_approx=0x777d51
+[d3d9-return] CreateDevice hresult=0 output=0x18c8db3c device=0x18d76890 vtable=0x18c287b0 first_method=0xfee01568 guest_return=0x5d0850 esp_after=0x180ff7c0
 [fallback-root] target=0x124edcd0 source_entry=0x83edc6 return_pc=0x5ceacd saved_eip_approx=0x765d3f
 [host] LoadLibraryA(d3d9.dll) -> 0xfd070000
 [fallback-root] target=0x1250b55f source_entry=0x83edc6 return_pc=0x5ceaf7 saved_eip_approx=0x765d3f
@@ -131,8 +112,8 @@
 [host] GetProcAddress(dsound, DirectSoundCaptureEnumerateW) -> 0 (no shim)
 [fallback-root] target=0x1301af7d source_entry=0x83ee1a return_pc=0x71b594 saved_eip_approx=0x71ce66
 [fallback-root] target=0x1322bc10 source_entry=0x83ee6e return_pc=0x71b647 saved_eip_approx=0x71ce66
-[thread] CreateThread start 0x7854345e param 0x1d1f78b0 flags 0 -> handle 0x1d8 tid 9
-[thread] CreateThread start 0x7854345e param 0x1d311010 flags 0 -> handle 0x1e0 tid 10
+[thread] CreateThread start 0x7854345e param 0x1d1e6f30 flags 0 -> handle 0x1d8 tid 9
+[thread] CreateThread start 0x7854345e param 0x1d301010 flags 0 -> handle 0x1e0 tid 10
 [fallback-root] target=0x1322bcb0 source_entry=0x83eece return_pc=0x71ceb1 saved_eip_approx=0x71ce9e
 [fallback-root] target=0x1322c360 source_entry=0x83eec8 return_pc=0x71cebd saved_eip_approx=0x71ce9e
 [fallback-root] target=0x1301b1e1 source_entry=0x83ee62 return_pc=0x71cef2 saved_eip_approx=0x71ce9e
@@ -140,7 +121,6 @@
 [fallback-root] target=0x7857e3f0 source_entry=0x83dd6a return_pc=0x5cb3dc saved_eip_approx=0x5c9211
 [dinput] CreateDevice guid 6f1d2b60-...
 [host] LoadLibraryA(kernel32.dll) -> 0xfd000000
-[d3d9-tex 3] caller=0x7880b7 CreateTexture 1x1 lv1 fmt=0x1c usage=0 pool=0 -> 0x25490010
 [fallback-root] target=0x124e5fdb source_entry=0x83edd8 return_pc=0x784ffb saved_eip_approx=0x5ccfa2
 [host] LoadLibraryA(d3dcompiler_43.dll) -> 0x12000000
 [host] GetProcAddress(d3d9, Direct3DShaderValidatorCreate9) -> 0 (no shim)
@@ -235,12 +215,10 @@
 [host] LoadLibraryA(d3dcompiler_43.dll) -> 0x12000000
 [host] GetProcAddress(d3d9, Direct3DShaderValidatorCreate9) -> 0 (no shim)
 [fallback-root] target=0x7859b060 source_entry=0x83e370 return_pc=0x622057 saved_eip_approx=0x6221de
-[fallback-root] target=0x785a32f0 source_entry=0x83e2c2 return_pc=0x6d7be5 saved_eip_approx=0x6db4f5
 [fallback-root] target=0x7859b7a0 source_entry=0x83e338 return_pc=0x6c9e6e saved_eip_approx=0x6c9e61
 [fallback-root] target=0x7859b6a0 source_entry=0x83e298 return_pc=0x8379ef saved_eip_approx=0x837a4e
 [fallback-root] target=0x1322bf30 source_entry=0x83ee86 return_pc=0x71b8bc saved_eip_approx=0x49b6be
 [fallback-root] target=0x1320fc50 source_entry=0x83ee86 return_pc=0x71b8d7 saved_eip_approx=0x49b6be
-[fallback-root] target=0x7855c791 source_entry=0x83ab20 return_pc=0x8363e1 saved_eip_approx=0x83638b
 [fallback-root] target=0x7859ae20 source_entry=0x83e2bc return_pc=0x830d99 saved_eip_approx=0x44e964
 [fallback-root] target=0x7859b5b0 source_entry=0x83e33e return_pc=0x830db5 saved_eip_approx=0x44e964
 [fallback-root] target=0x7855b970 source_entry=0x822c00 return_pc=0x822c6d saved_eip_approx=0x75a53a
@@ -251,23 +229,19 @@
 [fallback-root] target=0x1322be30 source_entry=0x83ef22 return_pc=0x76c094 saved_eip_approx=0x76c05d
 [fallback-root] target=0x13227d20 source_entry=0x83de2c return_pc=0x76c11a saved_eip_approx=0x76c0b9
 [fallback-root] target=0x1322c030 source_entry=0x83ee8c return_pc=0x76c1be saved_eip_approx=0x76c1a4
-[thread] CreateThread start 0x7854345e param 0x2c5ba6d0 flags 0 -> handle 0x1f4 tid 11
+[thread] CreateThread start 0x7854345e param 0x2c5aadd0 flags 0 -> handle 0x1f4 tid 11
 [fallback-root] target=0x1321b270 source_entry=0x83ef1c return_pc=0x76c1d5 saved_eip_approx=0x76c1a4
 [thread] CloseHandle(0x1f8) thread, caller 0x82ec16
 [thread] CloseHandle(0x1f8) thread, caller 0x82ec16
-[thread] CreateThread start 0x7854345e param 0x2c961010 flags 0 -> handle 0x1fc tid 12
+[thread] CreateThread start 0x7854345e param 0x2c853010 flags 0 -> handle 0x1fc tid 12
 [fallback-root] target=0x1322bda0 source_entry=0x83eeb0 return_pc=0x71c624 saved_eip_approx=0x71c7e2
 [fallback-root] target=0x13236c60 source_entry=0x83eeb0 return_pc=0x71c634 saved_eip_approx=0x71c7e2
 [host] LoadLibraryA(imm32.dll) -> 0
-[fallback-root] target=0x7855c678 source_entry=0x83e4a8 return_pc=0x63a32d saved_eip_approx=0x63a469
-[fallback-root] target=0x785460ad source_entry=0x83e22c return_pc=0x63a33a saved_eip_approx=0x63a469
-[fallback-root] target=0x785a3100 source_entry=0x83e172 return_pc=0x61fbf4 saved_eip_approx=0x630a28
 [fallback-root] target=0x7859adca source_entry=0x83e2b6 return_pc=0x5eba9f saved_eip_approx=0x5eba75
 [fallback-root] target=0x7859afea source_entry=0x83e2a4 return_pc=0x636734 saved_eip_approx=0x636723
-[fallback-root] target=0x124fb9d3 source_entry=0x5d3000 return_pc=0x5d3012 saved_eip_approx=0x5cef7e
+[fallback-root] target=0x124fb9d3 source_entry=0x5d3000 return_pc=0x5d3012 saved_eip_approx=0x5cef90
 [d3d9] Reset 1280x720
-[fallback-root] target=0x1250b4ff source_entry=0x5d3020 return_pc=0x5d3032 saved_eip_approx=0x5cf4cd
-[d3d9-tex 4] caller=0x7880b7 CreateTexture 1x1 lv1 fmt=0x1c usage=0 pool=0 -> 0x2c5ac850
+[fallback-root] target=0x1250b4ff source_entry=0x5d3020 return_pc=0x5d3032 saved_eip_approx=0x5cf4e0
 [host] LoadLibraryA(d3dcompiler_43.dll) -> 0x12000000
 [host] GetProcAddress(d3d9, Direct3DShaderValidatorCreate9) -> 0 (no shim)
 [host] LoadLibraryA(d3dcompiler_43.dll) -> 0x12000000
@@ -358,6 +332,19 @@
 [host] GetProcAddress(d3d9, Direct3DShaderValidatorCreate9) -> 0 (no shim)
 [host] LoadLibraryA(d3dcompiler_43.dll) -> 0x12000000
 [host] GetProcAddress(d3d9, Direct3DShaderValidatorCreate9) -> 0 (no shim)
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
+[thread] CloseHandle(0x200) thread, caller 0x82ec16
 [thread] CloseHandle(0x200) thread, caller 0x82ec16
 [thread] CloseHandle(0x200) thread, caller 0x82ec16
 [thread] CloseHandle(0x200) thread, caller 0x82ec16
@@ -371,28 +358,7 @@
 [thread] CloseHandle(0x200) thread, caller 0x82ec16
 [thread] CloseHandle(0x200) thread, caller 0x82ec16
 [fallback-root] target=0x1322c3c0 source_entry=0x83ee9e return_pc=0x71c0bc saved_eip_approx=0x71c074
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
 [fallback-root] target=0x1322bc80 source_entry=0x83ee98 return_pc=0x71c0c2 saved_eip_approx=0x71c074
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
-[thread] CloseHandle(0x200) thread, caller 0x82ec16
 [fallback-root] target=0x1250586b source_entry=0x5c9e60 return_pc=0x5c9e7d saved_eip_approx=0x77d12d
 [fallback-root] target=0x125056c2 source_entry=0x5c9da0 return_pc=0x5c9dbd saved_eip_approx=0x77d286
 [fallback-root] target=0x12505bbc source_entry=0x5d1d40 return_pc=0x5c9c9d saved_eip_approx=0x5c9c86
@@ -400,77 +366,452 @@
 [fallback-root] target=0x12508785 source_entry=0x5d2ee0 return_pc=0x5d2f05 saved_eip_approx=0x77cd83
 [fallback-root] target=0x1250ae06 source_entry=0x8f9da0 return_pc=0x8f9dbb saved_eip_approx=0x77c9bc
 [fallback-root] target=0x1250ac8c source_entry=0x8f9d80 return_pc=0x8f9d91 saved_eip_approx=0x77ce48
-[metal] shader compile 8.3 ms (vs)
-[metal] shader compile 136.3 ms (ps)
-[metal] pipeline build 24.0 ms
+[metal] shader compile 8.1 ms (vs)
+[metal] shader compile 118.4 ms (ps)
+[metal] pipeline build 19.3 ms
 [fallback-root] target=0x124ff758 source_entry=0x8f9dd0 return_pc=0x8f9ddf saved_eip_approx=0x77c9f1
 [fallback-root] target=0x1250b57b source_entry=0x8f9dd0 return_pc=0x8f9df7 saved_eip_approx=0x77c9f1
 [fallback-root] target=0x124ff5e5 source_entry=0x5d2f40 return_pc=0x5d2f52 saved_eip_approx=0x77ca08
-[metal] shader compile 7.8 ms (vs)
-[metal] shader compile 130.8 ms (ps)
-[metal] pipeline build 17.0 ms
-[metal] shader compile 134.4 ms (vs)
-[metal] shader compile 6.6 ms (ps)
-[metal] pipeline build 17.2 ms
-[metal] shader compile 5.5 ms (vs)
-[metal] shader compile 126.4 ms (ps)
-[metal] pipeline build 15.1 ms
-[fallback-root] target=0x12506d46 source_entry=0x5c9cc0 return_pc=0x5c9cdd saved_eip_approx=0x526213
-[metal] shader compile 7.0 ms (vs)
-[metal] shader compile 121.4 ms (ps)
-[metal] pipeline build 14.5 ms
-[metal] shader compile 5.3 ms (vs)
-[metal] shader compile 119.3 ms (ps)
-[metal] pipeline build 15.8 ms
-[metal] shader compile 5.6 ms (vs)
-[metal] shader compile 113.7 ms (ps)
-[metal] pipeline build 11.3 ms
-[metal] shader compile 6.1 ms (vs)
-[metal] shader compile 146.3 ms (ps)
-[metal] pipeline build 15.1 ms
-[metal] shader compile 6.0 ms (vs)
-[metal] shader compile 120.0 ms (ps)
-[metal] pipeline build 15.1 ms
-[fallback-root] target=0x12506902 source_entry=0x5c9e10 return_pc=0x5c9e2f saved_eip_approx=0x5825a3
-[metal] shader compile 5.8 ms (vs)
-[metal] shader compile 118.9 ms (ps)
-[metal] pipeline build 13.2 ms
-[metal] shader compile 5.3 ms (vs)
-[metal] shader compile 121.6 ms (ps)
-[metal] pipeline build 12.0 ms
-[metal] shader compile 5.8 ms (vs)
-[metal] shader compile 132.6 ms (ps)
-[metal] pipeline build 13.6 ms
-[metal] shader compile 5.3 ms (vs)
-[metal] shader compile 132.4 ms (ps)
+[metal] shader compile 5.9 ms (vs)
+[metal] shader compile 108.1 ms (ps)
+[metal] pipeline build 12.5 ms
+[metal] shader compile 117.5 ms (vs)
+[metal] shader compile 5.4 ms (ps)
 [metal] pipeline build 14.8 ms
+[metal] shader compile 5.2 ms (vs)
+[metal] shader compile 126.0 ms (ps)
+[metal] pipeline build 12.6 ms
+[fallback-root] target=0x12506d46 source_entry=0x5c9cc0 return_pc=0x5c9cdd saved_eip_approx=0x526213
+[metal] shader compile 5.9 ms (vs)
+[metal] shader compile 130.6 ms (ps)
+[metal] pipeline build 15.7 ms
+[metal] shader compile 6.6 ms (vs)
+[metal] shader compile 132.3 ms (ps)
+[metal] pipeline build 16.3 ms
+[metal] shader compile 5.6 ms (vs)
+[metal] shader compile 112.7 ms (ps)
+[metal] pipeline build 10.5 ms
+[metal] shader compile 5.4 ms (vs)
+[metal] shader compile 127.4 ms (ps)
+[metal] pipeline build 14.8 ms
+[metal] shader compile 5.2 ms (vs)
+[metal] shader compile 123.3 ms (ps)
+[metal] pipeline build 13.9 ms
+[fallback-root] target=0x12506902 source_entry=0x5c9e10 return_pc=0x5c9e2f saved_eip_approx=0x5825a3
+[metal] shader compile 5.2 ms (vs)
+[metal] shader compile 110.4 ms (ps)
+[metal] pipeline build 10.9 ms
+[metal] shader compile 4.8 ms (vs)
+[metal] shader compile 117.1 ms (ps)
+[metal] pipeline build 12.5 ms
+[metal] shader compile 6.0 ms (vs)
+[metal] shader compile 121.6 ms (ps)
+[metal] pipeline build 12.1 ms
+[metal] shader compile 4.9 ms (vs)
+[metal] shader compile 118.7 ms (ps)
+[metal] pipeline build 10.5 ms
 [fallback-root] target=0x12506014 source_entry=0x5c9ca0 return_pc=0x5c9cbb saved_eip_approx=0x5bc613
-[metal] shader compile 7.4 ms (vs)
-[metal] shader compile 128.0 ms (ps)
-[metal] pipeline build 14.7 ms
-[metal] shader compile 5.9 ms (vs)
-[metal] shader compile 152.4 ms (ps)
-[metal] pipeline build 15.4 ms
-[metal] shader compile 5.9 ms (vs)
-[metal] shader compile 317.5 ms (ps)
-[metal] pipeline build 13.2 ms
-[metal] shader compile 7.5 ms (vs)
-[metal] shader compile 10.4 ms (ps)
-[metal] pipeline build 23.5 ms
-[d3d9-tex 5] caller=0x781897 CreateTexture 1024x1024 lv1 fmt=0x1c usage=0 pool=0 -> 0x2c582050
-[d3d9-tex 6] caller=0x7825a7 CreateTexture 512x512 lv1 fmt=0x1c usage=0 pool=2 -> 0x2c580ad0
-[metal] shader compile 9.3 ms (vs)
-[metal] shader compile 145.5 ms (ps)
-[metal] pipeline build 17.1 ms
+[metal] shader compile 4.9 ms (vs)
+[metal] shader compile 118.3 ms (ps)
+[metal] pipeline build 11.6 ms
+[metal] shader compile 4.9 ms (vs)
+[metal] shader compile 122.5 ms (ps)
+[metal] pipeline build 11.3 ms
+[metal] shader compile 4.6 ms (vs)
+[metal] shader compile 208.9 ms (ps)
+[metal] pipeline build 11.6 ms
+[metal] shader compile 5.2 ms (vs)
+[metal] shader compile 5.8 ms (ps)
+[metal] pipeline build 13.3 ms
+[metal] shader compile 4.4 ms (vs)
+[metal] shader compile 128.6 ms (ps)
+[metal] pipeline build 23.2 ms
 [checkpoint] first Present entered interface=device guest_return=0x5cd68f
 [metal] dumped /Users/dev/Desktop/Shoot Too Many Robots/work/boot/window-full-frames/frame_1.png (1280x720)
-[input] script /Users/dev/Desktop/Shoot Too Many Robots/work/recomp-dev/quick.script: 1 events
-[gheap] used 426 MB of 640: class 37 MB, huge 63 MB (freed-not-reused 0 MB), pages 320 MB, live 98 MB
+[input] script /Users/dev/Desktop/Shoot Too Many Robots/scripts/smr-tutorial.script: 8 events
+[gheap] used 426 MB of 640: class 37 MB, huge 63 MB (freed-not-reused 0 MB), pages 320 MB, live 97 MB
 [checkpoint] first Present returned hresult=0 guest_return=0x5cd68f
 [fallback-root] target=0x7859b320 source_entry=0x83e344 return_pc=0x6868be saved_eip_approx=0x687949
-[metal] frame 42: 20.8 fps, 35 draws/frame (35 rendered), 20 pipelines, ff-skipped 0
-[perf] intervals=41 interval_ms=50.55 max_interval_ms=543.94 main_cpu_ms=37.65 cpu_intervals=41 cpu_rejected=0 present_ms=1.37 drawable_wait_ms=0.09 inflight_wait_ms=0.00 gpu_ms=3.39 gpu_completed=41 gpu_unknown=0 compile_ms_total=2806.79 upload_peak_kib=77 footprint_mib=1887.9 thermal=0 low_power=0
+[metal] frame 44: 21.9 fps, 35 draws/frame (35 rendered), 20 pipelines, ff-skipped 0
+[perf] intervals=43 interval_ms=48.21 max_interval_ms=263.23 main_cpu_ms=44.30 cpu_intervals=43 cpu_rejected=0 present_ms=1.64 drawable_wait_ms=0.10 inflight_wait_ms=0.00 gpu_ms=2.79 gpu_completed=43 gpu_unknown=0 compile_ms_total=2493.74 upload_peak_kib=77 footprint_mib=1346.3 thermal=0 low_power=0
 [metal] dumped /Users/dev/Desktop/Shoot Too Many Robots/work/boot/window-full-frames/frame_60.png (1280x720)
-[metal] frame 79: 18.1 fps, 35 draws/frame (35 rendered), 20 pipelines, ff-skipped 0
-[perf] intervals=37 interval_ms=55.28 max_interval_ms=112.22 main_cpu_ms=53.81 cpu_intervals=37 cpu_rejected=0 present_ms=0.78 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=2.10 gpu_completed=37 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=77 footprint_mib=2039.3 thermal=0 low_power=0
-[input] script quit at frame 100
+[metal] frame 95: 25.2 fps, 35 draws/frame (35 rendered), 20 pipelines, ff-skipped 0
+[perf] intervals=51 interval_ms=39.75 max_interval_ms=49.02 main_cpu_ms=39.65 cpu_intervals=51 cpu_rejected=0 present_ms=0.52 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=1.91 gpu_completed=51 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=77 footprint_mib=1388.8 thermal=0 low_power=0
+[metal] dumped /Users/dev/Desktop/Shoot Too Many Robots/work/boot/window-full-frames/frame_120.png (1280x720)
+[metal] frame 142: 23.4 fps, 35 draws/frame (35 rendered), 20 pipelines, ff-skipped 0
+[perf] intervals=47 interval_ms=42.76 max_interval_ms=68.57 main_cpu_ms=42.65 cpu_intervals=47 cpu_rejected=0 present_ms=0.54 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=1.94 gpu_completed=47 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=77 footprint_mib=1431.0 thermal=0 low_power=0
+[metal] frame 174: 15.9 fps, 35 draws/frame (35 rendered), 20 pipelines, ff-skipped 0
+[perf] intervals=32 interval_ms=62.92 max_interval_ms=678.36 main_cpu_ms=62.47 cpu_intervals=32 cpu_rejected=0 present_ms=0.06 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=1.93 gpu_completed=32 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=77 footprint_mib=1472.4 thermal=0 low_power=0
+[fallback-root] target=0x7855e761 source_entry=0x8214a0 return_pc=0x466e2e saved_eip_approx=0x466e0b
+[metal] frame 222: 22.9 fps, 35 draws/frame (35 rendered), 20 pipelines, ff-skipped 0
+[perf] intervals=48 interval_ms=43.68 max_interval_ms=204.29 main_cpu_ms=42.95 cpu_intervals=48 cpu_rejected=0 present_ms=0.08 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=2.05 gpu_completed=48 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=77 footprint_mib=1532.6 thermal=0 low_power=0
+[fallback-root] target=0x124c4f2a source_entry=0x83edd2 return_pc=0x7834a8 saved_eip_approx=0x78347d
+[metal] shader compile 13.2 ms (vs)
+[metal] shader compile 143.9 ms (ps)
+[metal] pipeline build 15.6 ms
+[metal] frame 250: 13.9 fps, 31 draws/frame (31 rendered), 21 pipelines, ff-skipped 0
+[perf] intervals=28 interval_ms=71.86 max_interval_ms=268.47 main_cpu_ms=64.65 cpu_intervals=28 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=1.99 gpu_completed=28 gpu_unknown=0 compile_ms_total=172.75 upload_peak_kib=77 footprint_mib=1575.6 thermal=0 low_power=0
+[host] LoadLibraryA(imm32.dll) -> 0
+[fallback-root] target=0x7859aa40 source_entry=0x83e2b0 return_pc=0x6ce0fc saved_eip_approx=0x6ce8e4
+[metal] shader compile 5.6 ms (vs)
+[metal] shader compile 4.9 ms (ps)
+[metal] pipeline build 8.7 ms
+[metal] pipeline build 5.2 ms
+[metal] pipeline build 11.9 ms
+[fallback-root] target=0x1322bea0 source_entry=0x83eec2 return_pc=0x71ccc5 saved_eip_approx=0x71cc64
+[fallback-root] target=0x13228080 source_entry=0x71b770 return_pc=0x71b78c saved_eip_approx=0x71cc64
+[fallback-root] target=0x13227ff0 source_entry=0x71b770 return_pc=0x71b7ac saved_eip_approx=0x71cc64
+[fallback-root] target=0x13212020 source_entry=0x71b6b0 return_pc=0x71b6cd saved_eip_approx=0x71cc64
+[fallback-root] target=0x13211fa0 source_entry=0x71b6b0 return_pc=0x71b6e9 saved_eip_approx=0x71cc64
+[fallback-root] target=0x1321ac90 source_entry=0x83ee80 return_pc=0x71b70a saved_eip_approx=0x71cc64
+[fallback-root] target=0x1322bf00 source_entry=0x83eebc return_pc=0x71cd1e saved_eip_approx=0x71cccf
+[fallback-root] target=0x124fb23b source_entry=0x5d33f0 return_pc=0x5d343d saved_eip_approx=0x75ded3
+[steam] offline app query 208911 -> unavailable
+[fallback-root] target=0x7859ab90 source_entry=0x83e484 return_pc=0x756cd1 saved_eip_approx=0x756ca6
+[fallback-root] target=0x7855bb90 source_entry=0x8a8790 return_pc=0x8a882a saved_eip_approx=0x8a8d0d
+[metal] dumped /Users/dev/Desktop/Shoot Too Many Robots/work/boot/window-full-frames/frame_300.png (1280x720)
+[metal] frame 341: 45.2 fps, 29 draws/frame (29 rendered), 24 pipelines, ff-skipped 0
+[perf] intervals=91 interval_ms=22.12 max_interval_ms=73.54 main_cpu_ms=20.78 cpu_intervals=91 cpu_rejected=0 present_ms=0.40 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=2.14 gpu_completed=91 gpu_unknown=0 compile_ms_total=36.22 upload_peak_kib=199 footprint_mib=1691.5 thermal=0 low_power=0
+[fallback-root] target=0x1150d9e0 source_entry=0x7326c0 return_pc=0x732cfc saved_eip_approx=0x732cec
+[fallback-root] target=0x114f7370 source_entry=0x83a940 return_pc=0x732d0b saved_eip_approx=0x1140a402
+[fallback-root] target=0x114f72e0 source_entry=0x83a940 return_pc=0x732d2c saved_eip_approx=0x1140a402
+[fallback-root] target=0x114f7250 source_entry=0x83a940 return_pc=0x732d3d saved_eip_approx=0x1140a402
+[fallback-root] target=0x114f7400 source_entry=0x83a940 return_pc=0x732d4f saved_eip_approx=0x1140a402
+[fallback-root] target=0x114f8780 source_entry=0x83a940 return_pc=0x732d68 saved_eip_approx=0x1140a402
+[fallback-root] target=0x114f95d0 source_entry=0x83a940 return_pc=0x732da9 saved_eip_approx=0x1140a402
+[fallback-root] target=0x114f8340 source_entry=0x74a410 return_pc=0x749f61 saved_eip_approx=0x749f30
+[fallback-root] target=0x114f83e0 source_entry=0x74a410 return_pc=0x749f72 saved_eip_approx=0x749f30
+[fallback-root] target=0x114f7560 source_entry=0x74a410 return_pc=0x749f94 saved_eip_approx=0x749f30
+[fallback-root] target=0x114f78f0 source_entry=0x820b60 return_pc=0x749ff2 saved_eip_approx=0x11495d85
+[fallback-root] target=0x114f5a40 source_entry=0x728140 return_pc=0x8ca761 saved_eip_approx=0x8ca744
+[fallback-root] target=0x114f59f0 source_entry=0x728140 return_pc=0x8ca7ac saved_eip_approx=0x8ca744
+[fallback-root] target=0x1150f100 source_entry=0x728140 return_pc=0x8ca7be saved_eip_approx=0x8ca744
+[fallback-root] target=0x114fafd0 source_entry=0x728140 return_pc=0x8ca782 saved_eip_approx=0x8ca744
+[fallback-root] target=0x785a1a27 source_entry=0x73d520 return_pc=0x73d53d saved_eip_approx=0x8cac49
+[fallback-root] target=0x115017a0 source_entry=0x780930 return_pc=0x8cb1c9 saved_eip_approx=0x8cb1b2
+[fallback-root] target=0x11526180 source_entry=0x83a940 return_pc=0x8cb1e2 saved_eip_approx=0x1140a402
+[fallback-root] target=0x11526160 source_entry=0x83a940 return_pc=0x8cb208 saved_eip_approx=0x1140a402
+[fallback-root] target=0x11525f70 source_entry=0x780a70 return_pc=0x780ac1 saved_eip_approx=0x1140a402
+[fallback-root] target=0x11526110 source_entry=0x780a70 return_pc=0x780b70 saved_eip_approx=0x1140a402
+[fallback-root] target=0x115254d0 source_entry=0x73dc30 return_pc=0x73dc6d saved_eip_approx=0x780907
+[fallback-root] target=0x11526450 source_entry=0x73dc30 return_pc=0x73dc7d saved_eip_approx=0x780907
+[fallback-root] target=0x11525180 source_entry=0x7481a0 return_pc=0x780d20 saved_eip_approx=0x780d14
+[fallback-root] target=0x115260d0 source_entry=0x73ddf0 return_pc=0x73de07 saved_eip_approx=0x7715f7
+[fallback-root] target=0x1152acb0 source_entry=0x73dec0 return_pc=0x73ded1 saved_eip_approx=0x770f57
+[fallback-root] target=0x78552e73 source_entry=0x8c9e90 return_pc=0x8c9f5b saved_eip_approx=0x8cd517
+[fallback-root] target=0x1150c790 source_entry=0x8e5cd0 return_pc=0x8ca09a saved_eip_approx=0x8ca07f
+[fallback-root] target=0x114f12f0 source_entry=0x73dc30 return_pc=0x73dc6d saved_eip_approx=0x780907
+[fallback-root] target=0x114f0fa0 source_entry=0x7481a0 return_pc=0x780d20 saved_eip_approx=0x780d14
+[fallback-root] target=0x11525330 source_entry=0x73da40 return_pc=0x73da7a saved_eip_approx=0x5ae606
+[fallback-root] target=0x11524db0 source_entry=0x73da40 return_pc=0x73da83 saved_eip_approx=0x5ae606
+[host] LoadLibraryA(imm32.dll) -> 0
+[fallback-root] target=0x1320fdd0 source_entry=0x83ee86 return_pc=0x71b830 saved_eip_approx=0x42e7a3
+[fallback-root] target=0x1322c0b0 source_entry=0x83eeaa return_pc=0x722b28 saved_eip_approx=0x722ad4
+[fallback-root] target=0x1321b0e0 source_entry=0x83eee0 return_pc=0x722bc9 saved_eip_approx=0x722ad4
+[fallback-root] target=0x1321af30 source_entry=0x83eefe return_pc=0x722bf1 saved_eip_approx=0x722ad4
+[fallback-root] target=0x1321acf0 source_entry=0x83ef16 return_pc=0x722bfd saved_eip_approx=0x722ad4
+[fallback-root] target=0x13211ef0 source_entry=0x83ee80 return_pc=0x71b728 saved_eip_approx=0x71cccf
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[thread] CloseHandle(0x1e8) thread, caller 0x82ec16
+[metal] shader compile 5.3 ms (vs)
+[metal] shader compile 141.5 ms (ps)
+[metal] pipeline build 14.8 ms
+[metal] shader compile 5.4 ms (vs)
+[metal] shader compile 130.9 ms (ps)
+[metal] pipeline build 13.7 ms
+[metal] pipeline build 5.5 ms
+[metal] shader compile 5.5 ms (vs)
+[metal] shader compile 5.5 ms (ps)
+[metal] pipeline build 12.1 ms
+[metal] shader compile 5.8 ms (vs)
+[metal] shader compile 133.7 ms (ps)
+[metal] pipeline build 14.9 ms
+[metal] shader compile 5.8 ms (vs)
+[metal] shader compile 128.3 ms (ps)
+[metal] pipeline build 13.4 ms
+[metal] shader compile 6.0 ms (vs)
+[metal] shader compile 134.7 ms (ps)
+[metal] pipeline build 13.6 ms
+[metal] pipeline build 6.0 ms
+[metal] shader compile 5.5 ms (vs)
+[metal] shader compile 5.3 ms (ps)
+[metal] pipeline build 10.8 ms
+[metal] shader compile 6.1 ms (vs)
+[metal] shader compile 5.2 ms (ps)
+[metal] pipeline build 11.1 ms
+[fallback-root] target=0x12505e5e source_entry=0x5c9d10 return_pc=0x5c9d2a saved_eip_approx=0x761e57
+[metal] shader compile 6.4 ms (vs)
+[metal] shader compile 128.7 ms (ps)
+[metal] pipeline build 13.6 ms
+[metal] shader compile 4.7 ms (vs)
+[metal] shader compile 122.7 ms (ps)
+[metal] pipeline build 11.7 ms
+[metal] shader compile 5.3 ms (vs)
+[metal] pipeline build 4.8 ms
+[metal] shader compile 5.7 ms (vs)
+[metal] shader compile 121.7 ms (ps)
+[metal] pipeline build 13.1 ms
+[metal] shader compile 5.2 ms (vs)
+[metal] pipeline build 4.5 ms
+[metal] shader compile 5.5 ms (vs)
+[metal] shader compile 119.8 ms (ps)
+[metal] pipeline build 13.1 ms
+[metal] shader compile 5.1 ms (vs)
+[metal] shader compile 116.5 ms (ps)
+[metal] pipeline build 11.8 ms
+[metal] shader compile 5.1 ms (vs)
+[metal] shader compile 115.6 ms (ps)
+[metal] pipeline build 11.0 ms
+[metal] shader compile 6.0 ms (vs)
+[metal] shader compile 113.4 ms (ps)
+[metal] pipeline build 10.9 ms
+[metal] shader compile 5.3 ms (vs)
+[metal] shader compile 107.7 ms (ps)
+[metal] pipeline build 10.7 ms
+[metal] shader compile 5.1 ms (vs)
+[metal] shader compile 108.1 ms (ps)
+[metal] pipeline build 10.1 ms
+[fallback-root] target=0x11527590 source_entry=0x73dcb0 return_pc=0x73dccd saved_eip_approx=0x4347d0
+[metal] frame 384: 5.3 fps, 31 draws/frame (31 rendered), 45 pipelines, ff-skipped 0
+[perf] intervals=43 interval_ms=188.64 max_interval_ms=7318.35 main_cpu_ms=140.04 cpu_intervals=43 cpu_rejected=0 present_ms=0.09 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=2.15 gpu_completed=43 gpu_unknown=0 compile_ms_total=2075.33 upload_peak_kib=49 footprint_mib=1699.4 thermal=0 low_power=0
+[metal] shader compile 5.7 ms (vs)
+[metal] shader compile 110.6 ms (ps)
+[metal] pipeline build 11.9 ms
+[metal] frame 496: 56.0 fps, 153 draws/frame (153 rendered), 46 pipelines, ff-skipped 0
+[perf] intervals=112 interval_ms=17.86 max_interval_ms=149.95 main_cpu_ms=16.61 cpu_intervals=112 cpu_rejected=0 present_ms=0.05 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.00 gpu_completed=112 gpu_unknown=0 compile_ms_total=128.21 upload_peak_kib=74 footprint_mib=1886.0 thermal=0 low_power=0
+[metal] frame 616: 59.9 fps, 153 draws/frame (153 rendered), 46 pipelines, ff-skipped 0
+[perf] intervals=120 interval_ms=16.68 max_interval_ms=18.28 main_cpu_ms=16.60 cpu_intervals=120 cpu_rejected=0 present_ms=0.05 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=2.90 gpu_completed=120 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=74 footprint_mib=1976.7 thermal=0 low_power=0
+[input] waitsteady 20 frames at 160 draws, frame 695
+[metal] frame 736: 60.0 fps, 157 draws/frame (157 rendered), 46 pipelines, ff-skipped 0
+[perf] intervals=120 interval_ms=16.67 max_interval_ms=17.03 main_cpu_ms=16.59 cpu_intervals=120 cpu_rejected=0 present_ms=0.05 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=2.85 gpu_completed=120 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=74 footprint_mib=2067.1 thermal=0 low_power=0
+[host] LoadLibraryA(imm32.dll) -> 0
+[fallback-root] target=0x78554f2f source_entry=0x8237c0 return_pc=0x8237fd saved_eip_approx=0x715032
+[fallback-root] target=0x7855537d source_entry=0x83a940 return_pc=0x82382b saved_eip_approx=0x82380b
+[fallback-root] target=0x78556d77 source_entry=0x83dd5a return_pc=0x726b43 saved_eip_approx=0x726b07
+[fallback-root] target=0x1321ae10 source_entry=0x83eea4 return_pc=0x71c18b saved_eip_approx=0x71c10c
+[fallback-root] target=0x11502ec0 source_entry=0x748230 return_pc=0x748248 saved_eip_approx=0x732f90
+[fallback-root] target=0x114f5ca0 source_entry=0x820ae0 return_pc=0x748255 saved_eip_approx=0x1140a402
+[fallback-root] target=0x115012b0 source_entry=0x748760 return_pc=0x748776 saved_eip_approx=0x7330ca
+[fallback-root] target=0x114f86d0 source_entry=0x820ae0 return_pc=0x7487b7 saved_eip_approx=0x7326bc
+[fallback-root] target=0x11527670 source_entry=0x73dcb0 return_pc=0x73dd5d saved_eip_approx=0x720bd3
+[fallback-root] target=0x114f1150 source_entry=0x73dcb0 return_pc=0x73dd8e saved_eip_approx=0x720bd3
+[fallback-root] target=0x11525f30 source_entry=0x748920 return_pc=0x7406b9 saved_eip_approx=0x7406ab
+[fallback-root] target=0x11501550 source_entry=0x748920 return_pc=0x7406c6 saved_eip_approx=0x7406ab
+[fallback-root] target=0x1321ad20 source_entry=0x83ef04 return_pc=0x722967 saved_eip_approx=0x5a73ff
+[fallback-root] target=0x1321b2a0 source_entry=0x83ee92 return_pc=0x71bbb8 saved_eip_approx=0x71bb7f
+[fallback-root] target=0x13211760 source_entry=0x83ee92 return_pc=0x71bbd3 saved_eip_approx=0x71bb7f
+[fallback-root] target=0x132279d0 source_entry=0x83ee80 return_pc=0x71cce1 saved_eip_approx=0x71cccf
+[host] LoadLibraryA(imm32.dll) -> 0
+[gheap] used 540 MB of 640: class 143 MB, huge 71 MB (freed-not-reused 8 MB), pages 320 MB, live 173 MB
+[fallback-root] target=0x124c936e source_entry=0x9049be return_pc=0x8fa10e saved_eip_approx=0x8fa00c
+[metal] frame 783: 23.0 fps, 123 draws/frame (123 rendered), 46 pipelines, ff-skipped 0
+[perf] intervals=47 interval_ms=43.48 max_interval_ms=126.98 main_cpu_ms=41.64 cpu_intervals=47 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=2.57 gpu_completed=47 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=187 footprint_mib=2185.1 thermal=0 low_power=0
+[fallback-root] target=0x114fe740 source_entry=0x732940 return_pc=0x732962 saved_eip_approx=0x438c89
+[fallback-root] target=0x1150c420 source_entry=0x732940 return_pc=0x73296d saved_eip_approx=0x438c89
+[fallback-root] target=0x11527230 source_entry=0x780a70 return_pc=0x780ad6 saved_eip_approx=0x7326bc
+[fallback-root] target=0x11528060 source_entry=0x780a70 return_pc=0x780ae6 saved_eip_approx=0x7326bc
+[fallback-root] target=0x1152d8c0 source_entry=0x780a70 return_pc=0x780b3f saved_eip_approx=0x7326bc
+[fallback-root] target=0x11527870 source_entry=0x83ab20 return_pc=0x73f021 saved_eip_approx=0x73ef9c
+[fallback-root] target=0x115279f0 source_entry=0x83ab20 return_pc=0x73f038 saved_eip_approx=0x73ef9c
+[fallback-root] target=0x11528260 source_entry=0x83ab20 return_pc=0x73f047 saved_eip_approx=0x73ef9c
+[fallback-root] target=0x11528980 source_entry=0x7481c0 return_pc=0x780cc6 saved_eip_approx=0x780cbc
+[fallback-root] target=0x115285e0 source_entry=0x7481d0 return_pc=0x780ce2 saved_eip_approx=0x780cd8
+[fallback-root] target=0x1150cb90 source_entry=0x8e5cd0 return_pc=0x8ca49c saved_eip_approx=0x8ca484
+[fallback-root] target=0x11522800 source_entry=0x73dc30 return_pc=0x73dc6d saved_eip_approx=0x780907
+[fallback-root] target=0x115224b0 source_entry=0x7481a0 return_pc=0x780d20 saved_eip_approx=0x780d14
+[fallback-root] target=0x11524330 source_entry=0x73dc30 return_pc=0x73dc6d saved_eip_approx=0x780907
+[fallback-root] target=0x11523fe0 source_entry=0x7481a0 return_pc=0x780d20 saved_eip_approx=0x780d14
+[fallback-root] target=0x11526f40 source_entry=0x73ec60 return_pc=0x74872f saved_eip_approx=0x74872f
+[fallback-root] target=0x115261f0 source_entry=0x73db80 return_pc=0x744e39 saved_eip_approx=0x744e25
+[fallback-root] target=0x115273c0 source_entry=0x73ed20 return_pc=0x73ed3b saved_eip_approx=0x7217f2
+[fallback-root] target=0x114fa470 source_entry=0x83e298 return_pc=0x748a92 saved_eip_approx=0x748a15
+[fallback-root] target=0x11524df0 source_entry=0x820ae0 return_pc=0x748b7b saved_eip_approx=0x7326bc
+[fallback-root] target=0x114f0ce0 source_entry=0x83e298 return_pc=0x748b7b saved_eip_approx=0x748a15
+[fallback-root] target=0x114f7f20 source_entry=0x77b5c0 return_pc=0x748f87 saved_eip_approx=0x748f56
+[fallback-root] target=0x11526630 source_entry=0x73e500 return_pc=0x73e542 saved_eip_approx=0x5572b1
+[metal] shader compile 7.8 ms (vs)
+[metal] shader compile 5.5 ms (ps)
+[metal] pipeline build 18.1 ms
+[metal] shader compile 5.1 ms (vs)
+[metal] shader compile 5.2 ms (ps)
+[metal] pipeline build 11.4 ms
+[metal] shader compile 4.9 ms (vs)
+[metal] shader compile 125.0 ms (ps)
+[metal] pipeline build 12.4 ms
+[metal] pipeline build 5.0 ms
+[metal] pipeline build 4.9 ms
+[metal] pipeline build 4.8 ms
+[metal] shader compile 5.0 ms (vs)
+[metal] pipeline build 13.8 ms
+[metal] shader compile 5.2 ms (vs)
+[metal] shader compile 107.9 ms (ps)
+[metal] pipeline build 13.4 ms
+[metal] shader compile 5.1 ms (vs)
+[metal] shader compile 125.8 ms (ps)
+[metal] pipeline build 12.0 ms
+[metal] shader compile 8.3 ms (vs)
+[metal] shader compile 5.3 ms (ps)
+[metal] pipeline build 16.2 ms
+[metal] shader compile 7.9 ms (vs)
+[metal] shader compile 111.6 ms (ps)
+[metal] pipeline build 17.7 ms
+[metal] shader compile 5.8 ms (vs)
+[metal] shader compile 114.0 ms (ps)
+[metal] pipeline build 12.5 ms
+[metal] shader compile 5.5 ms (vs)
+[metal] shader compile 5.4 ms (ps)
+[metal] pipeline build 10.9 ms
+[metal] shader compile 5.9 ms (vs)
+[metal] shader compile 114.3 ms (ps)
+[metal] pipeline build 12.4 ms
+[metal] shader compile 5.8 ms (vs)
+[metal] shader compile 128.7 ms (ps)
+[metal] pipeline build 12.1 ms
+[metal] pipeline build 5.3 ms
+[metal] shader compile 5.7 ms (vs)
+[metal] shader compile 4.8 ms (ps)
+[metal] pipeline build 10.1 ms
+[metal] shader compile 5.5 ms (vs)
+[metal] shader compile 110.4 ms (ps)
+[metal] pipeline build 10.6 ms
+[metal] shader compile 5.2 ms (vs)
+[metal] shader compile 109.7 ms (ps)
+[metal] pipeline build 10.8 ms
+[fallback-root] target=0x1152e1f0 source_entry=0x751a90 return_pc=0x751ad0 saved_eip_approx=0x7765fd
+[fallback-root] target=0x11524e00 source_entry=0x751b50 return_pc=0x751bbf saved_eip_approx=0x776609
+[fallback-root] target=0x11528c20 source_entry=0x83ab20 return_pc=0x749347 saved_eip_approx=0x776b2a
+[fallback-root] target=0x13211e20 source_entry=0x71b6b0 return_pc=0x71b743 saved_eip_approx=0x71cccf
+[fallback-root] target=0x11524190 source_entry=0x73dcb0 return_pc=0x73dd8e saved_eip_approx=0x5ac342
+[host] LoadLibraryA(imm32.dll) -> 0
+[metal] frame 794: 4.3 fps, 136 draws/frame (136 rendered), 65 pipelines, ff-skipped 0
+[perf] intervals=11 interval_ms=232.72 max_interval_ms=1467.96 main_cpu_ms=103.73 cpu_intervals=11 cpu_rejected=0 present_ms=0.10 drawable_wait_ms=0.04 inflight_wait_ms=0.00 gpu_ms=2.38 gpu_completed=11 gpu_unknown=0 compile_ms_total=1377.87 upload_peak_kib=357 footprint_mib=2226.8 thermal=0 low_power=0
+[fallback-root] target=0x1152ae50 source_entry=0x750860 return_pc=0x750c67 saved_eip_approx=0x750ad1
+[fallback-root] target=0x114f5b50 source_entry=0x77b5e0 return_pc=0x74845c saved_eip_approx=0x74840b
+[fallback-root] target=0x11526e50 source_entry=0x751bd0 return_pc=0x751c10 saved_eip_approx=0x5c6881
+[fallback-root] target=0x116567e0 source_entry=0x732870 return_pc=0x732883 saved_eip_approx=0x74aa9e
+[metal] shader compile 8.9 ms (vs)
+[metal] shader compile 125.3 ms (ps)
+[metal] pipeline build 18.6 ms
+[metal] shader compile 8.1 ms (vs)
+[metal] shader compile 109.3 ms (ps)
+[metal] pipeline build 17.1 ms
+[metal] shader compile 7.6 ms (vs)
+[metal] shader compile 108.9 ms (ps)
+[metal] pipeline build 16.5 ms
+[metal] shader compile 5.3 ms (vs)
+[metal] shader compile 105.7 ms (ps)
+[metal] pipeline build 11.5 ms
+[metal] shader compile 5.5 ms (vs)
+[metal] shader compile 110.4 ms (ps)
+[metal] pipeline build 11.5 ms
+[fallback-root] target=0x1321ad50 source_entry=0x83eeec return_pc=0x72277b saved_eip_approx=0x48cc4a
+[fallback-root] target=0x132266d0 source_entry=0x83eee6 return_pc=0x72278f saved_eip_approx=0x48cc4a
+[fallback-root] target=0x13226730 source_entry=0x83ef0a return_pc=0x7228a7 saved_eip_approx=0x722895
+[metal] shader compile 9.5 ms (vs)
+[metal] shader compile 109.5 ms (ps)
+[metal] pipeline build 23.9 ms
+[metal] shader compile 11.2 ms (vs)
+[metal] shader compile 109.5 ms (ps)
+[metal] pipeline build 24.9 ms
+[fallback-root] target=0x1320e100 source_entry=0x83eed4 return_pc=0x72256c saved_eip_approx=0x71c074
+[metal] pipeline build 6.9 ms
+[fallback-root] target=0x11524da0 source_entry=0x5c7410 return_pc=0x5c74da saved_eip_approx=0x5c6852
+[fallback-root] target=0x115261c0 source_entry=0x5c7410 return_pc=0x5c74f2 saved_eip_approx=0x5c6852
+[fallback-root] target=0x11524d60 source_entry=0x5c7410 return_pc=0x5c7502 saved_eip_approx=0x5c6852
+[fallback-root] target=0x114f5b40 source_entry=0x83de2c return_pc=0x5c7682 saved_eip_approx=0x5c75bd
+[fallback-root] target=0x11524d90 source_entry=0x83de2c return_pc=0x5c76a0 saved_eip_approx=0x5c75bd
+[metal] shader compile 8.3 ms (vs)
+[metal] shader compile 109.2 ms (ps)
+[metal] pipeline build 17.4 ms
+[metal] shader compile 8.0 ms (vs)
+[metal] shader compile 109.7 ms (ps)
+[metal] pipeline build 17.8 ms
+[metal] shader compile 5.7 ms (vs)
+[metal] shader compile 110.4 ms (ps)
+[metal] pipeline build 12.2 ms
+[metal] pipeline build 5.1 ms
+[metal] shader compile 7.8 ms (vs)
+[metal] shader compile 108.5 ms (ps)
+[metal] pipeline build 15.2 ms
+[metal] shader compile 5.0 ms (vs)
+[metal] shader compile 105.2 ms (ps)
+[metal] pipeline build 10.4 ms
+[metal] shader compile 7.1 ms (vs)
+[metal] shader compile 107.1 ms (ps)
+[metal] pipeline build 14.8 ms
+[metal] frame 818: 9.6 fps, 566 draws/frame (566 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=24 interval_ms=104.05 max_interval_ms=822.89 main_cpu_ms=31.47 cpu_intervals=24 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=3.79 gpu_completed=24 gpu_unknown=0 compile_ms_total=1750.66 upload_peak_kib=328 footprint_mib=2392.8 thermal=0 low_power=0
+[fallback-root] target=0x114f4eb0 source_entry=0x73dc30 return_pc=0x73dc6d saved_eip_approx=0x780907
+[fallback-root] target=0x114f4b60 source_entry=0x7481a0 return_pc=0x780d20 saved_eip_approx=0x780d14
+[fallback-root] target=0x114fbd20 source_entry=0x728140 return_pc=0x8cba13 saved_eip_approx=0x8cba00
+[fallback-root] target=0x1151e810 source_entry=0x83a940 return_pc=0x8cbb11 saved_eip_approx=0x1140a402
+[fallback-root] target=0x11528800 source_entry=0x73e620 return_pc=0x73e67a saved_eip_approx=0x5c16d9
+[fallback-root] target=0x115265d0 source_entry=0x73e590 return_pc=0x73e5d2 saved_eip_approx=0x5c1764
+[fallback-root] target=0x115286c0 source_entry=0x73e690 return_pc=0x73e6ea saved_eip_approx=0x5c1770
+[metal] frame 873: 27.2 fps, 541 draws/frame (541 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=55 interval_ms=36.80 max_interval_ms=44.21 main_cpu_ms=36.66 cpu_intervals=55 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=4.13 gpu_completed=55 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=365 footprint_mib=2531.1 thermal=0 low_power=0
+[fallback-root] target=0x114f4d10 source_entry=0x73dcb0 return_pc=0x73dd8e saved_eip_approx=0x115b3d4f
+[metal] frame 928: 27.1 fps, 566 draws/frame (566 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=55 interval_ms=36.91 max_interval_ms=51.98 main_cpu_ms=36.80 cpu_intervals=55 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=3.59 gpu_completed=55 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=361 footprint_mib=2673.0 thermal=0 low_power=0
+[metal] frame 986: 28.9 fps, 575 draws/frame (575 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=58 interval_ms=34.64 max_interval_ms=78.08 main_cpu_ms=34.48 cpu_intervals=58 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.65 gpu_completed=58 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=321 footprint_mib=2811.2 thermal=0 low_power=0
+[metal] frame 1051: 32.1 fps, 544 draws/frame (544 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=65 interval_ms=31.12 max_interval_ms=95.23 main_cpu_ms=31.00 cpu_intervals=65 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=4.25 gpu_completed=65 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=216 footprint_mib=2763.3 thermal=0 low_power=0
+[fallback-root] target=0x11522660 source_entry=0x73dcb0 return_pc=0x73dd8e saved_eip_approx=0x115b3d4f
+[metal] frame 1116: 32.4 fps, 539 draws/frame (539 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=65 interval_ms=30.88 max_interval_ms=59.42 main_cpu_ms=30.81 cpu_intervals=65 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=4.60 gpu_completed=65 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=230 footprint_mib=2790.0 thermal=0 low_power=0
+[metal] frame 1183: 33.5 fps, 536 draws/frame (536 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=67 interval_ms=29.88 max_interval_ms=32.63 main_cpu_ms=29.83 cpu_intervals=67 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.50 gpu_completed=67 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=236 footprint_mib=2811.2 thermal=0 low_power=0
+[metal] frame 1253: 34.9 fps, 522 draws/frame (522 rendered), 80 pipelines, ff-skipped 0
+[perf] intervals=70 interval_ms=28.66 max_interval_ms=32.76 main_cpu_ms=28.62 cpu_intervals=70 cpu_rejected=0 present_ms=0.06 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.49 gpu_completed=70 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=199 footprint_mib=2821.5 thermal=0 low_power=0
+[fallback-root] target=0x1152ddd0 source_entry=0x73e0b0 return_pc=0x73e0df saved_eip_approx=0x5aff8a
+[metal] shader compile 26.4 ms (vs)
+[metal] shader compile 138.2 ms (ps)
+[metal] pipeline build 24.7 ms
+[metal] frame 1296: 21.2 fps, 640 draws/frame (640 rendered), 81 pipelines, ff-skipped 0
+[perf] intervals=43 interval_ms=47.08 max_interval_ms=232.20 main_cpu_ms=42.58 cpu_intervals=43 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=3.69 gpu_completed=43 gpu_unknown=0 compile_ms_total=189.24 upload_peak_kib=289 footprint_mib=2858.0 thermal=0 low_power=0
+[metal] frame 1352: 28.0 fps, 584 draws/frame (584 rendered), 81 pipelines, ff-skipped 0
+[perf] intervals=56 interval_ms=35.72 max_interval_ms=39.86 main_cpu_ms=35.63 cpu_intervals=56 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.72 gpu_completed=56 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=285 footprint_mib=2907.8 thermal=0 low_power=0
+[metal] frame 1412: 29.7 fps, 535 draws/frame (535 rendered), 81 pipelines, ff-skipped 0
+[perf] intervals=60 interval_ms=33.65 max_interval_ms=64.38 main_cpu_ms=33.27 cpu_intervals=60 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.54 gpu_completed=60 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=234 footprint_mib=2944.2 thermal=0 low_power=0
+[metal] frame 1480: 33.8 fps, 491 draws/frame (491 rendered), 81 pipelines, ff-skipped 0
+[perf] intervals=68 interval_ms=29.63 max_interval_ms=38.57 main_cpu_ms=29.59 cpu_intervals=68 cpu_rejected=0 present_ms=0.06 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.40 gpu_completed=68 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=217 footprint_mib=2960.8 thermal=0 low_power=0
+[input] waitsteady 30 frames at 489 draws, frame 1541
+[metal] frame 1550: 34.6 fps, 490 draws/frame (490 rendered), 81 pipelines, ff-skipped 0
+[perf] intervals=70 interval_ms=28.88 max_interval_ms=30.32 main_cpu_ms=28.85 cpu_intervals=70 cpu_rejected=0 present_ms=0.06 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.16 gpu_completed=70 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=212 footprint_mib=2971.6 thermal=0 low_power=0
+[gheap] used 593 MB of 640: class 197 MB, huge 71 MB (freed-not-reused 8 MB), pages 320 MB, live 223 MB
+[metal] frame 1622: 35.6 fps, 488 draws/frame (488 rendered), 81 pipelines, ff-skipped 0
+[perf] intervals=72 interval_ms=28.09 max_interval_ms=29.32 main_cpu_ms=28.07 cpu_intervals=72 cpu_rejected=0 present_ms=0.06 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.16 gpu_completed=72 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=200 footprint_mib=2991.9 thermal=0 low_power=0
+[metal] shader compile 18.7 ms (vs)
+[metal] shader compile 144.8 ms (ps)
+[metal] pipeline build 17.7 ms
+[metal] shader compile 8.2 ms (vs)
+[metal] shader compile 111.1 ms (ps)
+[metal] pipeline build 17.2 ms
+[metal] shader compile 7.7 ms (vs)
+[metal] shader compile 108.5 ms (ps)
+[metal] pipeline build 15.8 ms
+[metal] frame 1676: 26.8 fps, 484 draws/frame (484 rendered), 84 pipelines, ff-skipped 0
+[perf] intervals=54 interval_ms=37.29 max_interval_ms=482.89 main_cpu_ms=28.98 cpu_intervals=54 cpu_rejected=0 present_ms=0.06 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.15 gpu_completed=54 gpu_unknown=0 compile_ms_total=449.63 upload_peak_kib=223 footprint_mib=3011.6 thermal=0 low_power=0
+[metal] frame 1742: 32.8 fps, 494 draws/frame (494 rendered), 84 pipelines, ff-skipped 0
+[perf] intervals=66 interval_ms=30.50 max_interval_ms=31.73 main_cpu_ms=30.47 cpu_intervals=66 cpu_rejected=0 present_ms=0.06 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.14 gpu_completed=66 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=232 footprint_mib=3016.8 thermal=0 low_power=0
+[metal] dumped /Users/dev/Desktop/Shoot Too Many Robots/work/boot/window-full-frames/frame_1782.png (1280x720)
+[metal] frame 1803: 30.2 fps, 539 draws/frame (539 rendered), 84 pipelines, ff-skipped 0
+[perf] intervals=61 interval_ms=33.10 max_interval_ms=76.58 main_cpu_ms=32.96 cpu_intervals=61 cpu_rejected=0 present_ms=0.79 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.16 gpu_completed=61 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=234 footprint_mib=3036.9 thermal=0 low_power=0
+[metal] frame 1860: 28.2 fps, 548 draws/frame (548 rendered), 84 pipelines, ff-skipped 0
+[perf] intervals=57 interval_ms=35.48 max_interval_ms=50.81 main_cpu_ms=34.82 cpu_intervals=57 cpu_rejected=0 present_ms=0.08 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=3.59 gpu_completed=57 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=237 footprint_mib=3091.2 thermal=0 low_power=0
+[metal] dumped /Users/dev/Desktop/Shoot Too Many Robots/work/boot/window-full-frames/frame_1902.png (1280x720)
+[metal] frame 1918: 28.9 fps, 551 draws/frame (551 rendered), 84 pipelines, ff-skipped 0
+[perf] intervals=58 interval_ms=34.57 max_interval_ms=83.32 main_cpu_ms=34.37 cpu_intervals=58 cpu_rejected=0 present_ms=0.84 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.52 gpu_completed=58 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=254 footprint_mib=3096.1 thermal=0 low_power=0
+[metal] frame 1977: 29.3 fps, 553 draws/frame (553 rendered), 84 pipelines, ff-skipped 0
+[perf] intervals=59 interval_ms=34.13 max_interval_ms=35.46 main_cpu_ms=34.06 cpu_intervals=59 cpu_rejected=0 present_ms=0.07 drawable_wait_ms=0.03 inflight_wait_ms=0.00 gpu_ms=3.58 gpu_completed=59 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=255 footprint_mib=3101.4 thermal=0 low_power=0
+[metal] dumped /Users/dev/Desktop/Shoot Too Many Robots/work/boot/window-full-frames/frame_2022.png (1280x720)
+[metal] frame 2035: 28.9 fps, 552 draws/frame (552 rendered), 84 pipelines, ff-skipped 0
+[perf] intervals=58 interval_ms=34.62 max_interval_ms=76.28 main_cpu_ms=34.48 cpu_intervals=58 cpu_rejected=0 present_ms=0.81 drawable_wait_ms=0.02 inflight_wait_ms=0.00 gpu_ms=3.60 gpu_completed=58 gpu_unknown=0 compile_ms_total=0.00 upload_peak_kib=254 footprint_mib=3106.5 thermal=0 low_power=0
+[input] script quit at frame 2081
