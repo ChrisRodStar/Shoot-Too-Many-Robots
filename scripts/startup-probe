@@ -8,12 +8,28 @@ local_host="$project/src/host"
 boot="$work/boot"
 logs="$project/logs"
 mkdir -p "$logs"
+release=0
+if [[ "${SMR_RELEASE:-0}" == 1 ]]; then
+    release=1
+fi
+for arg in "$@"; do
+    case "$arg" in
+        --release) release=1 ;;
+        -h|--help) printf 'usage: startup-probe [--release]\n'; exit 0 ;;
+        *) printf 'startup-probe: unknown option %s\n' "$arg" >&2; exit 2 ;;
+    esac
+done
 python="$project/.venv/bin/python"
 generated="$work/smr-entry-generated"
 variant=""
 if [[ "${SMR_FULL:-0}" == 1 ]]; then
     generated="$work/smr-generated"
     variant="-full"
+fi
+# Release builds get their own host/cache/log paths so a dev run never reloads them.
+flavor="$variant"
+if [[ "$release" == 1 ]]; then
+    flavor="${flavor}-release"
 fi
 
 for input in "$generated/table.c" "$boot/ShootManyRobots.exe" "$runtime/tools/startup_build.py"; do
@@ -31,6 +47,9 @@ if [[ -n "$variant" ]]; then
         [[ ! -f "$marker" ]] || build_flags+=(--extra-generated "${marker%/*}")
     done
 fi
+if [[ "$release" == 1 ]]; then
+    build_flags+=(--release)
+fi
 if [[ -n "$variant" && "${SMR_NATIVE_WNDPROC:-1}" != 1 ]]; then
     # The old native version of this function re-entered Unicorn mid-function because its switch
     # table was unresolved. ResolveJumpTables fixes that; set SMR_NATIVE_WNDPROC=1 to use native code.
@@ -40,19 +59,19 @@ if [[ "${SMR_WINDOW:-0}" == 1 ]]; then
     build_out="$work/window-host"
     build_flags+=(--metal-surface "$local_host/surface.m" --windowed)
     unset FNV_HEADLESS
-    mkdir -p "$boot/window${variant}-frames"
-    export FNV_DUMP_FRAMES="${FNV_DUMP_FRAMES:-1,60,120,300}" FNV_DUMP_DIR="$boot/window${variant}-frames"
+    mkdir -p "$boot/window${flavor}-frames"
+    export FNV_DUMP_FRAMES="${FNV_DUMP_FRAMES:-1,60,120,300}" FNV_DUMP_DIR="$boot/window${flavor}-frames"
 elif [[ "${SMR_METAL:-0}" == 1 ]]; then
     build_out="$work/metal-host"
     build_flags+=(--metal-surface "$local_host/offscreen.m")
     export FNV_HEADLESS=1 FNV_DUMP_FRAMES=1 FNV_DUMP_DIR="$boot"
     if [[ -n "$variant" ]]; then
-        export FNV_DUMP_DIR="$boot/metal${variant}-frames"
+        export FNV_DUMP_DIR="$boot/metal${flavor}-frames"
         mkdir -p "$FNV_DUMP_DIR"
     fi
 fi
-build_out="${build_out}${variant}"
-build_log="$logs/startup${variant}-build.log"
+build_out="${build_out}${flavor}"
+build_log="$logs/startup${flavor}-build.log"
 if [[ "${SMR_SKIP_BUILD:-0}" == 1 ]]; then
     # Reuse the existing host (scripts/recomp builds once, then launches separately).
     if [[ ! -x "$build_out/fnv-discovery" ]]; then
@@ -63,7 +82,7 @@ else
     "$python" "$runtime/tools/startup_build.py" "${build_flags[@]}" \
         --local-host "$local_host" \
         --generated "$generated" --discovery-prefix "$unicorn_prefix" \
-        --out "$build_out" --cache "$work/startup${variant}-cache" \
+        --out "$build_out" --cache "$work/startup${flavor}-cache" \
         > "$build_log" 2>&1 || { tail -40 "$build_log" >&2; exit 1; }
 fi
 
@@ -72,12 +91,12 @@ if [[ "${SMR_BUILD_ONLY:-0}" == 1 ]]; then
     exit 0
 fi
 
-mkdir -p "$boot/user${variant}"
+mkdir -p "$boot/user${flavor}"
 cd "$boot"
 export SMR_VC90_DIRECTORY="${SMR_VC90_DIRECTORY:-$data/vc90/dlls}"
 export SMR_PHYSX_DIRECTORY="${SMR_PHYSX_DIRECTORY:-$data/installed/app/ShootManyRobots/Binaries}"
 export SMR_D3DX_DIRECTORY="${SMR_D3DX_DIRECTORY:-$data/d3dx}"
-export FNV_USER_DIR="$boot/user${variant}"
+export FNV_USER_DIR="$boot/user${flavor}"
 if [[ "${SMR_TRACE:-0}" == 1 ]]; then
     export FNV_TRACE=1
 else
@@ -89,9 +108,9 @@ else
     export SMR_STOP_AFTER_PRESENT=1
 fi
 export FNV_NO_QOS=1 FNV_ROOT="$data/installed/app/ShootManyRobots"
-probe_log="$logs/native${variant}-startup.log"
+probe_log="$logs/native${flavor}-startup.log"
 if [[ "${SMR_WINDOW:-0}" == 1 ]]; then
-    probe_log="$logs/window${variant}-startup.log"
+    probe_log="$logs/window${flavor}-startup.log"
 fi
 probe_exit=0
 "$python" - "$project" "$boot" "$data" "$build_out/fnv-discovery" \
@@ -102,12 +121,20 @@ import subprocess
 import sys
 
 project, boot, data, host = map(Path, sys.argv[1:])
+# Metal's on-disk shader/pipeline cache: the per-user cache directory, resolved because the
+# sandbox sees /private/var rather than the /var symlink. The profile grants writes only here.
+try:
+    base = subprocess.check_output(["getconf", "DARWIN_USER_CACHE_DIR"], text=True).strip()
+    metal_cache = os.path.realpath(base + "com.apple.metal")
+except Exception:
+    metal_cache = str(boot / "metal-cache")
 command = [
     "/usr/bin/sandbox-exec",
     "-D", f"USER_HOME={Path.home()}",
     "-D", f"PROJECT={project}",
     "-D", f"BOOT_DIR={boot}",
     "-D", f"DATA_ROOT={data}",
+    "-D", f"METAL_CACHE={metal_cache}",
     "-f", str(project / "src/host/startup.sb"),
     str(host), str(boot / "ShootManyRobots.exe"),
 ]
