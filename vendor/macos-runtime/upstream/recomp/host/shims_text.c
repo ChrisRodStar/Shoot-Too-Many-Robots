@@ -26,6 +26,11 @@ SHIM(WideCharToMultiByte) {
 }
 SHIM(lstrcatA) { strcat((char *)MEM + ARG(c, 0), (char *)MEM + ARG(c, 1)); RET(c, ARG(c, 0), 2); }
 SHIM(lstrcpyA) { strcpy((char *)MEM + ARG(c, 0), (char *)MEM + ARG(c, 1)); RET(c, ARG(c, 0), 2); }
+SHIM(lstrcpyW) {
+    uint32_t dst = ARG(c, 0), src = ARG(c, 1);
+    memcpy(MEM + dst, MEM + src, 2 * (wlen(src) + 1));
+    RET(c, dst, 2);
+}
 SHIM(lstrcmpA) { int r = strcmp((char *)MEM + ARG(c, 0), (char *)MEM + ARG(c, 1)); RET(c, r < 0 ? 0xFFFFFFFFu : r > 0, 2); }
 SHIM(lstrcmpW) {
     uint32_t a = ARG(c, 0), b = ARG(c, 1), i = 0; int r = 0;
@@ -130,9 +135,19 @@ SHIM(GetConsoleMode) { RET(c, 0, 2); }
 SHIM(WriteConsoleA) { fwrite(MEM + ARG(c, 1), 1, ARG(c, 2), stderr); if (ARG(c, 3)) P32(ARG(c, 3), ARG(c, 2)); RET(c, 1, 5); }
 SHIM(WriteConsoleW) { for (uint32_t i = 0; i < ARG(c, 2); i++) fputc(MEM[ARG(c, 1) + 2 * i], stderr); if (ARG(c, 3)) P32(ARG(c, 3), ARG(c, 2)); RET(c, 1, 5); }
 SHIM(ReadConsoleW) { if (ARG(c, 3)) P32(ARG(c, 3), 0); RET(c, 0, 5); }
+SHIM(FlushConsoleInputBuffer) { RET(c, 1, 1); }
+SHIM(SetConsoleTextAttribute) { RET(c, 1, 2); }
 SHIM(SetStdHandle) { RET(c, 1, 2); }
 SHIM(SetEnvironmentVariableA) { RET(c, 1, 2); }
 SHIM(SetEnvironmentVariableW) { RET(c, 1, 2); }
+static uint32_t error_mode;
+SHIM(SetErrorMode) { uint32_t previous = error_mode; error_mode = ARG(c, 0); RET(c, previous, 1); }
+SHIM(ExpandEnvironmentStringsA) {
+    uint32_t src = ARG(c, 0), dst = ARG(c, 1), n = ARG(c, 2);
+    uint32_t l = (uint32_t)strlen((char *)MEM + src) + 1;
+    if (dst && n >= l) memcpy(MEM + dst, MEM + src, l);
+    RET(c, l, 3);
+}
 SHIM(ExpandEnvironmentStringsW) {
     uint32_t src = ARG(c, 0), dst = ARG(c, 1), n = ARG(c, 2);
     uint32_t l = wlen(src) + 1;
@@ -258,12 +273,14 @@ SHIM(TerminateProcess) {
 }
 
 SHIM_TABLE(text_shims,
-    E(MultiByteToWideChar) E(WideCharToMultiByte) E(lstrcatA) E(lstrcpyA) E(lstrcmpA) E(lstrcmpW)
+    E(MultiByteToWideChar) E(WideCharToMultiByte) E(lstrcatA) E(lstrcpyA) E(lstrcpyW) E(lstrcmpA) E(lstrcmpW)
     E(LCMapStringA) E(LCMapStringW) E(LCMapStringEx)
     E(CompareStringA) E(CompareStringW) E(GetStringTypeA) E(GetStringTypeW) E(GetUserDefaultLCID) E(GetUserDefaultLangID)
     E(IsValidLocale) E(EnumSystemLocalesA) E(EnumSystemLocalesW) E(GetLocaleInfoA) E(GetLocaleInfoW) E(GetConsoleCP)
     E(GetConsoleOutputCP) E(GetConsoleMode) E(WriteConsoleA) E(WriteConsoleW) E(ReadConsoleW)
-    E(SetStdHandle) E(SetEnvironmentVariableA) E(SetEnvironmentVariableW) E(ExpandEnvironmentStringsW)
+    E(FlushConsoleInputBuffer) E(SetConsoleTextAttribute)
+    E(SetStdHandle) E(SetEnvironmentVariableA) E(SetEnvironmentVariableW) E(SetErrorMode)
+    E(ExpandEnvironmentStringsA) E(ExpandEnvironmentStringsW)
     E(GetLocalTime) E(GetSystemTime) E(SystemTimeToFileTime) E(FileTimeToSystemTime)
     E(FileTimeToLocalFileTime) E(LocalFileTimeToFileTime) E(GetDateFormatA) E(GetTimeFormatA) E(GetComputerNameA)
     E(SystemTimeToTzSpecificLocalTime) E(GetTimeZoneInformation) E(GetSystemInfo)

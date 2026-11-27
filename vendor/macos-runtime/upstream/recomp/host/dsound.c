@@ -76,34 +76,41 @@ static uint32_t buffer_query_locked(uint32_t b,uint32_t iid,uint32_t out,uint32_
 static void Buf_QueryInterface(CPU *c){
     pthread_mutex_lock(&sound_lifetime_lock);uint32_t hr=buffer_query_locked(COM_THIS(c),ARG(c,1),ARG(c,2),G32(REG(c,R_ESP)));pthread_mutex_unlock(&sound_lifetime_lock);RET(c,hr,3);
 }
-static void Buf_GetCaps(CPU *c) { uint32_t p = ARG(c, 1), d = COM_DATA(COM_THIS(c)); P32(p + 4, G32(d + B_FLAGS)); P32(p + 8, G32(d + B_SIZE)); P32(p + 12, 0); P32(p + 16, 0); RET(c, 0, 2); }
+static void Buf_GetCaps(CPU *c) { pthread_mutex_lock(&sound_lifetime_lock); uint32_t p = ARG(c, 1), d = COM_DATA(COM_THIS(c)); P32(p + 4, G32(d + B_FLAGS)); P32(p + 8, G32(d + B_SIZE)); P32(p + 12, 0); P32(p + 16, 0); pthread_mutex_unlock(&sound_lifetime_lock); RET(c, 0, 2); }
 static void Buf_GetCurrentPosition(CPU *c) {
+    pthread_mutex_lock(&sound_lifetime_lock);
     uint32_t pc = play_cursor(COM_THIS(c)), size = G32(COM_DATA(COM_THIS(c)) + B_SIZE);
     if (ARG(c, 1)) P32(ARG(c, 1), pc);
     if (ARG(c, 2)) P32(ARG(c, 2), size ? (pc + G32(COM_DATA(COM_THIS(c)) + B_BPS) / 50) % size : 0);  // write cursor ~20 ms ahead
+    pthread_mutex_unlock(&sound_lifetime_lock);
     RET(c, 0, 3);
 }
 static void Buf_GetFormat(CPU *c) {
+    pthread_mutex_lock(&sound_lifetime_lock);
     uint32_t d = COM_DATA(COM_THIS(c)), out = ARG(c, 1), n = ARG(c, 2);
     if (out) memcpy(MEM + out, MEM + d + B_FMT, n < 18 ? n : 18);
     if (ARG(c, 3)) P32(ARG(c, 3), 18);
+    pthread_mutex_unlock(&sound_lifetime_lock);
     RET(c, 0, 4);
 }
-static void Buf_GetStatus(CPU *c) { play_cursor(COM_THIS(c)); uint32_t d = COM_DATA(COM_THIS(c)); P32(ARG(c, 1), G32(d + B_PLAYING) ? (1 | (G32(d + B_LOOP) ? 4 : 0)) : 0); RET(c, 0, 2); }
+static void Buf_GetStatus(CPU *c) { pthread_mutex_lock(&sound_lifetime_lock); play_cursor(COM_THIS(c)); uint32_t d = COM_DATA(COM_THIS(c)); P32(ARG(c, 1), G32(d + B_PLAYING) ? (1 | (G32(d + B_LOOP) ? 4 : 0)) : 0); pthread_mutex_unlock(&sound_lifetime_lock); RET(c, 0, 2); }
 static void Buf_Lock(CPU *c) {
+    pthread_mutex_lock(&sound_lifetime_lock);
     uint32_t d = COM_DATA(COM_THIS(c)), size = G32(d + B_SIZE), data = G32(d + B_DATA);
     uint32_t off = ARG(c, 1), n = ARG(c, 2), flags = ARG(c, 7);
     if (flags & 2) n = size;                       // DSBLOCK_ENTIREBUFFER
     if (flags & 1) off = play_cursor(COM_THIS(c)); // DSBLOCK_FROMWRITECURSOR (approximately)
-    if (!size) { RET(c, 0x80070057u, 8); return; }
+    if (!size) { pthread_mutex_unlock(&sound_lifetime_lock); RET(c, 0x80070057u, 8); return; }
     off %= size; if (n > size) n = size;
     uint32_t first = off + n <= size ? n : size - off;
     P32(ARG(c, 3), data + off); P32(ARG(c, 4), first);
     if (ARG(c, 5)) P32(ARG(c, 5), first < n ? data : 0);
     if (ARG(c, 6)) P32(ARG(c, 6), n - first);
+    pthread_mutex_unlock(&sound_lifetime_lock);
     RET(c, 0, 8);
 }
 static void Buf_Play(CPU *c) {
+    pthread_mutex_lock(&sound_lifetime_lock);
     uint32_t b = COM_THIS(c), d = COM_DATA(b); uint64_t t = now_ns();
     uint32_t cur = play_cursor(b);
     uint32_t voice=G32(d+B_VOICE);
@@ -112,27 +119,32 @@ static void Buf_Play(CPU *c) {
         static unsigned playing_reported;if(playing_reported++<8)fprintf(stderr,"[audio] PCM buffer play voice=%u loop=%u bytes=%u\n",voice,ARG(c,3)&1,G32(d+B_SIZE));}
     if (!G32(d + B_PLAYING)) { P32(d + B_T0LO, (uint32_t)t); P32(d + B_T0HI, (uint32_t)(t >> 32)); }
     P32(d + B_PLAYING, 1); P32(d + B_LOOP, ARG(c, 3) & 1);
+    pthread_mutex_unlock(&sound_lifetime_lock);
     RET(c, 0, 4);
 }
-static void Buf_Stop(CPU *c) { uint32_t b = COM_THIS(c), d = COM_DATA(b); uint32_t cur = play_cursor(b); if(ds_trace_voice()&&G32(d+B_VOICE))fprintf(stderr,"[voice +%llums] ds_stop buf=%#x voice=%u pos=%u was=%u\n",(unsigned long long)ds_trace_ms(),b,G32(d+B_VOICE),cur,G32(d+B_PLAYING)); P32(d + B_POS, cur);fnv_audio_voice_stop(G32(d+B_VOICE)); P32(d + B_PLAYING, 0); RET(c, 0, 1); }
+static void Buf_Stop(CPU *c) { pthread_mutex_lock(&sound_lifetime_lock); uint32_t b = COM_THIS(c), d = COM_DATA(b); uint32_t cur = play_cursor(b); if(ds_trace_voice()&&G32(d+B_VOICE))fprintf(stderr,"[voice +%llums] ds_stop buf=%#x voice=%u pos=%u was=%u\n",(unsigned long long)ds_trace_ms(),b,G32(d+B_VOICE),cur,G32(d+B_PLAYING)); P32(d + B_POS, cur);fnv_audio_voice_stop(G32(d+B_VOICE)); P32(d + B_PLAYING, 0); pthread_mutex_unlock(&sound_lifetime_lock); RET(c, 0, 1); }
 static void Buf_SetCurrentPosition(CPU *c) {
+    pthread_mutex_lock(&sound_lifetime_lock);
     uint32_t d = COM_DATA(COM_THIS(c)); uint64_t t = now_ns();
     P32(d + B_POS, ARG(c, 1)); P32(d + B_T0LO, (uint32_t)t); P32(d + B_T0HI, (uint32_t)(t >> 32));
     fnv_audio_voice_seek(G32(d+B_VOICE),ARG(c,1));
+    pthread_mutex_unlock(&sound_lifetime_lock);
     RET(c, 0, 2);
 }
-static void Buf_SetFormat(CPU *c) { uint32_t d = COM_DATA(COM_THIS(c));if(G32(d+B_VOICE)){RET(c,0x80070057u,2);return;}memcpy(MEM + d + B_FMT, MEM + ARG(c, 1), 18);P32(d+B_BPS,G32(ARG(c,1)+8));P32(d+B_FREQUENCY,G32(ARG(c,1)+4));RET(c,0,2); }
-static void Buf_GetVolume(CPU *c){P32(ARG(c,1),G32(COM_DATA(COM_THIS(c))+B_VOLUME));RET(c,0,2);}
-static void Buf_GetPan(CPU *c){P32(ARG(c,1),G32(COM_DATA(COM_THIS(c))+B_PAN));RET(c,0,2);}
-static void Buf_GetFrequency(CPU *c) {uint32_t d=COM_DATA(COM_THIS(c));P32(ARG(c,1),G32(d+B_FREQUENCY));RET(c,0,2);}
-static void Buf_SetVolume(CPU *c){uint32_t d=COM_DATA(COM_THIS(c));int value=(int32_t)ARG(c,1);P32(d+B_VOLUME,value);if(G32(d+B_FLAGS)&1)fnv_audio_master_volume(value);else fnv_audio_voice_volume(G32(d+B_VOICE),value);RET(c,0,2);}
-static void Buf_SetPan(CPU *c){uint32_t d=COM_DATA(COM_THIS(c));int value=(int32_t)ARG(c,1);P32(d+B_PAN,value);fnv_audio_voice_pan(G32(d+B_VOICE),value);RET(c,0,2);}
-static void Buf_SetFrequency(CPU *c){uint32_t d=COM_DATA(COM_THIS(c)),hz=ARG(c,1);if(!hz)hz=G32(d+B_FMT+4);P32(d+B_FREQUENCY,hz);fnv_audio_voice_frequency(G32(d+B_VOICE),hz);RET(c,0,2);}
+static void Buf_SetFormat(CPU *c) { pthread_mutex_lock(&sound_lifetime_lock); uint32_t d = COM_DATA(COM_THIS(c));if(G32(d+B_VOICE)){pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0x80070057u,2);return;}memcpy(MEM + d + B_FMT, MEM + ARG(c, 1), 18);P32(d+B_BPS,G32(ARG(c,1)+8));P32(d+B_FREQUENCY,G32(ARG(c,1)+4));pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0,2); }
+static void Buf_GetVolume(CPU *c){pthread_mutex_lock(&sound_lifetime_lock);P32(ARG(c,1),G32(COM_DATA(COM_THIS(c))+B_VOLUME));pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0,2);}
+static void Buf_GetPan(CPU *c){pthread_mutex_lock(&sound_lifetime_lock);P32(ARG(c,1),G32(COM_DATA(COM_THIS(c))+B_PAN));pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0,2);}
+static void Buf_GetFrequency(CPU *c) {pthread_mutex_lock(&sound_lifetime_lock);uint32_t d=COM_DATA(COM_THIS(c));P32(ARG(c,1),G32(d+B_FREQUENCY));pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0,2);}
+static void Buf_SetVolume(CPU *c){pthread_mutex_lock(&sound_lifetime_lock);uint32_t d=COM_DATA(COM_THIS(c));int value=(int32_t)ARG(c,1);P32(d+B_VOLUME,value);if(G32(d+B_FLAGS)&1)fnv_audio_master_volume(value);else fnv_audio_voice_volume(G32(d+B_VOICE),value);pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0,2);}
+static void Buf_SetPan(CPU *c){pthread_mutex_lock(&sound_lifetime_lock);uint32_t d=COM_DATA(COM_THIS(c));int value=(int32_t)ARG(c,1);P32(d+B_PAN,value);fnv_audio_voice_pan(G32(d+B_VOICE),value);pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0,2);}
+static void Buf_SetFrequency(CPU *c){pthread_mutex_lock(&sound_lifetime_lock);uint32_t d=COM_DATA(COM_THIS(c)),hz=ARG(c,1);if(!hz)hz=G32(d+B_FMT+4);P32(d+B_FREQUENCY,hz);fnv_audio_voice_frequency(G32(d+B_VOICE),hz);pthread_mutex_unlock(&sound_lifetime_lock);RET(c,0,2);}
 static void Buf_Unlock(CPU *c){
+    pthread_mutex_lock(&sound_lifetime_lock);
     uint32_t d=COM_DATA(COM_THIS(c)),voice=G32(d+B_VOICE),base=G32(d+B_DATA),size=G32(d+B_SIZE);
     uint32_t written=0;
     for(int i=0;i<2;i++){uint32_t p=ARG(c,1+2*i),n=ARG(c,2+2*i);if(p>=base&&p-base<size&&n<=size-(p-base)){fnv_audio_voice_write(voice,p-base,MEM+p,n);written+=n;}}
     if(written){static unsigned stream_reported;if(stream_reported++<4)fprintf(stderr,"[audio] PCM stream write voice=%u bytes=%u\n",voice,written);}
+    pthread_mutex_unlock(&sound_lifetime_lock);
     RET(c,0,5);
 }
 static void Buf_Release(CPU *c){

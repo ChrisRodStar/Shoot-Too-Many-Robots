@@ -13,7 +13,20 @@
 #define FAKE_HWND 0x00010010u
 #define DESKTOP_HWND 0x00010000u
 #define WINDOW_STATION 0x00010020u
+// shims_files.c provides the production implementation. This weak fallback only exists so
+// standalone shim harnesses that do not link that unit (e.g. mouse_cursor_test.py) still link;
+// the strong definition always wins in the full host build.
+__attribute__((weak)) void w2a(uint32_t w, char *out, size_t n) {
+    size_t i = 0; uint16_t ch;
+    for (; i < n - 1; i++) { memcpy(&ch, MEM + w + 2 * i, 2); if (!ch) break; out[i] = ch < 0x80 ? (char)ch : '?'; }
+    out[i] = 0;
+}
 static uint32_t wndproc;
+
+// The Metal window clears this while the app is in the background. Headless runs keep it set so
+// the guest still believes it owns the foreground window, exactly as before.
+static volatile int g_window_focused = 1;
+void host_set_window_focused(int focused) { g_window_focused = focused ? 1 : 0; }
 
 // ---- a small Win32 message queue; DispatchMessage / SendMessage run the game's own WndProc ----------
 #include <pthread.h>
@@ -57,6 +70,9 @@ SHIM(DestroyWindow) { RET(c, 1, 1); }
 SHIM(ShowWindow) { RET(c, 1, 2); }
 SHIM(UpdateWindow) { RET(c, 1, 1); }
 SHIM(SetWindowPos) { RET(c, 1, 7); }
+SHIM(SetTimer) { RET(c, ARG(c, 1) ? ARG(c, 1) : 1, 4); }
+SHIM(KillTimer) { RET(c, 1, 2); }
+SHIM(InvalidateRect) { RET(c, 1, 3); }
 SHIM(SetWindowTextA) { RET(c, 1, 2); }
 SHIM(GetWindowTextA) { if (ARG(c, 2)) MEM[ARG(c, 1)] = 0; RET(c, 0, 3); }
 SHIM(GetClassNameA) { if (ARG(c, 2)) MEM[ARG(c, 1)] = 0; RET(c, 0, 3); }
@@ -115,9 +131,9 @@ SHIM(GetUserObjectInformationW) {
     RET(c, 1, 5);
 }
 
-SHIM(GetActiveWindow) { RET(c, FAKE_HWND, 0); }
-SHIM(GetForegroundWindow) { RET(c, FAKE_HWND, 0); }
-SHIM(GetFocus) { RET(c, FAKE_HWND, 0); }
+SHIM(GetActiveWindow) { RET(c, g_window_focused ? FAKE_HWND : 0, 0); }
+SHIM(GetForegroundWindow) { RET(c, g_window_focused ? FAKE_HWND : 0, 0); }
+SHIM(GetFocus) { RET(c, g_window_focused ? FAKE_HWND : 0, 0); }
 SHIM(SetForegroundWindow) { RET(c, 1, 1); }
 // The guest has one window whose client area starts at its virtual desktop origin.
 SHIM(ScreenToClient) {
@@ -168,6 +184,11 @@ SHIM(SwapMouseButton) { RET(c, 0, 1); }
 SHIM(GetAsyncKeyState) { RET(c, input_vk_down((int)ARG(c, 0)) ? 0x8000u : 0u, 1); }
 SHIM(GetKeyState) { RET(c, input_vk_down((int)ARG(c, 0)) ? 0xFF80u : 0u, 1); }
 SHIM(GetKeyboardLayout) { RET(c, 0x04090409u, 1); }
+SHIM(GetKeyboardLayoutNameA) {
+    uint32_t out = ARG(c, 0);
+    if (out) strcpy((char *)MEM + out, "00000409");
+    RET(c, 1, 1);
+}
 SHIM(MapVirtualKeyA) { RET(c, input_map_vk(ARG(c, 0), ARG(c, 1)), 2); }
 SHIM(ToUnicode) {
     uint32_t vk = ARG(c, 0), ks = ARG(c, 2), out = ARG(c, 3); int cap = (int)ARG(c, 4);
@@ -233,13 +254,25 @@ SHIM(SetWindowsHookExA) { RET(c, 0x00030001, 4); }
 SHIM(UnhookWindowsHookEx) { RET(c, 1, 1); }
 SHIM(CallNextHookEx) { RET(c, 0, 4); }
 void host_pump_events(void);
+static int quit_posted;
+static uint32_t quit_code;
+SHIM(PostQuitMessage) { quit_posted = 1; quit_code = ARG(c, 0); RET(c, 0, 1); }
 SHIM(PeekMessageA) {
     host_pump_events();
     uint32_t m = ARG(c, 0), remove = ARG(c, 4) & 1;
+    QMsg q;
     pthread_mutex_lock(&mq_lk);
-    if (mq_h == mq_t) { pthread_mutex_unlock(&mq_lk); RET(c, 0, 5); return; }
-    QMsg q = mq[mq_h];
-    if (remove) mq_h = (mq_h + 1) % 512;
+    if (quit_posted) {
+        q = (QMsg){0x0012u /* WM_QUIT */, quit_code, 0};
+        if (remove) quit_posted = 0;
+    } else if (mq_h == mq_t) {
+        pthread_mutex_unlock(&mq_lk);
+        RET(c, 0, 5);
+        return;
+    } else {
+        q = mq[mq_h];
+        if (remove) mq_h = (mq_h + 1) % 512;
+    }
     pthread_mutex_unlock(&mq_lk);
     P32(m, FAKE_HWND); P32(m + 4, q.msg); P32(m + 8, q.wp); P32(m + 12, q.lp);
     P32(m + 16, (uint32_t)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000000)); P32(m + 20, 0); P32(m + 24, 0);
@@ -257,9 +290,22 @@ SHIM(MessageBoxA) {
     fprintf(stderr, "[host] MessageBoxA: \"%s\" — %s\n", GSTR(ARG(c, 2)) ? GSTR(ARG(c, 2)) : "", GSTR(ARG(c, 1)) ? GSTR(ARG(c, 1)) : "");
     RET(c, 1, 4);    // IDOK
 }
+SHIM(MessageBoxW) {
+    char caption[1024], text[4096];
+    w2a(ARG(c, 2), caption, sizeof caption);
+    w2a(ARG(c, 1), text, sizeof text);
+    fprintf(stderr, "[host] MessageBoxW: \"%s\" — %s\n", caption, text);
+    RET(c, 1, 4);    // IDOK
+}
 // ---- gdi32 / comctl32 ----------------------------------------------------------------------------
 SHIM(GetStockObject) { RET(c, 0x00040001, 1); }
 SHIM(GetDC) { RET(c, 0, 1); }
+SHIM(BeginPaint) {
+    uint32_t ps = ARG(c, 1);
+    if (ps) { memset(MEM + ps, 0, 64); P32(ps, 0xDC01u); }
+    RET(c, 0xDC01u, 2);
+}
+SHIM(EndPaint) { RET(c, 1, 2); }
 SHIM(CreateDCA) { RET(c, 0, 4); }
 SHIM(ExtEscape) { RET(c, 0, 6); }
 SHIM(DeleteDC) { RET(c, 1, 1); }
@@ -418,11 +464,11 @@ SHIM_TABLE(win_shims,
     E(EnumChildWindows) E(FindWindowA) E(GetDesktopWindow) E(GetProcessWindowStation) E(GetUserObjectInformationW) E(GetActiveWindow) E(GetForegroundWindow) E(GetFocus) E(SetForegroundWindow) E(ScreenToClient) E(ClientToScreen) E(GetClientRect) E(GetWindowRect)
     E(AdjustWindowRect) E(AdjustWindowRectEx) E(GetSystemMetrics) E(EnumDisplayDevicesA) E(LoadImageA) E(LoadIconA)
     E(LoadCursorA) E(SetCursor) E(ShowCursor) E(GetDoubleClickTime) E(SwapMouseButton) E(GetAsyncKeyState)
-    E(GetKeyState) E(GetKeyboardLayout) E(MapVirtualKeyA) E(ToUnicode) E(ClipCursor) E(SetCursorPos) E(GetCursorPos)
-    E(GetDlgItem) E(GetWindowInfo) E(SendInput)
+    E(GetKeyState) E(GetKeyboardLayout) E(GetKeyboardLayoutNameA) E(MapVirtualKeyA) E(ToUnicode) E(ClipCursor) E(SetCursorPos) E(GetCursorPos)
+    E(GetDlgItem) E(GetWindowInfo) E(SendInput) E(SetTimer) E(KillTimer) E(InvalidateRect)
     E(SetWindowsHookExA) E(UnhookWindowsHookEx) E(CallNextHookEx) E(PeekMessageA) E(TranslateMessage)
-    E(DispatchMessageA) E(SendMessageA) E(DefWindowProcA) E(MessageBoxA) E(GetStockObject)
-    E(GetDC) E(CreateDCA) E(ExtEscape) E(DeleteDC)
+    E(PostQuitMessage) E(DispatchMessageA) E(SendMessageA) E(DefWindowProcA) E(MessageBoxA) E(MessageBoxW) E(GetStockObject)
+    E(GetDC) E(BeginPaint) E(EndPaint) E(CreateDCA) E(ExtEscape) E(DeleteDC)
     E(InitCommonControlsEx) E(ImageList_LoadImageA) E(ImageList_Destroy) E(RegOpenKeyA) E(RegOpenKeyExA) E(RegCreateKeyExA)
     E(RegQueryValueExA) E(RegSetValueExA) E(RegCloseKey) E(GetUserNameA) E(GetUserNameW) E(SHGetFolderPathA) E(SHGetFolderPathW) E(ShellExecuteA)
     E(CommandLineToArgvW) E(CoInitialize) E(CoInitializeEx) E(CoUninitialize) E(CoFreeUnusedLibraries)

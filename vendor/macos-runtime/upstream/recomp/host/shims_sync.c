@@ -21,7 +21,10 @@ uint32_t handle_new(int type, void *obj) {
 }
 void *handle_get(uint32_t h, int type) {
     uint32_t i = h / 4;
-    return i < MAXH && htab[i].type == type ? htab[i].obj : NULL;
+    pthread_mutex_lock(&hlock);
+    void *obj = i < MAXH && htab[i].type == type ? htab[i].obj : NULL;
+    pthread_mutex_unlock(&hlock);
+    return obj;
 }
 void *handle_get_ref(uint32_t h, int type, void (*ref)(void *obj)) {
     uint32_t i = h / 4;
@@ -32,7 +35,7 @@ void *handle_get_ref(uint32_t h, int type, void (*ref)(void *obj)) {
     pthread_mutex_unlock(&hlock);
     return obj;
 }
-int handle_type(uint32_t h) { uint32_t i = h / 4; return i < MAXH ? htab[i].type : 0; }
+int handle_type(uint32_t h) { uint32_t i = h / 4; pthread_mutex_lock(&hlock); int type = i < MAXH ? htab[i].type : 0; pthread_mutex_unlock(&hlock); return type; }
 void file_close_obj(void *obj) __attribute__((weak));
 void file_close_obj(void *obj) { (void)obj; }
 
@@ -260,9 +263,14 @@ SHIM(CreateSemaphoreA) { Obj *o = obj_new(); o->count = (int)ARG(c, 1); o->max =
 SHIM(ReleaseSemaphore) {
     Obj *o = handle_get(ARG(c, 0), H_SEMA); uint32_t prev = ARG(c, 2);
     if (!o) { RET(c, 0, 3); return; }
+    int32_t rel = (int32_t)ARG(c, 1);
     pthread_mutex_lock(&o->m);
+    if (rel <= 0) { pthread_mutex_unlock(&o->m); SETERR(87); RET(c, 0, 3); return; }
+    if (o->max > 0 && (int64_t)o->count + rel > (int64_t)o->max) {
+        pthread_mutex_unlock(&o->m); SETERR(298 /* ERROR_TOO_MANY_POSTS */); RET(c, 0, 3); return;
+    }
     if (prev) P32(prev, (uint32_t)o->count);
-    o->count += (int)ARG(c, 1);
+    o->count += rel;
     pthread_cond_broadcast(&o->cv);
     pthread_mutex_unlock(&o->m);
     RET(c, 1, 3);

@@ -672,10 +672,10 @@ static void Dev_Reset(CPU *c) {
                         : (g_d3d.backbuffer ? G32(OBJ_F(g_d3d.backbuffer, S_FMT)) : 21 /* D3DFMT_A8R8G8B8 */);
         resize_surface_storage(g_d3d.backbuffer, w, h, bbfmt, ms);
         if (g_d3d.ds && !G32(OBJ_F(g_d3d.ds, S_CONT))) {        // auto/standalone depth only
-            uint32_t dsfmt = G32(pp + 44) ? G32(pp + 44) : G32(OBJ_F(g_d3d.ds, S_FMT));
+            uint32_t dsfmt = G32(pp + 40) ? G32(pp + 40) : G32(OBJ_F(g_d3d.ds, S_FMT));
             resize_surface_storage(g_d3d.ds, w, h, dsfmt, ms);
-        } else if (G32(pp + 40) && !g_d3d.ds) {                  // EnableAutoDepthStencil
-            g_d3d.ds = new_surface(the_device, w, h, G32(pp + 44), 2 /* DEPTHSTENCIL */, 0, ms, 0, 0, 0);
+        } else if (G32(pp + 36) && !g_d3d.ds) {                  // EnableAutoDepthStencil
+            g_d3d.ds = new_surface(the_device, w, h, G32(pp + 40) ? G32(pp + 40) : 75, 2 /* DEPTHSTENCIL */, 0, ms, 0, 0, 0);
         }
         // Reset returns device state to defaults: render to the resized backbuffer, full viewport.
         for (int i = 1; i < 4; i++) bind_resource(&g_d3d.rt[i], 0);
@@ -770,10 +770,10 @@ static void Dev_GetSoftwareVertexProcessing(CPU *c) { RET(c, 0, 1); }
 static void Dev_GetNPatchMode(CPU *c) { RET(c, 0, 1); }
 static void Dev_DrawPrimitive(CPU *c) { d3d_backend_draw(&g_d3d, ARG(c, 1), ARG(c, 2), ARG(c, 3), 0, 0, 0, 0); RET(c, 0, 4); }
 static void Dev_DrawIndexedPrimitive(CPU *c) { d3d_backend_draw(&g_d3d, ARG(c, 1), ARG(c, 5), ARG(c, 6), 1, (int32_t)ARG(c, 2), ARG(c, 3), ARG(c, 4)); RET(c, 0, 7); }
-static void Dev_DrawPrimitiveUP(CPU *c) { d3d_backend_draw_up(&g_d3d, ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), 0, 0, 0, 0); g_d3d.stream[0] = 0; RET(c, 0, 5); }
+static void Dev_DrawPrimitiveUP(CPU *c) { d3d_backend_draw_up(&g_d3d, ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), 0, 0, 0, 0); bind_resource(&g_d3d.stream[0], 0); RET(c, 0, 5); }
 static void Dev_DrawIndexedPrimitiveUP(CPU *c) {
     d3d_backend_draw_up(&g_d3d, ARG(c, 1), ARG(c, 4), ARG(c, 7), ARG(c, 8), ARG(c, 5), ARG(c, 6), ARG(c, 2), ARG(c, 3));
-    g_d3d.stream[0] = 0; g_d3d.indices = 0; RET(c, 0, 9);
+    bind_resource(&g_d3d.stream[0], 0); bind_resource(&g_d3d.indices, 0); RET(c, 0, 9);
 }
 static void Dev_CreateVertexDeclaration(CPU *c) {
     uint32_t src = ARG(c, 1), n = 0;
@@ -1018,7 +1018,7 @@ static void D3D_CreateDevice(CPU *c) {
     the_device = dev;
     g_d3d.backbuffer = new_surface(dev, g_d3d.width, g_d3d.height, G32(pp + 8) ? G32(pp + 8) : 21, 1, 0, G32(pp + 16), 0, 0, 0);
     g_d3d.swapchain = newobj(vt_swap, K_SWAP, dev, 0);
-    if (G32(pp + 40)) g_d3d.ds = new_surface(dev, g_d3d.width, g_d3d.height, G32(pp + 44), 2, 0, G32(pp + 16), 0, 0, 0);  // auto depth
+    if (G32(pp + 36)) g_d3d.ds = new_surface(dev, g_d3d.width, g_d3d.height, G32(pp + 40) ? G32(pp + 40) : 75, 2, 0, G32(pp + 16), 0, 0, 0);  // auto depth
     bind_resource(&g_d3d.rt[0], g_d3d.backbuffer);
     g_d3d.viewport[2] = g_d3d.width; g_d3d.viewport[3] = g_d3d.height; { float one = 1.0f; memcpy(&g_d3d.viewport[5], &one, 4); }
     for (int s = 0; s < 16; s++) g_d3d.stream_freq[s] = 1;

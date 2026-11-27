@@ -157,6 +157,8 @@ static Fmt fmt_map(uint32_t f) {
     case 116: r.pf = MTLPixelFormatRGBA32Float; break;
     case 80: case 70: r.pf = MTLPixelFormatDepth16Unorm; break;
     case 75: case 77: case 71: r.pf = MTLPixelFormatDepth32Float_Stencil8; break;
+    case 82: r.pf = MTLPixelFormatDepth32Float; break;
+    case 83: r.pf = MTLPixelFormatDepth32Float_Stencil8; break;
     default:
         if (f == FCC('D', 'X', 'T', '1')) r.pf = MTLPixelFormatBC1_RGBA;
         else if (f == FCC('D', 'X', 'T', '2') || f == FCC('D', 'X', 'T', '3')) r.pf = MTLPixelFormatBC2_RGBA;
@@ -174,7 +176,7 @@ static Fmt fmt_map(uint32_t f) {
 #undef SW
     return r;
 }
-static int is_depth_fmt(uint32_t f) { return f == 80 || f == 70 || f == 75 || f == 77 || f == 71 || f == FCC('I', 'N', 'T', 'Z'); }
+static int is_depth_fmt(uint32_t f) { return f == 80 || f == 70 || f == 75 || f == 77 || f == 71 || f == 82 || f == 83 || f == FCC('I', 'N', 'T', 'Z'); }
 static MTLPixelFormat srgb_fmt(MTLPixelFormat pf) {
     switch (pf) {
     case MTLPixelFormatBGRA8Unorm: return MTLPixelFormatBGRA8Unorm_sRGB;
@@ -568,7 +570,7 @@ static void begin_pass(D3DState *s, uint32_t clear_flags, uint32_t color, float 
     }
     if (s->ds) {
         NSUInteger lv, sl; id<MTLTexture> t = surf_target(s->ds, &lv, &sl);
-        if (t) {
+        if (t && (t.pixelFormat == MTLPixelFormatDepth16Unorm || t.pixelFormat == MTLPixelFormatDepth32Float || t.pixelFormat == MTLPixelFormatDepth32Float_Stencil8)) {
             rp.depthAttachment.texture = t; rp.depthAttachment.loadAction = (clear_flags & 2) ? MTLLoadActionClear : MTLLoadActionLoad;
             rp.depthAttachment.clearDepth = z; rp.depthAttachment.storeAction = MTLStoreActionStore;
             if (t.pixelFormat == MTLPixelFormatDepth32Float_Stencil8) {

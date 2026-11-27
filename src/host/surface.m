@@ -6,6 +6,9 @@
 #include "input.h"
 
 extern void input_mouse_pos(int32_t x, int32_t y);
+// Defined by shims_win.c; the window delegate reports AppKit activation changes here. Kept as a
+// local declaration because vendor headers are a cached build input.
+extern void host_set_window_focused(int focused);
 
 static NSWindow *game_window;
 static CAMetalLayer *game_layer;
@@ -186,6 +189,8 @@ static void smr_sync_drawable(void);
 // renders the guest backbuffer into that drawable with aspect-fit letterboxing, so any window
 // size (live resize, fullscreen, moving to another display) stays sharp and unstretched.
 - (void)windowDidResize:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }
+- (void)windowDidBecomeKey:(NSNotification *)notification { (void)notification; host_set_window_focused(1); }
+- (void)windowDidResignKey:(NSNotification *)notification { (void)notification; host_set_window_focused(0); }
 - (void)windowDidChangeBackingProperties:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }
 - (void)windowDidMove:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }
 - (void)windowDidEnterFullScreen:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }

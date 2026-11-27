@@ -470,7 +470,8 @@ SHIM(strtoul) {
     int base = (int)ARG(c, 2);
     const char *s = nptr ? (const char *)(MEM + nptr) : "";
     char *end = NULL;
-    unsigned long v = strtoul(s, &end, base);
+    uint64_t v = strtoul(s, &end, base);
+    if (v > 0xFFFFFFFFull) v = 0xFFFFFFFFull;
     if (endptr) P32(endptr, end ? nptr + (uint32_t)(end - s) : nptr);
     RET(c, (uint32_t)v, 0);
 }
@@ -628,7 +629,7 @@ static int guest_vsnprintf(char *out, size_t cap, const char *fmt, uint32_t va, 
 
         if (conv == 's' || conv == 'S') {
             uint32_t addr = G32(va); va += 4;
-            bool is_wide = (conv == 'S') || (conv == 's' && (len == FMT_L || (wide_default && len != FMT_H)));
+            bool is_wide = (len == FMT_L) ? true : (len == FMT_H) ? false : (conv == 'S' ? !wide_default : wide_default);
             char *wbuf = NULL;
             const char *sarg = "(null)";
             if (addr) {
@@ -938,21 +939,30 @@ typedef struct {
     FILE *host;
 } GuestFile;
 
-#define MAX_GUEST_FILES 256
+#define MAX_GUEST_FILES 1024
 static GuestFile guest_files[MAX_GUEST_FILES];
 static pthread_mutex_t guest_files_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static FILE *lookup_guest_file(CPU *c, uint32_t guest) {
-    if (!guest) return NULL;
-    pthread_mutex_lock(&guest_files_lock);
+// Guest streams come from two universes: our opaque tokens (guest_files[]) and the real lifted
+// msvcr90 _iob[] objects handed out by __iob_func. The latter are not in the table, but their
+// _file field (offset 0x10) tells us which standard stream they represent.
+static FILE *lookup_guest_or_std_file(CPU *c, uint32_t stream, bool trap_unknown) {
+    if (!stream) return NULL;
     FILE *found = NULL;
+    pthread_mutex_lock(&guest_files_lock);
     for (int i = 0; i < MAX_GUEST_FILES; i++) {
-        if (guest_files[i].guest == guest) { found = guest_files[i].host; break; }
+        if (guest_files[i].guest == stream) { found = guest_files[i].host; break; }
     }
     pthread_mutex_unlock(&guest_files_lock);
-    if (!found) {
-        fprintf(stderr, "[msvcr90] unknown guest FILE* %#x\n", guest);
-        rt_trap(c, TRAP_IMPORT, guest);
+    if (!found && stream <= 0xFFFFFFEFu) {
+        uint32_t file = G32(stream + 0x10);
+        if (file == 0) found = stdin;
+        else if (file == 1) found = stdout;
+        else if (file == 2) found = stderr;
+    }
+    if (!found && trap_unknown) {
+        fprintf(stderr, "[msvcr90] unknown guest FILE* %#x\n", stream);
+        rt_trap(c, TRAP_IMPORT, stream);
     }
     return found;
 }
@@ -971,6 +981,7 @@ static uint32_t open_guest_file(const char *win_path, const char *raw_mode) {
     uint32_t guest = gmalloc(32);
     if (!guest) { fclose(f); return 0; }
     memset(MEM + guest, 0, 32);
+    P32(guest + 0x10, 0xFFFFFFFFu);
     pthread_mutex_lock(&guest_files_lock);
     int slot = -1;
     for (int i = 0; i < MAX_GUEST_FILES; i++) {
@@ -1022,12 +1033,7 @@ SHIM(_wfopen_s) {
 SHIM(vfprintf_s) {
     uint32_t stream = ARG(c, 0), fmt = ARG(c, 1), va = ARG(c, 2);
     if (!stream || !fmt) { RET(c, 0xffffffffu, 0); return; }
-    FILE *f = NULL;
-    pthread_mutex_lock(&guest_files_lock);
-    for (int i = 0; i < MAX_GUEST_FILES; i++) {
-        if (guest_files[i].guest == stream) { f = guest_files[i].host; break; }
-    }
-    pthread_mutex_unlock(&guest_files_lock);
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
     char buf[4096];
     int n = guest_vsnprintf(buf, sizeof buf, (const char *)(MEM + fmt), va, false);
     if (n > 0) {
@@ -1039,7 +1045,7 @@ SHIM(vfprintf_s) {
 
 SHIM(fread) {
     uint32_t dst = ARG(c, 0), size = ARG(c, 1), count = ARG(c, 2), stream = ARG(c, 3);
-    FILE *f = lookup_guest_file(c, stream);
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
     uint64_t total = (uint64_t)size * count;
     if (!f || !total) { RET(c, 0, 0); return; }
     check_guest_range(c, dst, (uint32_t)(total > UINT32_MAX ? UINT32_MAX : total));
@@ -1051,12 +1057,7 @@ SHIM(fread) {
 // random handle (we saw a 5 KiB binary cache blob land on stderr this way).
 SHIM(fwrite) {
     uint32_t src = ARG(c, 0), size = ARG(c, 1), count = ARG(c, 2), stream = ARG(c, 3);
-    FILE *f = NULL;
-    pthread_mutex_lock(&guest_files_lock);
-    for (int i = 0; i < MAX_GUEST_FILES; i++) {
-        if (guest_files[i].guest == stream) { f = guest_files[i].host; break; }
-    }
-    pthread_mutex_unlock(&guest_files_lock);
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
     uint64_t total = (uint64_t)size * count;
     if (!f || !total) { RET(c, 0, 0); return; }
     check_guest_range(c, src, (uint32_t)(total > UINT32_MAX ? UINT32_MAX : total));
@@ -1067,14 +1068,133 @@ SHIM(_fseeki64) {
     uint32_t stream = ARG(c, 0);
     int64_t offset = (int64_t)(((uint64_t)ARG(c, 2) << 32) | ARG(c, 1));
     int origin = (int)ARG(c, 3);
-    FILE *f = lookup_guest_file(c, stream);
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
     RET(c, (f && fseeko(f, (off_t)offset, origin) == 0) ? 0u : 0xffffffffu, 0);
 }
 
 SHIM(getc) {
-    FILE *f = lookup_guest_file(c, ARG(c, 0));
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 0), true);
     int ch = f ? fgetc(f) : EOF;
     RET(c, ch == EOF ? 0xffffffffu : (uint32_t)(unsigned char)ch, 0);
+}
+
+SHIM(fseek) {
+    uint32_t stream = ARG(c, 0), offset = ARG(c, 1), origin = ARG(c, 2);
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
+    RET(c, (f && fseeko(f, (off_t)(int32_t)offset, (int)origin) == 0) ? 0u : 0xffffffffu, 0);
+}
+
+SHIM(ftell) {
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 0), true);
+    int64_t pos = f ? (int64_t)ftello(f) : -1;
+    RET(c, (uint32_t)(int32_t)pos, 0);
+}
+
+SHIM(_ftelli64) {
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 0), true);
+    int64_t pos = f ? (int64_t)ftello(f) : -1LL;
+    SETREG(c, R_EDX, (uint32_t)((uint64_t)pos >> 32));
+    RET(c, (uint32_t)pos, 0);
+}
+
+SHIM(rewind) {
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 0), true);
+    if (f) rewind(f);
+    RET(c, 0, 0);
+}
+
+SHIM(fflush) {
+    uint32_t stream = ARG(c, 0);
+    if (!stream) {
+        FILE *snapshot[MAX_GUEST_FILES];
+        int count = 0;
+        pthread_mutex_lock(&guest_files_lock);
+        for (int i = 0; i < MAX_GUEST_FILES; i++) {
+            if (guest_files[i].host) snapshot[count++] = guest_files[i].host;
+        }
+        pthread_mutex_unlock(&guest_files_lock);
+        for (int i = 0; i < count; i++) fflush(snapshot[i]);
+        fflush(NULL);
+        RET(c, 0, 0);
+        return;
+    }
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
+    RET(c, f ? (uint32_t)fflush(f) : 0xffffffffu, 0);
+}
+
+SHIM(feof) {
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 0), true);
+    RET(c, f ? (uint32_t)feof(f) : 0u, 0);
+}
+
+SHIM(ferror) {
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 0), true);
+    RET(c, f ? (uint32_t)ferror(f) : 0u, 0);
+}
+
+SHIM(clearerr) {
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 0), true);
+    if (f) clearerr(f);
+    RET(c, 0, 0);
+}
+
+SHIM(fputc) {
+    uint32_t ch = ARG(c, 0);
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 1), true);
+    RET(c, (uint32_t)(f ? fputc((int)(unsigned char)ch, f) : EOF), 0);
+}
+
+SHIM(putc) {
+    uint32_t ch = ARG(c, 0);
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 1), true);
+    RET(c, (uint32_t)(f ? fputc((int)(unsigned char)ch, f) : EOF), 0);
+}
+
+SHIM(fputs) {
+    uint32_t str = ARG(c, 0);
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 1), true);
+    RET(c, (uint32_t)((f && str) ? fputs((const char *)(MEM + str), f) : EOF), 0);
+}
+
+SHIM(fgets) {
+    uint32_t dst = ARG(c, 0), n = ARG(c, 1), stream = ARG(c, 2);
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
+    if (!f || !dst || !n) { RET(c, 0, 0); return; }
+    check_guest_range(c, dst, n);
+    char *result = fgets((char *)(MEM + dst), (int)n, f);
+    RET(c, result ? dst : 0u, 0);
+}
+
+SHIM(ungetc) {
+    uint32_t ch = ARG(c, 0);
+    FILE *f = lookup_guest_or_std_file(c, ARG(c, 1), true);
+    RET(c, (uint32_t)(f ? ungetc((int)ch, f) : EOF), 0);
+}
+
+SHIM(fprintf) {
+    uint32_t stream = ARG(c, 0), fmt = ARG(c, 1);
+    if (!stream || !fmt) { RET(c, 0xffffffffu, 0); return; }
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
+    char buf[4096];
+    int n = guest_vsnprintf(buf, sizeof buf, (const char *)(MEM + fmt), REG(c, R_ESP) + 12, false);
+    if (n > 0) {
+        size_t len = (size_t)n < sizeof(buf) ? (size_t)n : sizeof(buf) - 1;
+        fwrite(buf, 1, len, f ? f : stderr);
+    }
+    RET(c, (uint32_t)n, 0);
+}
+
+SHIM(vfprintf) {
+    uint32_t stream = ARG(c, 0), fmt = ARG(c, 1), va = ARG(c, 2);
+    if (!stream || !fmt) { RET(c, 0xffffffffu, 0); return; }
+    FILE *f = lookup_guest_or_std_file(c, stream, true);
+    char buf[4096];
+    int n = guest_vsnprintf(buf, sizeof buf, (const char *)(MEM + fmt), va, false);
+    if (n > 0) {
+        size_t len = (size_t)n < sizeof(buf) ? (size_t)n : sizeof(buf) - 1;
+        fwrite(buf, 1, len, f ? f : stderr);
+    }
+    RET(c, (uint32_t)n, 0);
 }
 
 SHIM(fclose) {
@@ -1388,6 +1508,21 @@ static const MsvcrShimEntry msvcr90_fast_shims[] = {
     {"_fseeki64", _fseeki64_},
     {"getc", getc_},
     {"fgetc", getc_},
+    {"fseek", fseek_},
+    {"ftell", ftell_},
+    {"_ftelli64", _ftelli64_},
+    {"rewind", rewind_},
+    {"fflush", fflush_},
+    {"feof", feof_},
+    {"ferror", ferror_},
+    {"clearerr", clearerr_},
+    {"fputc", fputc_},
+    {"putc", putc_},
+    {"fputs", fputs_},
+    {"fgets", fgets_},
+    {"ungetc", ungetc_},
+    {"fprintf", fprintf_},
+    {"vfprintf", vfprintf_},
     {"fclose", fclose_},
     {"_waccess_s", _waccess_s_},
     {"_wstat64", _wstat64_},

@@ -301,7 +301,7 @@ SHIM(GetSystemTimeAsFileTime_) {
     uint64_t ft = ((uint64_t)tv.tv_sec + 11644473600ull) * 10000000ull + (uint64_t)tv.tv_usec * 10;
     memcpy(MEM + ARG(c, 0), &ft, 8); RET(c, 0, 1);
 }
-SHIM(IsProcessorFeaturePresent_) { uint32_t f = ARG(c, 0); RET(c, f == 6 || f == 7 || f == 10 || f == 13, 1); } // SSE/SSE2/3DNow!-no/SSE3
+SHIM(IsProcessorFeaturePresent_) { uint32_t f = ARG(c, 0); RET(c, f == 6 || f == 10 || f == 13, 1); } // SSE/SSE2/SSE3, not 3DNow!
 SHIM(IsDebuggerPresent_) { RET(c, 0, 0); }
 
 // heaps: one guest heap backs all of them

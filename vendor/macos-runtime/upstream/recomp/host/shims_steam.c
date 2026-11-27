@@ -114,6 +114,8 @@ static void configure_appid(void) {
 #elif defined(FNV_GAME_FALLOUT3)
     if (!buf[0]) snprintf(buf, sizeof(buf), "22370");
 #else
+    if (!buf[0] && !strcasecmp(host_exe_name(), "ShootManyRobots.exe"))
+        snprintf(buf, sizeof(buf), "96400");
     if (!buf[0]) snprintf(buf, sizeof(buf), "22380");
 #endif
     setenv("SteamAppId", buf, 0);
@@ -481,7 +483,21 @@ SHIM(SteamApps) {
 }
 SHIM(SteamUtils) { RET(c, steam_active ? proxy_utils : 0u, 0); }
 
+// Offline-safe entry points imported by ShootManyRobots.exe. None of these have a meaningful
+// offline implementation, and the game tolerates a zero result.
+SHIM(SteamMatchmaking) { RET(c, 0, 0); }
+SHIM(SteamNetworking) { RET(c, 0, 0); }
+SHIM(SteamGameServer) { RET(c, 0, 0); }
+SHIM(SteamGameServer_Init) { RET(c, 0, 0); }
+SHIM(SteamGameServer_Shutdown) { RET(c, 0, 0); }
+SHIM(SteamAPI_RegisterCallResult) { RET(c, 0, 0); }
+SHIM(SteamAPI_UnregisterCallResult) { RET(c, 0, 0); }
+SHIM(SteamAPI_WriteMiniDump) { RET(c, 0, 0); }
+
 SHIM_TABLE(steam_shims,
     E(SteamAPI_Init) E(SteamAPI_IsSteamRunning) E(SteamAPI_Shutdown) E(SteamAPI_RunCallbacks)
     E(SteamGameServer_RunCallbacks) E(SteamAPI_RegisterCallback) E(SteamAPI_UnregisterCallback)
-    E(SteamUser) E(SteamFriends) E(SteamUserStats) E(SteamApps) E(SteamUtils))
+    E(SteamUser) E(SteamFriends) E(SteamUserStats) E(SteamApps) E(SteamUtils)
+    E(SteamMatchmaking) E(SteamNetworking) E(SteamGameServer) E(SteamGameServer_Init)
+    E(SteamGameServer_Shutdown) E(SteamAPI_RegisterCallResult) E(SteamAPI_UnregisterCallResult)
+    E(SteamAPI_WriteMiniDump))

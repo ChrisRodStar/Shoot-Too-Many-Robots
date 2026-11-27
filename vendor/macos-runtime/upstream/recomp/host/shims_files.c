@@ -385,6 +385,7 @@ static int find_fill_common(FindObj *f, uint32_t out, int wide) {
     struct dirent *e;
     while ((e = readdir(f->d))) {
         if (e->d_name[0] == '.' && e->d_name[1] == '_') continue;     // exFAT AppleDouble junk
+        if (!strcmp(e->d_name, ".DS_Store")) continue;                // Finder metadata is not a game file
         if (fnmatch(f->pat, e->d_name, FNM_CASEFOLD)) continue;
         char full[1400]; snprintf(full, sizeof full, "%s/%s", f->dir, e->d_name);
         struct stat st; if (stat(full, &st)) continue;

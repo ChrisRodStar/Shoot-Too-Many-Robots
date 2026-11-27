@@ -162,6 +162,7 @@ static uint32_t bump(uint32_t n) {
 
 static uint32_t gmalloc_u(uint32_t size) {
     if (size == 0) size = 1;
+    if (size > UINT32_MAX - HDR - 0xFFFu) return 0;  // rounding below would wrap
     if (size > csize(NCLASS - 1) - HDR) {        // huge: dedicated pages, class = -1
         uint32_t need = ((size + HDR) + 0xFFF) & ~0xFFFu;
         // best fit among freed huge blocks no more than 2x the request
@@ -212,9 +213,14 @@ uint32_t gsize(uint32_t q) { L;uint32_t n=gsize_u(q);UL;return n; }
 
 static uint32_t grealloc_u(uint32_t q, uint32_t size) {
     if (!q) return gmalloc_u(size);
+    if (size > UINT32_MAX - HDR - 0xFFFu) return 0;  // keep q intact when the request cannot be sized
     uint32_t old = gsize_u(q);
     uint32_t c = G32(q - HDR + 4);
-    if (c != 0xFFFFFFFFu && (uint64_t)size + HDR <= csize((int)c)) { P32(q-HDR,size);Allocation *a=allocation_find(q,0);a->size=size;allocation_guard(a);return q; }
+    if (c != 0xFFFFFFFFu && (uint64_t)size + HDR <= csize((int)c)) {
+        P32(q-HDR,size);Allocation *a=allocation_find(q,0);a->size=size;
+        if (size > old) memset(MEM + q + old, 0, size - old);  // before the new tail guard
+        allocation_guard(a);return q;
+    }
     uint32_t n = gmalloc_u(size);
     memcpy(MEM + n, MEM + q, old < size ? old : size);
     gfree_u(q);
