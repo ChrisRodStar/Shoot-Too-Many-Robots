@@ -365,7 +365,16 @@ static const Ov buf_ov[] = {
 
 // ---- shaders, declarations, queries, state blocks, swap chain --------------------------------------
 static uint32_t copy_tokens(uint32_t src, uint32_t *ntok) {     // shader bytecode ends with 0x0000FFFF
-    uint32_t n = 0; while (G32(src + 4 * n) != 0x0000FFFFu && n < (1u << 20)) n++;
+    uint32_t n = 1; // skip version token
+    while (n < (1u << 20)) {
+        uint32_t tok = G32(src + 4 * n);
+        if (tok == 0x0000FFFFu) break;
+        if ((tok & 0xFFFFu) == 0xFFFEu) {
+            n += 1u + ((tok >> 16) & 0x7FFFu);
+            continue;
+        }
+        n++;
+    }
     n++;
     uint32_t dst = gmalloc(4 * n); memcpy(MEM + dst, MEM + src, 4 * n);
     *ntok = n; return dst;
@@ -394,8 +403,10 @@ static void Query_GetData(CPU *c) {
 static const Ov query_ov[] = {{"QueryInterface", Unk_QueryInterface}, {"AddRef", Unk_AddRef}, {"Release", Unk_Release},
                               {"GetDevice", Res_GetDevice}, {"GetType", Query_GetType}, {"GetDataSize", Query_GetDataSize},
                               {"GetData", Query_GetData}};
+static void SB_Capture(CPU *c) { RET(c, 0, 1); }
+static void SB_Apply(CPU *c) { RET(c, 0, 1); }
 static const Ov sb_ov[] = {{"QueryInterface", Unk_QueryInterface}, {"AddRef", Unk_AddRef}, {"Release", Unk_Release},
-                           {"GetDevice", Res_GetDevice}};
+                           {"GetDevice", Res_GetDevice}, {"Capture", SB_Capture}, {"Apply", SB_Apply}};
 
 // ---- the device ------------------------------------------------------------------------------------
 D3DState g_d3d;          // the one device's state (FNV creates a single device)

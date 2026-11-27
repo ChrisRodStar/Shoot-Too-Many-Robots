@@ -122,7 +122,25 @@ CAMetalLayer *fnv_surface(id<MTLDevice> device, CGSize size) {
         game_layer.drawableSize = size;
         view.wantsLayer = YES;
         view.layer = game_layer;
-        [game_window center];
+        NSScreen *target = nil;
+        NSArray<NSScreen *> *screens = [NSScreen screens];
+        for (NSScreen *s in screens) {
+            if ([s.localizedName rangeOfString:@"DELL" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                target = s;
+                break;
+            }
+        }
+        if (!target && screens.count > 1)
+            target = screens[1];
+        if (target) {
+            NSRect vis = target.visibleFrame;
+            NSRect wf = game_window.frame;
+            [game_window setFrameOrigin:NSMakePoint(
+                vis.origin.x + (vis.size.width - wf.size.width) * 0.5,
+                vis.origin.y + (vis.size.height - wf.size.height) * 0.5)];
+        } else {
+            [game_window center];
+        }
         [game_window makeKeyAndOrderFront:nil];
         [NSApp activate];
         fprintf(stderr, "[smr-window] opened %.0f x %.0f Metal window\n", size.width, size.height);

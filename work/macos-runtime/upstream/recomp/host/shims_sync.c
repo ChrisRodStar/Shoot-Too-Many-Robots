@@ -309,11 +309,13 @@ SHIM(WaitForSingleObject) {
     RET(c,result,2);
 }
 SHIM(WaitForSingleObjectEx) {
-    uint32_t h=ARG(c,0),ms=ARG(c,1);
-    if(ms)diagnostic_state(c,"wait-one",h);
-    uint32_t result=wait_one(h,ms);
-    if(ms)diagnostic_state(c,"wait-returned",h);
-    RET(c,result,3);
+    uint32_t h = ARG(c, 0), ms = ARG(c, 1), alertable = ARG(c, 2);
+    if (alertable && drain_io_apcs(c) > 0) { RET(c, 0xC0u /* WAIT_IO_COMPLETION */, 3); return; }
+    if (ms) diagnostic_state(c, "wait-one", h);
+    uint32_t result = wait_one(h, ms);
+    if (ms) diagnostic_state(c, "wait-returned", h);
+    if (alertable && result == 0x102u && drain_io_apcs(c) > 0) { RET(c, 0xC0u, 3); return; }
+    RET(c, result, 3);
 }
 SHIM(WaitForMultipleObjects) {
     uint32_t n = ARG(c, 0), arr = ARG(c, 1), all = ARG(c, 2), ms = ARG(c, 3);

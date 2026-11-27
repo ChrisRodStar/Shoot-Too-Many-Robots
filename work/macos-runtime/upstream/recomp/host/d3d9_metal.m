@@ -909,19 +909,68 @@ static int setup_draw(D3DState *s) {
         if (s->rt[0] == s->backbuffer && ps) {
             HTex *t0h = host_tex(s->tex[0]), *t1h = host_tex(s->tex[1]);
             if (t1h) trace_tonemap_tex = t1h.tex;
-            fprintf(stderr, "[trace-bb-tex] s0=%#x(type=%lu %ux%u) s1=%#x(type=%lu %ux%u) cb0=%u\n",
+            SMInfo bi = ps->info; char berr[256];
+            char *bmsl = sm_translate((const uint32_t *)(void *)(MEM + G32(OBJ_F(s->ps, 0))), G32(OBJ_F(s->ps, 1)), &bi, NULL, 0, berr, sizeof berr);
+            fprintf(stderr, "[trace-bb-tex] s0=%#x(type=%lu %ux%u) s1=%#x(type=%lu %ux%u) cb0=%u\n%s\n",
                     s->tex[0], (unsigned long)(t0h ? t0h.tex.textureType : 99), t0h ? t0h.w : 0, t0h ? t0h.h : 0,
                     s->tex[1], (unsigned long)(t1h ? t1h.tex.textureType : 99), t1h ? t1h.w : 0, t1h ? t1h.h : 0,
-                    s->psb[0]);
+                    s->psb[0], bmsl ? bmsl : berr);
+            free(bmsl);
+        }
+        static uint32_t gb_tex[32]; static int gb_tn = 0;
+        if (ps && rt0 && rt0.width == 1280 && rt0.height == 720 && rt0.pixelFormat == MTLPixelFormatBGRA8Unorm && gb_tn < 16) {
+            uint32_t tx = s->tex[0];
+            int seen = 0; for (int ti = 0; ti < gb_tn; ti++) if (gb_tex[ti] == tx) seen = 1;
+            if (!seen) {
+                gb_tex[gb_tn++] = tx;
+                HTex *th = host_tex(tx);
+                uint32_t px0 = 0;
+                if (th && th.tex.storageMode == MTLStorageModeShared && th.tex.textureType == MTLTextureType2D) {
+                    [th.tex getBytes:&px0 bytesPerRow:MAX(4, th.w * 4) fromRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0];
+                }
+                fprintf(stderr, "[trace-gb-tex %d] ps=%#x s0=%#x fmt=%u %ux%u px0=%#08x wm2=%#x\n",
+                        gb_tn, s->ps, tx, th ? th.fmt : 0, th ? th.w : 0, th ? th.h : 0, px0, s->rs[191]);
+            }
+        }
+        static uint32_t gb_ps[4]; static int gb_n = 0;
+        if (ps && rt0 && rt0.width == 1280 && rt0.height == 720 && rt0.pixelFormat == MTLPixelFormatBGRA8Unorm && gb_n < 3) {
+            int seen = 0; for (int gi = 0; gi < gb_n; gi++) if (gb_ps[gi] == s->ps) seen = 1;
+            if (!seen) {
+                gb_ps[gb_n++] = s->ps;
+                SMInfo gi = ps->info; char gerr[256];
+                char *gmsl = sm_translate((const uint32_t *)(void *)(MEM + G32(OBJ_F(s->ps, 0))), G32(OBJ_F(s->ps, 1)), &gi, NULL, 0, gerr, sizeof gerr);
+                fprintf(stderr, "[trace-gbuf-ps %d] ps=%#x max_const=%d samplers=%#x wm=(%#x,%#x,%#x,%#x) cf0=(%.3f,%.3f,%.3f,%.3f)\n%s\n",
+                        gb_n, s->ps, ps->info.max_const, ps->info.samplers, s->rs[168], s->rs[190], s->rs[191], s->rs[192],
+                        s->psc[0][0], s->psc[0][1], s->psc[0][2], s->psc[0][3], gmsl ? gmsl : gerr);
+                free(gmsl);
+                for (int i = 0; i < 8; i++) if (ps->info.samplers & (1u << i)) {
+                    HTex *th = host_tex(s->tex[i]);
+                    fprintf(stderr, "  gb s%d=%#x fmt=%u %ux%u\n", i, s->tex[i], th ? th.fmt : 0, th ? th.w : 0, th ? th.h : 0);
+                }
+            }
         }
         static int hdr_logged = 0;
         if (ps && rt0 && rt0.width == 1280 && rt0.height == 720 && rt0.pixelFormat == MTLPixelFormatRGBA16Float && hdr_logged < 2) {
             hdr_logged++;
-            fprintf(stderr, "[trace-hdr-draw %d] vs=%#x ps=%#x depth_mask=%#x cf0=(%.3f,%.3f,%.3f,%.3f) cf1=(%.3f,%.3f,%.3f,%.3f) cf2=(%.3f,%.3f,%.3f,%.3f)\n",
-                    hdr_logged, s->vs, s->ps, k.depth_mask,
-                    s->psc[0], s->psc[1], s->psc[2], s->psc[3],
-                    s->psc[4], s->psc[5], s->psc[6], s->psc[7],
-                    s->psc[8], s->psc[9], s->psc[10], s->psc[11]);
+            SMInfo hi = ps->info; char herr[256];
+            char *hmsl = sm_translate((const uint32_t *)(void *)(MEM + G32(OBJ_F(s->ps, 0))), G32(OBJ_F(s->ps, 1)), &hi, NULL, 0, herr, sizeof herr);
+            fprintf(stderr, "[trace-hdr-draw %d] vs=%#x ps=%#x max_const=%d depth_mask=%#x cf0=(%.3f,%.3f,%.3f,%.3f) cf1=(%.3f,%.3f,%.3f,%.3f) cf2=(%.3f,%.3f,%.3f,%.3f)\n%s\n",
+                    hdr_logged, s->vs, s->ps, ps->info.max_const, k.depth_mask,
+                    s->psc[0][0], s->psc[0][1], s->psc[0][2], s->psc[0][3],
+                    s->psc[1][0], s->psc[1][1], s->psc[1][2], s->psc[1][3],
+                    s->psc[2][0], s->psc[2][1], s->psc[2][2], s->psc[2][3], hmsl ? hmsl : herr);
+            free(hmsl);
+            if (hdr_logged == 2) {
+                uint32_t vn = G32(OBJ_F(s->vs, 1)), vp = G32(OBJ_F(s->vs, 0));
+                fprintf(stderr, "[trace-hdr-vs-tok] ntok=%u:", vn);
+                for (uint32_t ti = 0; ti < vn && ti < 256; ti++) fprintf(stderr, " %08x", G32(vp + 4 * ti));
+                fprintf(stderr, "\n");
+                SMInfo vi2 = vs->info; char verr[256];
+                char *vmsl = sm_translate((const uint32_t *)(void *)(MEM + G32(OBJ_F(s->vs, 0))), G32(OBJ_F(s->vs, 1)), &vi2, NULL, 0, verr, sizeof verr);
+                fprintf(stderr, "[trace-hdr-vs 2] vs=%#x vsc0=(%.3f,%.3f,%.3f,%.3f)\n%s\n",
+                        s->vs, s->vsc[0][0], s->vsc[0][1], s->vsc[0][2], s->vsc[0][3], vmsl ? vmsl : verr);
+                free(vmsl);
+            }
             for (int i = 0; i < 8; i++) if (ps->info.samplers & (1u << i)) {
                 HTex *th = host_tex(s->tex[i]);
                 fprintf(stderr, "  s%d=%#x fmt=%u %ux%u\n", i, s->tex[i], th ? th.fmt : 0, th ? th.w : 0, th ? th.h : 0);
