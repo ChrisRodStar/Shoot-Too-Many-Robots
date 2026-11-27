@@ -130,7 +130,7 @@ def backup_state(generated: Path) -> Path | None:
         if source.is_file():
             shutil.copy2(source, target / name)
     common.save_json(target / "manifest.json", exists)
-    keep = sorted(backups.glob("entry-*"))[:-3]
+    keep = sorted(backups.glob("entry-*"))[:-6]
     for old in keep:
         shutil.rmtree(old, ignore_errors=True)
     return target
@@ -196,8 +196,10 @@ def emit_subset(generated: Path) -> dict:
 
 
 def rebuild() -> tuple[bool, str]:
+    """Build the windowed host: the promotion experiment validates the tutorial run."""
     env = os.environ.copy()
     env["SMR_BUILD_ONLY"] = "1"
+    env["SMR_WINDOW"] = "1"
     code, out, elapsed, timed_out = common.run_with_timeout(
         [str(common.STARTUP_PROBE)], env=env, timeout=900
     )
@@ -224,8 +226,42 @@ def main(argv=None):
     parser.add_argument("--no-run", action="store_true", help="stop after verify and build")
     parser.add_argument("--no-build", action="store_true", help="emit and verify only")
     parser.add_argument("--keep-on-failure", action="store_true", help="leave the failed entry set in place")
+    parser.add_argument("--revert", action="store_true", help="restore a previous entry set and rebuild")
+    parser.add_argument("--from-backup", type=Path, help="backup directory for --revert (default: newest)")
     parser.add_argument("--force", action="store_true", help="promote even if verify reports a real mismatch")
     args = parser.parse_args(argv)
+
+    if args.revert:
+        backups = sorted((common.ensure_dev() / "backups").glob("entry-*"))
+        backup = args.from_backup.resolve() if args.from_backup else (backups[-1] if backups else None)
+        if not backup or not backup.is_dir():
+            common.fail("no backup to restore")
+        source = backup / "generated" if (backup / "generated" / "table.c").is_file() else backup
+        if not (source / "table.c").is_file():
+            common.fail(f"no generated C in {backup}")
+        generated = common.VARIANTS["entry"]["generated"]
+        shutil.rmtree(generated, ignore_errors=True)
+        shutil.copytree(source, generated)
+        addresses = set(common.table_addresses(generated))
+        written = write_subset(addresses)
+        common.save_json(
+            common.DEV / "entry-set.json",
+            {"updated": time.strftime("%Y-%m-%dT%H:%M:%S"), "addresses": sorted(addresses)},
+        )
+        print()
+        print(f"  restored      {written} entries from {backup.relative_to(common.ROOT)}")
+        if args.no_build:
+            print()
+            return 0
+        code = verify.main(["--changed"])
+        if code != 0 and not args.force:
+            common.fail("restored set did not verify", code)
+        ok, detail = rebuild()
+        if not ok:
+            common.fail("host rebuild failed", 1)
+        print(f"  rebuilt       {detail}")
+        print()
+        return 0
 
     if not common.PCODE.is_file() or not EMIT.is_file():
         common.fail("missing P-code export or emit.py")
@@ -343,5 +379,21 @@ def main(argv=None):
     new_perf = (after.get("perf") or {}).get("fps")
     if old_perf and new_perf:
         print(f"    fps                 {old_perf} -> {new_perf} ({new_perf - old_perf:+.1f})")
+
+    progress = len(new) < len(old)
+    regressed = bool(old_perf and new_perf and new_perf < old_perf - 1.0)
+    if (regressed or not progress) and backup and not args.force:
+        restore_state(backup, generated)
+        ok, detail = rebuild()
+        print()
+        print(
+            "  reverted      promotion did not pay off ("
+            + ("slower" if regressed else "no fallback progress")
+            + "); restored the previous entry set"
+        )
+        if ok:
+            print(f"  rebuilt       {detail}")
+        print()
+        return 1
     print()
     return 0 if code == 0 else 1

@@ -69,6 +69,7 @@ usage: ./scripts/recomp <command> [options]
   verify [addresses...]  offline native-vs-x86 differential test (no game launch)
   run [--to tutorial]    build (incrementally) and run the guest hands-free
   promote [addresses]    make hot Unicorn fallbacks native, then verify + run
+                         (--dry-run, --revert to roll back a measured loss)
   build [--full]         rebuild the host only, with cache statistics
   explain <address>      original instructions, calls, generated C, last verdict
   clean [--all]          drop rebuildable caches (testlib, indexes, reports)

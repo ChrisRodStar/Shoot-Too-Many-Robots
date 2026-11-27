@@ -65,6 +65,7 @@ touched memory. `scripts/recomp verify` turns it into a usable inner loop.
 | `./scripts/recomp explain 0x83ed3e` | Instructions, call targets, generated C, last verdict. | < 1 s |
 | `./scripts/recomp promote --dry-run` | Show which fallbacks would become native. | ~15 s first time, then fast |
 | `./scripts/recomp promote` | Promote, verify, rebuild, and re-run the tutorial. | ~4 min |
+| `./scripts/recomp promote --revert` | Restore the previous entry set and rebuild. | seconds |
 | `./scripts/recomp clean` | Drop rebuildable caches (testlib, indexes, reports). | < 1 s |
 | `./scripts/recomp run --to tutorial` | Incremental build + boot to the tutorial + summary + deltas. | 2–3 min (entry), ~1.5 min (full) |
 | `./scripts/recomp build --full` | Rebuild only, report cache hits. | varies |
@@ -250,10 +251,39 @@ Safety gates:
 2. Direct callees are added unless `--no-closure` is given, so a promoted
    function does not immediately fall back again. (For the current tutorial
    roots this adds nothing: they are leaves.)
-3. `verify --changed` must pass before the host is rebuilt. On a real mismatch
-   the generated C is left in place but the host is not, and the backup path is
-   printed.
-4. The final re-run reports `game.exe fallbacks N -> M` and the fps delta.
+3. `verify --changed` must pass before the host is rebuilt. A suspected mismatch
+   is re-run alone in a fresh process; only bugs that reproduce count.
+4. The final re-run reports `game.exe fallbacks N -> M` and the fps delta, and
+   **reverts automatically** if the promotion is slower by more than 1 fps or
+   does not reduce the game.exe fallback count. Because the validation run is
+   windowed, `promote` rebuilds `work/window-host`, not the headless host.
+5. `promote --revert` restores the previous entry set (or `--from-backup PATH`)
+   and rebuilds.
+
+### When promotion loses
+
+Promoting a fallback root can make the tutorial *slower*. The observed roots are
+thin wrappers: making the wrapper native moves the Unicorn boundary one call
+deeper, so every indirect call now pays a native→Unicorn state switch. The
+wrapper was cheaper to interpret as a whole.
+
+Measured on this title (2026-11-26):
+
+| Round | Promoted | game.exe fallbacks | fps |
+| --- | --- | --- | --- |
+| baseline | — | 22 | 19.7 |
+| 1 | 22 | 13 (17 new indirect callees appeared) | 17.4 |
+| 2 | 13 | 17 (another layer appeared) | 18.2 |
+
+The set did not converge and never beat the baseline, so the entry set was
+reverted to the curated 189 functions. (The absolute fps deltas are small and
+run-to-run variance is around 1 fps; the decisive result is that each round
+revealed another layer of indirect callees instead of closing the gap.) Use
+`run --to tutorial --full` when the frame rate matters: the full 46k build is
+the performance path (~28 fps, two game.exe gaps). `promote` is still useful for
+a genuinely hot, self-contained function, and now refuses to leave a regression
+in place. A profiling-driven promotion that closes over the whole dynamic callee
+set would be the next step, not one-root-at-a-time promotion.
 
 Promotion only affects game-exe code. Fallbacks inside `msvcr90`, `msvcp90`,
 PhysX, FMOD and friends remain; those need separate analysis and emission.

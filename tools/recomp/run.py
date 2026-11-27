@@ -132,6 +132,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         "host": socket.gethostname(),
         "variant": variant,
         "mode": mode,
+        "entry_size": len(common.table_addresses(common.VARIANTS[variant]["generated"])),
         "exit": exit_code,
         "timed_out": timed_out,
         "elapsed_s": round(elapsed, 1),
@@ -140,7 +141,11 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         **parsed,
     }
     previous = before or {}
-    same_setup = previous.get("variant") == variant and previous.get("mode") == mode
+    same_setup = (
+        previous.get("variant") == variant
+        and previous.get("mode") == mode
+        and previous.get("entry_size") == entry["entry_size"]
+    )
     old_fallbacks = set(previous.get("fallback_roots", [])) if same_setup else set()
     new_fallbacks = [a for a in parsed["fallback_roots"] if a not in old_fallbacks] if same_setup else []
     entry["new_fallbacks"] = new_fallbacks
@@ -158,13 +163,14 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         f"{perf['windows']} windows)"
     )
     previous_perf = previous.get("perf") or {}
-    comparable = (
+    comparable = bool(
         previous_perf
         and previous.get("variant") == variant
         and previous.get("mode") == mode
+        and previous.get("entry_size") == entry["entry_size"]
     )
     if previous_perf and not comparable:
-        print("  (previous run used a different variant/mode; deltas omitted)")
+        print("  (previous run used a different variant/mode/native set; deltas omitted)")
     if comparable and previous_perf.get("fps") is not None and perf.get("fps") is not None:
         fps_line += f"  · {perf['fps'] - previous_perf['fps']:+.1f} vs previous"
     print(fps_line)
