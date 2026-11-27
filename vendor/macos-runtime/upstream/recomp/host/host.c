@@ -73,6 +73,7 @@ bool smr_module_uses_legacy_crt(uint32_t base);
 bool smr_attach_modules(CPU *cpu);
 uint32_t smr_module_export(const char *dll, const char *name);
 ShimFn smr_find_msvcr90_fast_shim(const char *name);
+ShimFn smr_find_msvcp90_fast_shim(const char *name);
 
 void smr_bind_imports(uint32_t base) {
     uint32_t pe = base + rd32(base + 0x3C);
@@ -99,7 +100,8 @@ void smr_bind_imports(uint32_t base) {
             } else {
                 symbol = (const char *)MEM + base + e + 2;
             }
-            bool prefer_shim = !strcasecmp(dll, "msvcr90.dll") && smr_find_msvcr90_fast_shim(symbol);
+            bool prefer_shim = (!strcasecmp(dll, "msvcr90.dll") && smr_find_msvcr90_fast_shim(symbol)) ||
+                               (!strcasecmp(dll, "msvcp90.dll") && smr_find_msvcp90_fast_shim(symbol));
             uint32_t exported = prefer_shim ? 0 : smr_module_export(dll, symbol);
             if (exported) {
                 P32(iat, exported);
