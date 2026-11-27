@@ -77,9 +77,11 @@ if [[ "$data_real" != "$work_real" ]]; then
     if [[ -d "$data/startup-full-cache" && ! -e "$work/startup-full-cache" ]]; then
         cp -cR "$data/startup-full-cache" "$work/startup-full-cache" 2>/dev/null || cp -a "$data/startup-full-cache" "$work/startup-full-cache"
     fi
-    for item in ghidra-d3dx9 ghidra-physxcore ghidra-fmodex ghidra-fmod_event; do
-        if [[ -d "$data/$item" && ! -e "$work/$item" ]]; then
-            ln -sfn "$data/$item" "$work/$item"
+    for dir in "$data"/ghidra-*; do
+        [[ -d "$dir" ]] || continue
+        item="$(basename "$dir")"
+        if [[ ! -e "$work/$item" ]]; then
+            ln -sfn "$dir" "$work/$item"
         fi
     done
 fi
