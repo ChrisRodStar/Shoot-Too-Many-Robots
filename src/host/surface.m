@@ -330,6 +330,9 @@ static void smr_install_menu(void) {
 }
 
 int smr_run_windowed(int argc, char **argv) {
+    if (getenv("FNV_HEADLESS")) {
+        return fnv_run_game(argc, argv);
+    }
     @autoreleasepool {
         NSApplication *app = [NSApplication sharedApplication];
         SMRAppDelegate *delegate = [SMRAppDelegate new];

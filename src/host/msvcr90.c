@@ -1120,6 +1120,117 @@ static int32_t rtti_pmd_offset(uint32_t complete_obj, uint32_t pmd) {
     return mdisp;
 }
 
+static uint32_t rtti_find_si(uint32_t col, uint32_t src_type, uint32_t target_type) {
+    uint32_t chd = G32(col + 16);
+    uint32_t nbase = G32(chd + 8);
+    uint32_t bca = G32(chd + 12);
+    uint32_t i = 0;
+    uint32_t target_bcd = 0;
+    for (; i < nbase; i++) {
+        uint32_t bcd = G32(bca + 4 * i);
+        if (rtti_type_match(G32(bcd), target_type)) {
+            target_bcd = bcd;
+            i++;
+            break;
+        }
+    }
+    for (; i < nbase; i++) {
+        uint32_t sub = G32(bca + 4 * i);
+        if (G32(sub + 20) & 4u) return 0;
+        if (rtti_type_match(G32(sub), src_type)) return target_bcd;
+    }
+    return 0;
+}
+
+static uint32_t rtti_find_mi(uint32_t complete, uint32_t src_type, int32_t in_delta,
+                             uint32_t target_type, uint32_t col) {
+    uint32_t chd = G32(col + 16);
+    uint32_t nbase = G32(chd + 8);
+    uint32_t bca = G32(chd + 12);
+    uint32_t target_bcd = 0, src_bcd = 0, target_sub = 0;
+    int32_t prev_tidx = -1;
+
+    for (uint32_t i = 0; i < nbase; i++) {
+        uint32_t bcd = G32(bca + 4 * i);
+        if ((uint32_t)((int32_t)i - prev_tidx) > target_sub &&
+            rtti_type_match(G32(bcd), target_type)) {
+            if (src_bcd) {
+                return ((G32(bcd + 20) & 3u) == 0 && (G32(src_bcd + 20) & 1u) == 0) ? bcd : 0;
+            }
+            prev_tidx = (int32_t)i;
+            target_bcd = bcd;
+            target_sub = G32(bcd + 4);
+        }
+        if (rtti_type_match(G32(bcd), src_type) &&
+            rtti_pmd_offset(complete, bcd + 8) == in_delta) {
+            if (!target_bcd) {
+                src_bcd = bcd;
+            } else {
+                uint32_t rel = (uint32_t)((int32_t)i - prev_tidx);
+                if (rel <= target_sub) {
+                    if (G32(target_bcd + 20) & 0x40u) {
+                        uint32_t sub = G32(G32(G32(target_bcd + 24) + 12) + 4 * rel);
+                        return (G32(sub + 20) & 1u) ? 0 : target_bcd;
+                    }
+                    if (prev_tidx == 0 && (G32(bcd + 20) & 1u)) return 0;
+                    return target_bcd;
+                }
+                return ((G32(target_bcd + 20) & 3u) == 0 && (G32(bcd + 20) & 1u) == 0) ? target_bcd : 0;
+            }
+        }
+    }
+    return 0;
+}
+
+static uint32_t rtti_find_vi(uint32_t complete, uint32_t src_type, int32_t in_delta,
+                             uint32_t target_type, uint32_t col) {
+    uint32_t chd = G32(col + 16);
+    uint32_t nbase = G32(chd + 8);
+    uint32_t bca = G32(chd + 12);
+    uint32_t res_down = 0, public_src = 0, public_target = 0;
+    uint32_t cur_target = 0, cur_sub = 0;
+    int32_t cur_tidx = -1, res_off = -1;
+    bool downcast_ok = true;
+
+    for (uint32_t i = 0; i < nbase; i++) {
+        uint32_t bcd = G32(bca + 4 * i);
+        if ((uint32_t)((int32_t)i - cur_tidx) > cur_sub &&
+            rtti_type_match(G32(bcd), target_type)) {
+            if ((G32(bcd + 20) & 3u) == 0) public_target = bcd;
+            cur_tidx = (int32_t)i;
+            cur_target = bcd;
+            cur_sub = G32(bcd + 4);
+        }
+        if (rtti_type_match(G32(bcd), src_type) &&
+            rtti_pmd_offset(complete, bcd + 8) == in_delta) {
+            uint32_t rel = (uint32_t)((int32_t)i - cur_tidx);
+            if (rel <= cur_sub) {
+                if (downcast_ok) {
+                    bool pub = true;
+                    if (G32(cur_target + 20) & 0x40u) {
+                        uint32_t sa = G32(G32(G32(G32(cur_target + 24) + 12) + 4 * rel) + 20);
+                        if (sa & 1u) downcast_ok = false;
+                        pub = !(sa & 4u);
+                    } else if (cur_tidx == 0 && (G32(bcd + 20) & 1u)) {
+                        downcast_ok = false;
+                    }
+                    if (downcast_ok && pub) {
+                        int32_t toff = rtti_pmd_offset(complete, cur_target + 8);
+                        if (res_down && res_off != toff) return 0;
+                        res_down = cur_target;
+                        res_off = toff;
+                    }
+                }
+            } else if ((G32(bcd + 20) & 5u) == 0) {
+                public_src = bcd;
+            }
+        }
+    }
+    if (downcast_ok && res_down) return res_down;
+    if (public_src && public_target) return public_target;
+    return 0;
+}
+
 SHIM(__RTDynamicCast) {
     uint32_t inptr = ARG(c, 0);
     int32_t vfdelta = (int32_t)ARG(c, 1);
@@ -1137,50 +1248,14 @@ SHIM(__RTDynamicCast) {
     int32_t in_delta = (int32_t)(inptr - (uint32_t)vfdelta - complete);
     uint32_t chd = G32(col + 16);
     uint32_t attrs = G32(chd + 4);
-    uint32_t nbase = G32(chd + 8);
-    uint32_t bca = G32(chd + 12);
     uint32_t found_bcd = 0;
 
     if (!(attrs & 1u)) {
-        // Single inheritance: locate TargetType, ensure no private/protected base, verify SrcType.
-        for (uint32_t i = 0; i < nbase; i++) {
-            uint32_t bcd = G32(bca + 4 * i);
-            if (rtti_type_match(G32(bcd), target_type)) {
-                bool ok = false;
-                for (uint32_t j = i + 1; j < nbase; j++) {
-                    uint32_t sub = G32(bca + 4 * j);
-                    if (G32(sub + 20) & 4u) break;
-                    if (rtti_type_match(G32(sub), src_type)) { ok = true; break; }
-                }
-                if (ok) found_bcd = bcd;
-                break;
-            }
-        }
+        found_bcd = rtti_find_si(col, src_type, target_type);
+    } else if (!(attrs & 2u)) {
+        found_bcd = rtti_find_mi(complete, src_type, in_delta, target_type, col);
     } else {
-        // Multiple / virtual inheritance: search for downcast (Target contains Src at in_delta) or upcast.
-        for (uint32_t i = 0; i < nbase && !found_bcd; i++) {
-            uint32_t bcd = G32(bca + 4 * i);
-            uint32_t sub_count = G32(bcd + 4);
-            if (rtti_type_match(G32(bcd), target_type)) {
-                for (uint32_t j = 1; j <= sub_count && i + j < nbase; j++) {
-                    uint32_t sub = G32(bca + 4 * (i + j));
-                    if (G32(sub + 20) & 5u) continue;
-                    if (rtti_type_match(G32(sub), src_type) && rtti_pmd_offset(complete, sub + 8) == in_delta) {
-                        found_bcd = bcd;
-                        break;
-                    }
-                }
-            } else if (rtti_type_match(G32(bcd), src_type) && rtti_pmd_offset(complete, bcd + 8) == in_delta) {
-                for (uint32_t j = 1; j <= sub_count && i + j < nbase; j++) {
-                    uint32_t sub = G32(bca + 4 * (i + j));
-                    if (G32(sub + 20) & 5u) continue;
-                    if (rtti_type_match(G32(sub), target_type)) {
-                        found_bcd = sub;
-                        break;
-                    }
-                }
-            }
-        }
+        found_bcd = rtti_find_vi(complete, src_type, in_delta, target_type, col);
     }
 
     if (found_bcd) {
