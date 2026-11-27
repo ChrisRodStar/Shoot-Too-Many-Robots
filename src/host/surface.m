@@ -1,8 +1,11 @@
 #import <AppKit/AppKit.h>
 #import <math.h>
+#import "FNVDisplay.h"
 #import "FNVSurface.h"
 #include "FNVKeyMap.h"
 #include "input.h"
+
+extern void input_mouse_pos(int32_t x, int32_t y);
 
 static NSWindow *game_window;
 static CAMetalLayer *game_layer;
@@ -39,6 +42,33 @@ static void smr_sync_drawable(void);
     return [view mouse:point inRect:view.bounds];
 }
 
+// Map window cursor points into the guest backbuffer's active aspect-fit rectangle.
+- (void)updateMousePos:(NSEvent *)event {
+    NSView *view = self.contentView;
+    NSRect bounds = view.bounds;
+    double vw = bounds.size.width, vh = bounds.size.height;
+    if (vw <= 0.0 || vh <= 0.0) return;
+    unsigned gw = fnv_client_width(), gh = fnv_client_height();
+    if (!gw) gw = 1024;
+    if (!gh) gh = 768;
+    double sa = (double)gw / (double)gh, da = vw / vh;
+    double fw = vw, fh = vh;
+    if (sa > da) fh = vw / sa;
+    else if (sa < da) fw = vh * sa;
+    double ox = (vw - fw) * 0.5, oy = (vh - fh) * 0.5;
+    NSPoint pt = [view convertPoint:event.locationInWindow fromView:nil];
+    double lx = pt.x, ly = vh - pt.y;
+    double u = fw > 0.0 ? (lx - ox) / fw : 0.0;
+    double v = fh > 0.0 ? (ly - oy) / fh : 0.0;
+    if (u < 0.0) u = 0.0; else if (u > 1.0) u = 1.0;
+    if (v < 0.0) v = 0.0; else if (v > 1.0) v = 1.0;
+    int32_t gx = (int32_t)floor(u * (double)gw);
+    int32_t gy = (int32_t)floor(v * (double)gh);
+    if (gx < 0) gx = 0; else if (gx >= (int32_t)gw) gx = (int32_t)gw - 1;
+    if (gy < 0) gy = 0; else if (gy >= (int32_t)gh) gy = (int32_t)gh - 1;
+    input_mouse_pos(gx, gy);
+}
+
 - (void)sendEvent:(NSEvent *)event {
     if (event.type == NSEventTypeKeyDown || event.type == NSEventTypeKeyUp) {
         NSEventModifierFlags mods = event.modifierFlags;
@@ -71,6 +101,7 @@ static void smr_sync_drawable(void);
     case NSEventTypeOtherMouseDown: {
         NSUInteger button = event.buttonNumber;
         if (button < sizeof(guest_buttons) && [self containsMouseEvent:event]) {
+            [self updateMousePos:event];
             guest_buttons[button] = YES;
             input_mouse_button((int)button, 1);
         }
@@ -81,16 +112,15 @@ static void smr_sync_drawable(void);
     case NSEventTypeOtherMouseUp: {
         NSUInteger button = event.buttonNumber;
         if (button < sizeof(guest_buttons) && guest_buttons[button]) {
+            [self updateMousePos:event];
             guest_buttons[button] = NO;
             input_mouse_button((int)button, 0);
         }
         break;
     }
     case NSEventTypeMouseMoved:
-    case NSEventTypeLeftMouseDragged:
-    case NSEventTypeRightMouseDragged:
-    case NSEventTypeOtherMouseDragged:
         if (self.isKeyWindow && [self containsMouseEvent:event]) {
+            [self updateMousePos:event];
             mouse_dx += event.deltaX;
             mouse_dy += event.deltaY;
             int dx = (int)mouse_dx, dy = (int)mouse_dy;
@@ -99,6 +129,30 @@ static void smr_sync_drawable(void);
                 mouse_dx -= dx;
                 mouse_dy -= dy;
             }
+        }
+        break;
+    case NSEventTypeLeftMouseDragged:
+    case NSEventTypeRightMouseDragged:
+    case NSEventTypeOtherMouseDragged:
+        if (self.isKeyWindow) {
+            [self updateMousePos:event];
+            mouse_dx += event.deltaX;
+            mouse_dy += event.deltaY;
+            int dx = (int)mouse_dx, dy = (int)mouse_dy;
+            if (dx || dy) {
+                input_mouse_move(dx, dy);
+                mouse_dx -= dx;
+                mouse_dy -= dy;
+            }
+        }
+        break;
+    case NSEventTypeScrollWheel:
+        if (self.isKeyWindow && [self containsMouseEvent:event]) {
+            double dy = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY * 4.0
+                                                        : event.scrollingDeltaY * 120.0;
+            int dz = (int)llround(dy);
+            if (dz)
+                input_mouse_wheel(dz);
         }
         break;
     default:

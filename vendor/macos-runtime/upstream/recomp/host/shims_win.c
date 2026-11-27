@@ -132,6 +132,12 @@ SHIM(ScreenToClient) {
 SHIM(ClientToScreen) { ScreenToClient_(c); }
 
 SHIM(GetClientRect) { uint32_t r = ARG(c, 1); P32(r, 0); P32(r + 4, 0); P32(r + 8, fnv_client_width()); P32(r + 12, fnv_client_height()); RET(c, 1, 2); }
+SHIM(GetWindowRect) {
+    uint32_t r = ARG(c, 1);
+    if (!r) { RET(c, 0, 2); return; }
+    P32(r, 0); P32(r + 4, 0); P32(r + 8, fnv_client_width()); P32(r + 12, fnv_client_height());
+    RET(c, 1, 2);
+}
 SHIM(AdjustWindowRect) { RET(c, 1, 3); }
 SHIM(AdjustWindowRectEx) { RET(c, 1, 4); }
 SHIM(GetSystemMetrics) { uint32_t i = ARG(c, 0); RET(c, i == 0 ? fnv_display_width() : i == 1 ? fnv_display_height() : 0, 1); }
@@ -171,6 +177,8 @@ SHIM(ToUnicode) {
     uint16_t w = (uint16_t)ch; memcpy(MEM + out, &w, 2);
     RET(c, 1, 6);
 }
+void input_mouse_pos(int32_t x, int32_t y);
+int input_get_mouse_pos(int32_t *x, int32_t *y);
 static bool cursor_set, cursor_clipped;
 static int32_t cursor_x, cursor_y, cursor_clip[4];
 
@@ -186,14 +194,19 @@ SHIM(SetCursorPos) {
     cursor_x = (int32_t)ARG(c, 0);
     cursor_y = (int32_t)ARG(c, 1);
     cursor_set = true;
+    input_mouse_pos(cursor_x, cursor_y);
     RET(c, 1, 2);
 }
 
 SHIM(GetCursorPos) {
     uint32_t output = ARG(c, 0);
     if (output) {
-        int32_t x = cursor_set ? cursor_x : (int32_t)fnv_client_width() / 2;
-        int32_t y = cursor_set ? cursor_y : (int32_t)fnv_client_height() / 2;
+        int32_t x = (int32_t)fnv_client_width() / 2;
+        int32_t y = (int32_t)fnv_client_height() / 2;
+        if (!input_get_mouse_pos(&x, &y) && cursor_set) {
+            x = cursor_x;
+            y = cursor_y;
+        }
         if (cursor_clipped && cursor_clip[0] < cursor_clip[2] && cursor_clip[1] < cursor_clip[3]) {
             if (x < cursor_clip[0]) x = cursor_clip[0];
             if (y < cursor_clip[1]) y = cursor_clip[1];
@@ -402,7 +415,7 @@ SHIM(waveInGetNumDevs) { RET(c, 0, 0); }
 SHIM_TABLE(win_shims,
     E(RegisterClassA) E(CreateWindowExA) E(DestroyWindow) E(ShowWindow) E(UpdateWindow) E(SetWindowPos)
     E(SetWindowTextA) E(GetWindowTextA) E(GetClassNameA) E(GetWindow) E(GetWindowLongA) E(SetWindowLongA) E(GetClassLongA)
-    E(EnumChildWindows) E(FindWindowA) E(GetDesktopWindow) E(GetProcessWindowStation) E(GetUserObjectInformationW) E(GetActiveWindow) E(GetForegroundWindow) E(GetFocus) E(SetForegroundWindow) E(ScreenToClient) E(ClientToScreen) E(GetClientRect)
+    E(EnumChildWindows) E(FindWindowA) E(GetDesktopWindow) E(GetProcessWindowStation) E(GetUserObjectInformationW) E(GetActiveWindow) E(GetForegroundWindow) E(GetFocus) E(SetForegroundWindow) E(ScreenToClient) E(ClientToScreen) E(GetClientRect) E(GetWindowRect)
     E(AdjustWindowRect) E(AdjustWindowRectEx) E(GetSystemMetrics) E(EnumDisplayDevicesA) E(LoadImageA) E(LoadIconA)
     E(LoadCursorA) E(SetCursor) E(ShowCursor) E(GetDoubleClickTime) E(SwapMouseButton) E(GetAsyncKeyState)
     E(GetKeyState) E(GetKeyboardLayout) E(MapVirtualKeyA) E(ToUnicode) E(ClipCursor) E(SetCursorPos) E(GetCursorPos)

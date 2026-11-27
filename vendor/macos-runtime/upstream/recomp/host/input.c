@@ -9,6 +9,8 @@
 static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
 static uint8_t keys[256];
 static int32_t mdx, mdy, mdz;
+static int32_t mx, my;
+static int mpos_valid;
 static uint8_t mbtn[8];
 #define QN 1024
 typedef struct { uint32_t ofs, data; } Ev;
@@ -71,6 +73,18 @@ void input_mouse_button(int b, int down) {
     mbtn[b] = down ? 0x80 : 0; push(1, 12 + (uint32_t)b, down ? 0x80 : 0);
     pthread_mutex_unlock(&lk);
 }
+void input_mouse_pos(int32_t x, int32_t y) {
+    pthread_mutex_lock(&lk);
+    mx = x; my = y; mpos_valid = 1;
+    pthread_mutex_unlock(&lk);
+}
+int input_get_mouse_pos(int32_t *x, int32_t *y) {
+    pthread_mutex_lock(&lk);
+    int ok = mpos_valid;
+    if (ok) { *x = mx; *y = my; }
+    pthread_mutex_unlock(&lk);
+    return ok;
+}
 
 void input_keyboard_state(uint8_t out[256]) { pthread_mutex_lock(&lk); memcpy(out, keys, 256); pthread_mutex_unlock(&lk); }
 uint32_t input_map_vk(uint32_t code, uint32_t map_type) {
@@ -93,7 +107,14 @@ uint32_t input_map_vk(uint32_t code, uint32_t map_type) {
 int input_vk_down(int vk) {
     pthread_mutex_lock(&lk);
     int down = 0;
-    for (int dik = 1; dik < 256; dik++) if (dikmap[dik].vk == vk && keys[dik]) { down = 1; break; }
+    if (vk == 0x01) down = mbtn[0] != 0;      // VK_LBUTTON
+    else if (vk == 0x02) down = mbtn[1] != 0; // VK_RBUTTON
+    else if (vk == 0x04) down = mbtn[2] != 0; // VK_MBUTTON
+    else if (vk == 0x05) down = mbtn[3] != 0; // VK_XBUTTON1
+    else if (vk == 0x06) down = mbtn[4] != 0; // VK_XBUTTON2
+    else {
+        for (int dik = 1; dik < 256; dik++) if (dikmap[dik].vk == vk && keys[dik]) { down = 1; break; }
+    }
     pthread_mutex_unlock(&lk);
     return down;
 }
@@ -244,6 +265,7 @@ void input_script_tick(uint64_t frame) {
         cursor++;
         if (!strcmp(s->cmd, "key")) input_key(s->a, s->b);
         else if (!strcmp(s->cmd, "mouse")) input_mouse_move(s->a, s->b);
+        else if (!strcmp(s->cmd, "pos")) input_mouse_pos(s->a, s->b);
         else if (!strcmp(s->cmd, "button")) input_mouse_button(s->a, s->b);
         else if (!strcmp(s->cmd, "dump")) dump_req = 1;
         else if (!strcmp(s->cmd, "quit")) { fprintf(stderr, "[input] script quit at frame %llu\n", (unsigned long long)frame); exit(0); }
