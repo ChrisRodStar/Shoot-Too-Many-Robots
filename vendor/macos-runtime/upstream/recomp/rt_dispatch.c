@@ -13,6 +13,7 @@ extern const int rt_fn_count;
 __attribute__((weak)) void rt_import_call(CPU *c, uint32_t a) { rt_trap(c, TRAP_NOFN, a); }
 // No native function for an address: the host interprets it (fallback.c); the test library traps.
 __attribute__((weak)) void rt_fallback(CPU *c, uint32_t a) { rt_trap(c, TRAP_NOFN, a); }
+__attribute__((weak)) void (*smr_find_addr_shim(uint32_t a))(CPU *c) { (void)a; return NULL; }
 
 // O(1) dispatch: one 32-bit slot per byte of the code range holds (function index + 1).
 #define DISP_LO 0x00400000u
@@ -76,10 +77,12 @@ void rt_call(CPU *c, uint32_t a) {
 #endif
     int i = fn_index(a);
     if (i >= 0) { rt_fn_ptr[i](c); return; }
+    void (*addr_shim)(CPU *) = smr_find_addr_shim(a);
+    if (addr_shim) { addr_shim(c); return; }
     rt_fallback(c, a);
 }
 
-int rt_has_fn(uint32_t a) { return fn_index(a) >= 0; }
+int rt_has_fn(uint32_t a) { return fn_index(a) >= 0 || smr_find_addr_shim(a) != NULL; }
 
 #ifdef RT_CALLTRACE
 _Thread_local uint32_t rt_ct_ring[256];
