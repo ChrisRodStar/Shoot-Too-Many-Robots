@@ -641,13 +641,52 @@ static void Dev_GetDisplayMode(CPU *c) { uint32_t m = ARG(c, 2); P32(m, g_d3d.wi
 static void Dev_GetCreationParameters(CPU *c) { uint32_t p = ARG(c, 1); P32(p, 0); P32(p + 4, 1); P32(p + 8, g_d3d.hwnd); P32(p + 12, 0x40); RET(c, 0, 2); }
 static void Dev_GetSwapChain(CPU *c) { addref(g_d3d.swapchain); P32(ARG(c, 2), g_d3d.swapchain); RET(c, 0, 3); }
 static void Dev_GetNumberOfSwapChains(CPU *c) { RET(c, 1, 1); }
+// Reset keeps the guest surface objects alive (the game may still hold pointers to them), but
+// their storage has to follow the new backbuffer dimensions: otherwise a 1024x768 viewport gets
+// rendered into the 1280x720 texture created with the device and the whole image is squashed.
+static void resize_surface_storage(uint32_t s, uint32_t w, uint32_t h, uint32_t fmt, uint32_t ms) {
+    if (!s || OBJ_KIND(s) != K_SURF || !w || !h) return;
+    uint32_t ow = G32(OBJ_F(s, S_W)), oh = G32(OBJ_F(s, S_H)), ofmt = G32(OBJ_F(s, S_FMT));
+    uint32_t op = 0, osz = 0, np = 0, nsz = 0;
+    level_layout(ofmt, ow, oh, &op, &osz);
+    level_layout(fmt, w, h, &np, &nsz);
+    d3d_surf_bytes = d3d_surf_bytes >= osz ? d3d_surf_bytes - osz : 0;
+    d3d_surf_bytes += nsz;
+    if (G32(OBJ_F(s, S_DATA))) { gfree(G32(OBJ_F(s, S_DATA))); P32(OBJ_F(s, S_DATA), 0); }
+    surf_drop_evicted(s);
+    P32(OBJ_F(s, S_W), w); P32(OBJ_F(s, S_H), h); P32(OBJ_F(s, S_FMT), fmt);
+    P32(OBJ_F(s, S_PITCH), np); P32(OBJ_F(s, S_MS), ms);
+    P32(OBJ_F(s, S_DIRTY), 0);
+}
 static void Dev_Reset(CPU *c) {
     uint32_t pp = ARG(c, 1);
+    if (!pp) { RET(c, D3DERR_INVALIDCALL, 2); return; }
     memcpy(g_d3d.pp, MEM + pp, 56);
     if (G32(pp)) g_d3d.width = G32(pp); if (G32(pp + 4)) g_d3d.height = G32(pp + 4);
     fnv_display_client(g_d3d.width,g_d3d.height);
     fprintf(stderr, "[d3d9] Reset %ux%u\n", g_d3d.width, g_d3d.height);
-    d3d_backend_resize(&g_d3d);
+    uint32_t w = g_d3d.width, h = g_d3d.height;
+    if (w && h) {
+        uint32_t ms = G32(pp + 16);                              // D3DPRESENT_PARAMETERS.MultiSampleType
+        uint32_t bbfmt = G32(pp + 8) ? G32(pp + 8)
+                        : (g_d3d.backbuffer ? G32(OBJ_F(g_d3d.backbuffer, S_FMT)) : 21 /* D3DFMT_A8R8G8B8 */);
+        resize_surface_storage(g_d3d.backbuffer, w, h, bbfmt, ms);
+        if (g_d3d.ds && !G32(OBJ_F(g_d3d.ds, S_CONT))) {        // auto/standalone depth only
+            uint32_t dsfmt = G32(pp + 44) ? G32(pp + 44) : G32(OBJ_F(g_d3d.ds, S_FMT));
+            resize_surface_storage(g_d3d.ds, w, h, dsfmt, ms);
+        } else if (G32(pp + 40) && !g_d3d.ds) {                  // EnableAutoDepthStencil
+            g_d3d.ds = new_surface(the_device, w, h, G32(pp + 44), 2 /* DEPTHSTENCIL */, 0, ms, 0, 0, 0);
+        }
+        // Reset returns device state to defaults: render to the resized backbuffer, full viewport.
+        for (int i = 1; i < 4; i++) bind_resource(&g_d3d.rt[i], 0);
+        bind_resource(&g_d3d.rt[0], g_d3d.backbuffer);
+        memset(g_d3d.viewport, 0, sizeof g_d3d.viewport);
+        g_d3d.viewport[2] = w; g_d3d.viewport[3] = h;
+        { float one = 1.0f; memcpy(&g_d3d.viewport[5], &one, 4); }
+        g_d3d.scissor[0] = 0; g_d3d.scissor[1] = 0; g_d3d.scissor[2] = w; g_d3d.scissor[3] = h;
+        g_d3d.rs[174] = 0;                                       // D3DRS_SCISSORTESTENABLE off until re-enabled
+        d3d_backend_resize(&g_d3d);
+    }
     RET(c, 0, 2);
 }
 static void Dev_Present(CPU *c) { present_guest(c, 5, "device"); }
