@@ -55,14 +55,33 @@ else
     done
 fi
 
-for item in smr-generated smr-entry-generated; do
-    if [[ -d "$data/$item" && ! -e "$work/$item" ]]; then
-        cp -a "$data/$item" "$work/$item"
+for dir in "$data"/*-generated; do
+    [[ -d "$dir" ]] || continue
+    item="$(basename "$dir")"
+    if [[ ! -e "$work/$item" ]]; then
+        cp -cR "$dir" "$work/$item" 2>/dev/null || cp -a "$dir" "$work/$item"
     fi
 done
 
-if [[ "$with_ghidra" == 1 && -d "$data/ghidra" && ! -e "$work/ghidra" ]]; then
-    cp -a "$data/ghidra" "$work/ghidra"
+if [[ "$with_ghidra" == 1 ]]; then
+    for dir in "$data/ghidra" "$data"/ghidra-*; do
+        [[ -d "$dir" ]] || continue
+        item="$(basename "$dir")"
+        if [[ ! -e "$work/$item" ]]; then
+            cp -cR "$dir" "$work/$item" 2>/dev/null || cp -a "$dir" "$work/$item"
+        fi
+    done
+fi
+
+if [[ "$data_real" != "$work_real" ]]; then
+    if [[ -d "$data/startup-full-cache" && ! -e "$work/startup-full-cache" ]]; then
+        cp -cR "$data/startup-full-cache" "$work/startup-full-cache" 2>/dev/null || cp -a "$data/startup-full-cache" "$work/startup-full-cache"
+    fi
+    for item in ghidra-d3dx9 ghidra-physxcore ghidra-fmodex ghidra-fmod_event; do
+        if [[ -d "$data/$item" && ! -e "$work/$item" ]]; then
+            ln -sfn "$data/$item" "$work/$item"
+        fi
+    done
 fi
 
 if [[ ! -e "$project/.venv" ]]; then
