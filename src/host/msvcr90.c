@@ -344,6 +344,12 @@ static void return_double(CPU *c, double value) {
     memcpy(c->r + 4352, &value, sizeof value);
 }
 
+static double guest_st0(CPU *c) {
+    double value;
+    memcpy(&value, c->r + 4352, sizeof value);
+    return value;
+}
+
 SHIM(floor) { double x = guest_double_arg(c, 0); return_double(c, floor(x)); RET(c, 0, 0); }
 SHIM(ceil) { double x = guest_double_arg(c, 0); return_double(c, ceil(x)); RET(c, 0, 0); }
 SHIM(atof) {
@@ -352,9 +358,16 @@ SHIM(atof) {
     RET(c, 0, 0);
 }
 
-// The _CI* CRT intrinsics take their argument in ST0 rather than on the stack. They are
-// not routed through fast shims yet; leave them on the interpreter path until that ABI is
-// implemented and verified. floor/ceil/atof below are ordinary cdecl stack-argument functions.
+// The single-argument _CI* CRT intrinsics take their argument in ST0 and return in ST0.
+// Multi-argument variants (atan2/fmod/pow) are left on the interpreter path for now.
+SHIM(_CIsqrt) { return_double(c, sqrt(guest_st0(c))); RET(c, 0, 0); }
+SHIM(_CIsin) { return_double(c, sin(guest_st0(c))); RET(c, 0, 0); }
+SHIM(_CIcos) { return_double(c, cos(guest_st0(c))); RET(c, 0, 0); }
+SHIM(_CItan) { return_double(c, tan(guest_st0(c))); RET(c, 0, 0); }
+SHIM(_CIasin) { return_double(c, asin(guest_st0(c))); RET(c, 0, 0); }
+SHIM(_CIacos) { return_double(c, acos(guest_st0(c))); RET(c, 0, 0); }
+SHIM(_CIlog) { return_double(c, log(guest_st0(c))); RET(c, 0, 0); }
+
 SHIM(_isnan) { RET(c, (uint32_t)isnan(guest_double_arg(c, 0)), 0); }
 SHIM(_finite) { RET(c, (uint32_t)isfinite(guest_double_arg(c, 0)), 0); }
 
@@ -457,6 +470,20 @@ ShimFn smr_find_msvcr90_fast_shim(const char *name) {
         return floor_;
     if (!strcmp(name, "ceil"))
         return ceil_;
+    if (!strcmp(name, "_CIsqrt"))
+        return _CIsqrt_;
+    if (!strcmp(name, "_CIsin"))
+        return _CIsin_;
+    if (!strcmp(name, "_CIcos"))
+        return _CIcos_;
+    if (!strcmp(name, "_CItan"))
+        return _CItan_;
+    if (!strcmp(name, "_CIasin"))
+        return _CIasin_;
+    if (!strcmp(name, "_CIacos"))
+        return _CIacos_;
+    if (!strcmp(name, "_CIlog"))
+        return _CIlog_;
     if (!strcmp(name, "_isnan"))
         return _isnan_;
     if (!strcmp(name, "_finite"))
