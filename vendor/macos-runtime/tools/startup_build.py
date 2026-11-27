@@ -81,6 +81,14 @@ def main():
     sources += [f for f in sorted(H.glob('*.c')) if f.name != 'fallback.c']  # includes the null renderer; no AppKit or Metal window
     if args.local_host:
         sources += [f for f in sorted(args.local_host.resolve().glob('*.c'))]
+        if args.metal_surface:
+            # Windowed/metal hosts link the local Objective-C host sources. surface.m and
+            # offscreen.m are added explicitly via --metal-surface above; the remaining files
+            # (gamepad.m) provide the GameController backend. Headless builds skip them and use
+            # the weak no-op hooks in FNVPad.c, so no GameController/CoreHaptics dependency leaks
+            # into the startup diagnostic or --host-check.
+            sources += [f for f in sorted(args.local_host.resolve().glob('*.m'))
+                        if f.name not in ('surface.m', 'offscreen.m')]
     if args.metal_surface:
         sources += [args.metal_surface.resolve(), H/'d3d9_metal.m']
     args.out.mkdir(parents=True, exist_ok=True)
@@ -181,6 +189,8 @@ def main():
         frameworks = ['Foundation', 'AVFoundation', 'CoreGraphics', 'CoreMedia', 'CoreVideo', 'ImageIO', 'UniformTypeIdentifiers']
         if args.metal_surface:
             frameworks += ['AppKit', 'Metal', 'MetalFX', 'QuartzCore']
+            # gamepad.m (src/host) is only linked for these builds; see the source list above.
+            frameworks += ['GameController', 'CoreHaptics']
         link = [cc, '-isysroot', sdk, *objects, *[v for f in frameworks for v in ('-framework', f)],
                 '-Wl,-stack_size,0x1000000']
         subprocess.run([*link, '-o', str(binary)], check=True)

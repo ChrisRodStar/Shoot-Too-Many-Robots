@@ -169,26 +169,39 @@ static void XInputEnable_(CPU *c) {
 }
 
 static void XInputGetState_(CPU *c) {
-    if (ARG(c, 0) || !fnv_analog_enabled()) { RET(c, 1167, 2); return; }
+    if (!ARG(c, 0)) fnv_pad_poll();
+    if (ARG(c, 0) || !fnv_analog_enabled() || !atomic_load(&xinput_enabled)) { RET(c, 1167, 2); return; }
     uint32_t out = ARG(c, 1);
     if (!out) { RET(c, 87, 2); return; }
     FNVPadState state = {0};
-    if (atomic_load(&xinput_enabled))
-        fnv_pad_snapshot(&state);
+    fnv_pad_snapshot(&state);
     _Static_assert(sizeof(FNVPadState) == 16, "XINPUT_STATE ABI");
     memcpy(MEM + out, &state, 16);
     RET(c, 0, 2);
 }
-static void XInputSetState_(CPU *c) { RET(c, ARG(c, 0) || !fnv_analog_enabled() ? 1167 : 0, 2); }
+// XInputSetState(index, XINPUT_VIBRATION *vibration): two uint16 motor speeds, left then right.
+static void XInputSetState_(CPU *c) {
+    if (!ARG(c, 0)) fnv_pad_poll();
+    uint32_t vibration = ARG(c, 1);
+    if (ARG(c, 0) || !fnv_analog_enabled() || !atomic_load(&xinput_enabled)) { RET(c, 1167, 2); return; }
+    if (!vibration) { RET(c, 87, 2); return; }
+    uint16_t left, right;
+    memcpy(&left, MEM + vibration, sizeof left);
+    memcpy(&right, MEM + vibration + sizeof left, sizeof right);
+    fnv_pad_set_rumble(left, right);
+    RET(c, 0, 2);
+}
 static void XInputGetCapabilities_(CPU *c) {
-    if (ARG(c, 0) || !fnv_analog_enabled()) { RET(c, 1167, 3); return; }
+    if (!ARG(c, 0)) fnv_pad_poll();
+    if (ARG(c, 0) || !fnv_analog_enabled() || !atomic_load(&xinput_enabled)) { RET(c, 1167, 3); return; }
     uint32_t out = ARG(c, 2);
     if (!out) { RET(c, 87, 3); return; }
-    memset(MEM + out, 0, 20);
+    memset(MEM + out, 0, 24);
     MEM[out] = 1; MEM[out + 1] = 1;
     MEM[out + 4] = 0xff; MEM[out + 5] = 0xf3; // buttons: D-pad, menu, clicks, shoulders and ABXY
     MEM[out + 6] = MEM[out + 7] = 255;       // analog triggers
     P32(out + 8, 0x7fff7fff); P32(out + 12, 0x7fff7fff);
+    MEM[out + 20] = MEM[out + 21] = MEM[out + 22] = MEM[out + 23] = 255; // both rumble motors
     RET(c, 0, 3);
 }
 const ShimTable xinput_shims = { (const Shim[]){
