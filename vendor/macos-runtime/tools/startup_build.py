@@ -17,6 +17,7 @@ H = R / 'host'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--generated', type=Path)
+    parser.add_argument('--local-host', type=Path, help='local host sources to compile alongside the pinned upstream host')
     parser.add_argument('--host-check', action='store_true')
     parser.add_argument('--metal-surface', type=Path, help='surface adapter for a Metal probe')
     parser.add_argument('--windowed', action='store_true', help='host the guest in an AppKit window')
@@ -41,6 +42,8 @@ def main():
     sources = [ROOT/'tools/startup/main.c', ROOT/'macos/FNVPad.c',ROOT/'macos/FNVDisplay.c',
                ROOT/'macos/FNVAudioMixer.c',ROOT/'macos/FNVXAudioMixer.c',ROOT/'macos/FNVNativeMedia.m',ROOT/'macos/FNVNativeVideo.m', R/'rt_dispatch.c', H/'dshow.m']
     sources += [f for f in sorted(H.glob('*.c')) if f.name != 'fallback.c']  # includes the null renderer; no AppKit or Metal window
+    if args.local_host:
+        sources += [f for f in sorted(args.local_host.resolve().glob('*.c'))]
     if args.metal_surface:
         sources += [args.metal_surface.resolve(), H/'d3d9_metal.m']
     if not args.host_check:

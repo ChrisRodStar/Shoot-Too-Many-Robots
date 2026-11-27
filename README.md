@@ -49,22 +49,22 @@ The latest acceptance run (`work/recomp-dev/runs/20261126-214349`, 575 draws las
 
 The full build no longer falls back for any game.exe address. The last two gaps were closed as follows:
 
-- `0x626770` was a real entry that Ghidra had split two bytes late at `0x626772`. `work/recompiler/ghidra_scripts/FixSplitEntry.java` (added by `patches/smr-ghidra-fix-split-entry.patch`) removes the bogus function, disassembles and creates `FUN_00626770`, and the P-code was re-exported. The new export differs from the old one only by adding `0x626770` and removing `0x626772`; every other function line is byte-identical.
-- `0x7c727c` (`OUTSB`) and its secondary entry `0x7c7290` are emitted after teaching both emitters the `in`/`out` CALLOTHERs (`patches/smr-io-port-emit.patch`, auto-applied by `scripts/startup-probe`). **Semantics:** Unicorn, the current fallback, executes `IN`/`INS` as a zero read and discards `OUT`/`OUTS` because no port device is attached. The native emitter preserves that (`in` writes 0, `out` is a no-op) instead of trapping. `swi` (`INT n`) is emitted as a non-returning trap because Unicorn raises `UC_ERR_EXCEPTION`; this lets the remaining packed/data I/O-port functions link. One function, `0x96006b`, is still skipped for `XBEGIN` and is unreachable in the tutorial.
+- `0x626770` was a real entry that Ghidra had split two bytes late at `0x626772`. `tools/ghidra/scripts/FixSplitEntry.java` removes the bogus function, disassembles and creates `FUN_00626770`, and the P-code was re-exported. The new export differs from the old one only by adding `0x626770` and removing `0x626772`; every other function line is byte-identical.
+- `0x7c727c` (`OUTSB`) and its secondary entry `0x7c7290` are emitted after teaching both emitters the `in`/`out` CALLOTHERs (the vendor emitters carry the local change directly). **Semantics:** Unicorn, the current fallback, executes `IN`/`INS` as a zero read and discards `OUT`/`OUTS` because no port device is attached. The native emitter preserves that (`in` writes 0, `out` is a no-op) instead of trapping. `swi` (`INT n`) is emitted as a non-returning trap because Unicorn raises `UC_ERR_EXCEPTION`; this lets the remaining packed/data I/O-port functions link. One function, `0x96006b`, is still skipped for `XBEGIN` and is unreachable in the tutorial.
 
-Reproduce after applying the two patches:
+Reproduce with the vendored emitters:
 
 ```sh
 export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
 headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
 "$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis \
-  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -scriptPath "$PWD/tools/ghidra/scripts" \
   -postScript FixSplitEntry.java 0x626770:0x626772
 "$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis -readOnly \
-  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -scriptPath "$PWD/tools/ghidra/scripts" \
   -postScript DumpPcode.java "$PWD/work/smr-fixed.jsonl" all
-.venv/bin/python work/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
-  --extra work/smr-extra-entries.json
+.venv/bin/python vendor/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
+  --extra config/smr-extra-entries.json
 ```
 
 The `--extra` map is the 3,739 secondary entries recovered from the existing generated C; keep it with the P-code export so a re-emit does not drop them. Verification: `./scripts/recomp verify --full 0x626770,0x7c727c,0x7c7290` reported pass 1 / flags-only 2 with no real mismatches, and `./scripts/recomp verify --full --sample 100` also exited 0.
@@ -73,10 +73,25 @@ The executable extracted from the installer is a 32-bit Windows PE whose entry p
 
 ### Project inputs
 
-- `work/recompiler` contains [the P-code exporter and emitter](https://github.com/thetheoryofR/Fallout-NV-MacOS) at `ff8e0d791e3e1f0148a2245c12c7706855e66926`.
-- `work/macos-runtime` contains [the macOS host](https://github.com/pedroh77/Fallout-ElderScrolls-macOS-Port) at `9470dcf94dd69f37263a9f94db69957a76dbed7b`. The startup script applies `patches/macos-startup-host.patch`, applies `patches/smr-io-port-emit.patch` when needed, and adds the local guest-module loader and CRT shims.
+- `vendor/recompiler` contains [the P-code exporter and emitter](https://github.com/thetheoryofR/Fallout-NV-MacOS) at `ff8e0d791e3e1f0148a2245c12c7706855e66926`.
+- `vendor/macos-runtime` contains [the macOS host](https://github.com/pedroh77/Fallout-ElderScrolls-macOS-Port) at `9470dcf94dd69f37263a9f94db69957a76dbed7b`, pinned with the local changes applied. Local host sources (guest-module loader, CRT shims, Metal surfaces) live in `src/host/` and are compiled alongside the vendored host; nothing is copied into `vendor/` at build time.
 - Ghidra exported 46,464 primary function entries. The full emission report is `work/smr-generated/emit_report.json`; it emitted 50,203 functions (46,464 primary plus 3,739 secondary entries) and skipped one packed-region function (`0x96006b`, unsupported `XBEGIN`). The default build uses `work/smr-entry-generated/` (189 curated entries). Full mode uses `work/smr-generated/`.
 - `work/installed/` contains the unpacked game and redistributables. `work/vc90/dlls/` contains the two x86 CRT DLLs from the nested Visual C++ cabinet, and `work/d3dx/` contains the two x86 DirectX DLLs from the June 2010 cabinets. `work/boot/ShootManyRobots.exe` is the guest input. The project keeps these files and generated artifacts out of Git.
+
+### Repository layout and worktrees
+
+Tracked source lives in `vendor/` (pinned upstream), `src/host/` (local host code), `tools/` (dev loop and Ghidra scripts), `scripts/`, `config/` (small curated inputs), `docs/`, and `patches/` (reusable upstream deltas). Everything large or generated lives under ignored `work/`.
+
+`SMR_DATA_ROOT` points at the shared read-only guest inputs and P-code exports. It defaults to this checkout's `work/`. A fresh worktree can prepare its own scratch space with:
+
+```sh
+git worktree add ../smr-task -b task/name
+cd ../smr-task
+SMR_DATA_ROOT="/path/to/main/checkout/work" ./scripts/dev-setup
+./scripts/recomp doctor
+```
+
+`dev-setup` links the read-only guest data, copies the generated C baselines, and creates `work/recomp-dev` without modifying the main checkout.
 
 ## Verified middleware probe
 
@@ -86,12 +101,12 @@ The [Fallout recompiler](https://github.com/thetheoryofR/Fallout-NV-MacOS) check
 
 ## Reproduce the PhysX function probe
 
-Run from the project directory. The steps assume `work/recompiler` contains the pinned checkout with the image-base patch applied, and `.venv` has the checkout's Python requirements installed.
+Run from the project directory. The steps assume `vendor/recompiler` contains the pinned checkout with the image-base patch applied, and `.venv` has the checkout's Python requirements installed.
 
 ```bash
 set -e
 work="$PWD/work"
-repo="$work/recompiler"
+repo="$PWD/vendor/recompiler"
 installer="$HOME/Downloads/Shoot Many Robots.exe"
 dll="$work/installed/app/ShootManyRobots/Binaries/PhysXLoader.dll"
 python="$PWD/.venv/bin/python"
@@ -101,7 +116,7 @@ export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
 headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
 mkdir -p "$work/ghidra"
 "$headless" "$work/ghidra" middleware -import "$dll" -overwrite \
-  -analysisTimeoutPerFile 120 -scriptPath "$repo/ghidra_scripts" \
+  -analysisTimeoutPerFile 120 -scriptPath "$PWD/tools/ghidra/scripts" \
   -postScript DumpPcode.java "$work/physx-leaf.jsonl" leaf
 
 "$python" "$repo/recomp/emit.py" "$work/physx-leaf.jsonl" "$work/physx-generated"

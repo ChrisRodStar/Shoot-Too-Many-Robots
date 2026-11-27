@@ -3,5 +3,6 @@
 (deny network*)
 (deny file-read* (subpath (param "USER_HOME")))
 (allow file-read* (subpath (param "PROJECT")))
+(allow file-read* (subpath (param "DATA_ROOT")))
 (deny file-write*)
 (allow file-write* (subpath (param "BOOT_DIR")))

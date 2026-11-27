@@ -52,7 +52,11 @@ def main(argv=None):
         ("differential harness", common.DIFFTEST),
         ("startup host", common.STARTUP_PROBE),
     ]:
-        required_ok &= check(label, path.exists(), str(path.relative_to(common.ROOT)))
+        try:
+            detail = str(path.relative_to(common.ROOT))
+        except ValueError:
+            detail = str(path)
+        required_ok &= check(label, path.exists(), detail)
 
     for variant, spec in common.VARIANTS.items():
         check(
@@ -63,27 +67,24 @@ def main(argv=None):
         )
 
     for label, path in [
-        ("vc90 DLLs", common.WORK / "vc90" / "dlls"),
-        ("D3DX DLLs", common.WORK / "d3dx"),
-        ("game binaries", common.WORK / "installed" / "app" / "ShootManyRobots" / "Binaries"),
+        ("vc90 DLLs", common.DATA / "vc90" / "dlls"),
+        ("D3DX DLLs", common.DATA / "d3dx"),
+        ("game binaries", common.DATA / "installed" / "app" / "ShootManyRobots" / "Binaries"),
     ]:
-        check(label, path.is_dir(), str(path.relative_to(common.ROOT)), required=False)
+        detail = str(path)
+        try:
+            detail = str(path.relative_to(common.ROOT))
+        except ValueError:
+            pass
+        check(label, path.is_dir(), detail, required=False)
 
-    if (common.RUNTIME / ".git").is_dir():
-        patch = common.ROOT / "patches" / "macos-startup-host.patch"
-        applied = subprocess.run(
-            ["git", "-C", str(common.RUNTIME), "apply", "--reverse", "--check", str(patch)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode == 0
-        can_apply = subprocess.run(
-            ["git", "-C", str(common.RUNTIME), "apply", "--check", str(patch)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode == 0
-        check("host patch", applied or can_apply, "applied" if applied else "will apply on next run")
+    check(
+        "vendored runtime",
+        (common.RUNTIME / "tools" / "startup_build.py").is_file(),
+        str(common.RUNTIME.relative_to(common.ROOT)),
+    )
 
-    usage = shutil.disk_usage(common.WORK)
+    usage = shutil.disk_usage(common.WORK if common.WORK.exists() else common.ROOT)
     check(
         "disk space",
         usage.free > 10 * 2**30,

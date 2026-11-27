@@ -1,0 +1,87 @@
+#!/bin/bash
+# Populate an ignored work/ directory for a fresh checkout or git worktree.
+#
+#   ./scripts/dev-setup [--with-ghidra] [DATA_ROOT]
+#
+# DATA_ROOT holds the read-only guest inputs and P-code exports. It defaults to
+# $SMR_DATA_ROOT, then to this checkout's work/ directory. In a normal checkout
+# that is enough. In a worktree, point it at the main checkout's work/:
+#
+#   ./scripts/dev-setup /Users/dev/Desktop/Shoot\ Too\ Many\ Robots/work
+#
+# Generated C directories are copied, not symlinked, because re-emitting would
+# otherwise overwrite the shared baseline. Ghidra is copied only with
+# --with-ghidra (or SMR_SETUP_GHIDRA=1).
+set -euo pipefail
+
+project="$(cd "$(dirname "$0")/.." && pwd)"
+work="$project/work"
+with_ghidra="${SMR_SETUP_GHIDRA:-0}"
+
+if [[ "${1:-}" == "--with-ghidra" ]]; then
+    with_ghidra=1
+    shift
+fi
+data="${1:-${SMR_DATA_ROOT:-$work}}"
+
+if [[ ! -d "$data" ]]; then
+    printf 'dev-setup: data root does not exist: %s\n' "$data" >&2
+    exit 2
+fi
+
+mkdir -p "$work/boot" "$work/recomp-dev" "$project/logs"
+data_real="$(cd "$data" && pwd -P)"
+work_real="$(cd "$work" && pwd -P)"
+
+if [[ "$data_real" == "$work_real" ]]; then
+    # Normal checkout: the shared inputs already live in work/.
+    printf 'dev-setup: using this checkout as the data root\n'
+else
+    if [[ ! -f "$data/boot/ShootManyRobots.exe" ]]; then
+        printf 'dev-setup: missing %s\n' "$data/boot/ShootManyRobots.exe" >&2
+        exit 2
+    fi
+    ln -sfn "$data/boot/ShootManyRobots.exe" "$work/boot/ShootManyRobots.exe"
+    for item in installed vc90 d3dx; do
+        if [[ -d "$data/$item" ]]; then
+            ln -sfn "$data/$item" "$work/$item"
+        fi
+    done
+    for item in smr-fixed.jsonl smr-fixed.jsonl.regs.json smr-fixed.jsonl.userops.json \
+                smr-all.jsonl smr-all.jsonl.regs.json smr-all.jsonl.userops.json; do
+        if [[ -f "$data/$item" ]]; then
+            ln -sfn "$data/$item" "$work/$item"
+        fi
+    done
+fi
+
+for item in smr-generated smr-entry-generated; do
+    if [[ -d "$data/$item" && ! -e "$work/$item" ]]; then
+        cp -a "$data/$item" "$work/$item"
+    fi
+done
+
+if [[ "$with_ghidra" == 1 && -d "$data/ghidra" && ! -e "$work/ghidra" ]]; then
+    cp -a "$data/ghidra" "$work/ghidra"
+fi
+
+if [[ ! -e "$project/.venv" ]]; then
+    venv="${SMR_VENV:-}"
+    if [[ -z "$venv" && -x "$data/venv/bin/python" ]]; then
+        venv="$data/venv"
+    fi
+    if [[ -z "$venv" && -x "$data/../.venv/bin/python" ]]; then
+        venv="$data/../.venv"
+    fi
+    if [[ -n "$venv" ]]; then
+        ln -s "$(cd "$venv" && pwd -P)" "$project/.venv"
+    else
+        python3 -m venv "$project/.venv"
+        "$project/.venv/bin/python" -m pip install -q -r "$project/vendor/recompiler/requirements.txt"
+    fi
+fi
+
+printf 'dev-setup: ready\n'
+printf '  data root  %s\n' "$data"
+printf '  work       %s\n' "$work"
+printf '  next       ./scripts/recomp doctor && ./scripts/recomp status\n'

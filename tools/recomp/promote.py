@@ -174,7 +174,7 @@ def write_subset(addresses: set[int]) -> int:
         tmp.unlink(missing_ok=True)
         common.fail(f"only {written} of {len(wanted)} entries were found in {common.PCODE.name}")
     os.replace(tmp, SUBSET)
-    userops = common.WORK / "smr-fixed.jsonl.userops.json"
+    userops = common.PCODE.parent / (common.PCODE.name + ".userops.json")
     if userops.is_file():
         shutil.copyfile(userops, SUBSET.with_suffix(".jsonl.userops.json"))
     return written

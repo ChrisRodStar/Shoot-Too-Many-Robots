@@ -48,7 +48,7 @@ original binary *offline*, and keep the run-the-game loop for integration.
   there is no source-level ground truth, so the original binary is the oracle,
   and the first state divergence is the bug.
 
-`work/macos-runtime/tools/differential/difftest.py` is already an excellent
+`vendor/macos-runtime/tools/differential/difftest.py` is already an excellent
 oracle harness: it runs the recompiled C and the original x86 bytes in Unicorn
 from identical randomized state and compares registers, flags, x87, XMM and
 touched memory. `scripts/recomp verify` turns it into a usable inner loop.
@@ -223,9 +223,33 @@ Everything added by this tool lives under `work/recomp-dev/` (ignored by Git):
 | `pcode-index.json` | cached guest-address index over `smr-fixed.jsonl` |
 | `last-run.json`, `runs.jsonl`, `runs/` | run summaries and logs |
 
-The full re-emit also uses `work/smr-extra-entries.json`, the recovered
+The full re-emit also uses `config/smr-extra-entries.json`, the recovered
 secondary-entry map described under “Closing the last game-exe gaps”. The
 executable, DLLs, P-code, generated C and save data stay where they were.
+
+## Worktrees and shared data
+
+Tracked files are small: `vendor/`, `src/host/`, `tools/`, `scripts/`, `config/`,
+`docs/`, and reusable `patches/`. Large guest inputs, P-code exports, Ghidra
+projects, generated C, build trees, caches, logs and run output stay under
+ignored `work/`.
+
+Use `SMR_DATA_ROOT` to point at a single shared copy of the read-only inputs
+(`boot/`, `installed/`, `vc90/`, `d3dx/`, `smr-fixed.jsonl*`). The scripts read
+writable generated/build state only from the current worktree’s `work/`.
+
+```sh
+git worktree add ../smr-fallback -b recomp/fallback-msvcr90
+cd ../smr-fallback
+SMR_DATA_ROOT="/path/to/main/checkout/work" ./scripts/dev-setup
+./scripts/recomp doctor
+./scripts/recomp status
+```
+
+`dev-setup` links the shared inputs read-only, copies `smr-generated` and
+`smr-entry-generated`, and creates `work/recomp-dev` and `logs/`. Add
+`--with-ghidra` if that worktree needs its own writable copy of the Ghidra
+project.
 
 ## Promoting hot fallbacks
 
@@ -241,7 +265,7 @@ default native entry set, re-emits, verifies, rebuilds and re-runs the tutorial.
 
 What it changes:
 
-- `work/smr-entrypoints.jsonl` — the P-code subset for the default build;
+- `config/smr-entrypoints.jsonl` — the P-code subset for the default build;
 - `work/smr-entry-generated/` — re-emitted C (previous copy kept under
   `work/recomp-dev/backups/entry-*`);
 - `work/recomp-dev/entry-set.json` — the authoritative entry-address list.
@@ -299,15 +323,14 @@ native.
 - **`0x626770` — Ghidra split the entry two bytes late.** The real bytes are
   `MOV EAX,[ESP+4]; MOV CL,[EAX+4]; MOV [EAX],CL; MOV dword [EAX+1],0; RET 4`,
   but analysis had created `FUN_00626772` starting at the `AND AL,4` inside that
-  first instruction. `work/recompiler/ghidra_scripts/FixSplitEntry.java` (added
-  by `patches/smr-ghidra-fix-split-entry.patch`) removes the bogus function,
-  clears its overlapping code units, disassembles `0x626770`, and creates
-  `FUN_00626770`. The re-export changed exactly two functions: added
+  first instruction. `tools/ghidra/scripts/FixSplitEntry.java` removes the
+  bogus function, clears its overlapping code units, disassembles `0x626770`,
+  and creates `FUN_00626770`. The re-export changed exactly two functions: added
   `0x626770`, removed `0x626772`; every other function line was byte-identical.
 - **`0x7c727c` / `0x7c7290` — I/O-port CALLOTHERs.** `0x7c727c` starts at
   `OUTSB`; its real secondary entry `0x7c7290` is the address the game actually
-  enters. Both emitters now handle the `in` and `out` CALLOTHERs
-  (`patches/smr-io-port-emit.patch`, applied by `scripts/startup-probe`).
+  enters. Both vendored emitters carry the `in`/`out` CALLOTHER handling
+  directly; `scripts/startup-probe` no longer applies a patch at build time.
   **Semantics were taken from the current fallback, not guessed:** Unicorn has
   no port device attached, so it executes `IN`/`INS` as a zero read and discards
   `OUT`/`OUTS`. The native translation preserves that (`in` writes 0, `out` is a
@@ -317,28 +340,28 @@ native.
   `0x96006b`, fails on `XBEGIN`, not on port I/O, and is unreachable in the
   tutorial.
 
-Reproduction order: apply both patches, run `FixSplitEntry.java`, re-run
-`DumpPcode.java`, then emit with the recovered secondary-entry map:
+Reproduction order: run `FixSplitEntry.java`, re-run `DumpPcode.java`, then
+emit with the recovered secondary-entry map:
 
 ```sh
 export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
 headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
 "$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis \
-  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -scriptPath "$PWD/tools/ghidra/scripts" \
   -postScript FixSplitEntry.java 0x626770:0x626772
 "$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis -readOnly \
-  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -scriptPath "$PWD/tools/ghidra/scripts" \
   -postScript DumpPcode.java "$PWD/work/smr-fixed.jsonl" all
-.venv/bin/python work/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
-  --extra work/smr-extra-entries.json
+.venv/bin/python vendor/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
+  --extra config/smr-extra-entries.json
 ```
 
-`work/smr-extra-entries.json` holds the 3,739 secondary entries recovered from
+`config/smr-extra-entries.json` holds the 3,739 secondary entries recovered from
 the prior generated C; it must stay with the P-code export or a re-emit drops
 them. If it is lost, rebuild it from the prior `smr-generated/tu_*.c` by pairing
 each `void g_<extra>(...){...b_<owner>(c,k);}` with its owner. The existing full
-artifact was reproduced with `work/recompiler/recomp/emit.py`, not the older
-`work/macos-runtime` copy (the latter lacks `sqrtps`/`pshufw`); both were patched
+artifact was reproduced with `vendor/recompiler/recomp/emit.py`, not the older
+`vendor/macos-runtime` copy (the latter lacks `sqrtps`/`pshufw`); both were patched
 so they agree on I/O ports.
 
 Acceptance for this change:

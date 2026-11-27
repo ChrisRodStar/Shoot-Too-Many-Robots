@@ -1,7 +1,6 @@
-/work/*
-!/work/macos-runtime/
-!/work/recompiler/
-/.venv/
+/work/
+/logs/
+/.venv
 __pycache__/
 .DS_Store
 *.o

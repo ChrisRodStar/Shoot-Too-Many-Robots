@@ -1,8 +1,8 @@
 """Shared paths and parsers for the recomp dev-loop tools.
 
-Everything here is project-local: nothing is copied into ``work/macos-runtime`` and
-nothing changes the pinned upstream checkout.  The tools read the artifacts the
-existing pipeline already writes (generated C, emit reports, host logs).
+Everything here is project-local: nothing is copied into ``vendor/macos-runtime``
+and nothing changes the pinned upstream checkout.  The tools read the artifacts
+the existing pipeline already writes (generated C, emit reports, host logs).
 """
 from __future__ import annotations
 
@@ -18,17 +18,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "work"
-RUNTIME = WORK / "macos-runtime"
+VENDOR = ROOT / "vendor"
+RUNTIME = VENDOR / "macos-runtime"
 UPSTREAM = RUNTIME / "upstream" / "recomp"
 HOST = UPSTREAM / "host"
+LOCAL_HOST = ROOT / "src" / "host"
+CONFIG = ROOT / "config"
+# Shared read-only guest inputs and P-code exports. Override per worktree with
+# SMR_DATA_ROOT; writable generated/build state always stays under ROOT/work.
+DATA = Path(os.environ.get("SMR_DATA_ROOT", str(WORK))).expanduser()
 BOOT = WORK / "boot"
 LOGS = ROOT / "logs"
 DEV = WORK / "recomp-dev"
 RUNS = DEV / "runs"
 VENV_PYTHON = ROOT / ".venv" / "bin" / "python"
 EXE = BOOT / "ShootManyRobots.exe"
-PCODE = WORK / "smr-fixed.jsonl"
-REGS = WORK / "smr-fixed.jsonl.regs.json"
+PCODE = DATA / "smr-fixed.jsonl"
+REGS = DATA / "smr-fixed.jsonl.regs.json"
 DIFFTEST = RUNTIME / "tools" / "differential" / "difftest.py"
 DIFFTEST_FULL = ROOT / "tools" / "recomp" / "difftest_full.py"
 STARTUP_PROBE = ROOT / "scripts" / "startup-probe"

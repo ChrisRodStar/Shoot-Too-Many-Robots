@@ -1,0 +1,62 @@
+{
+  "PhysXCooking.dll": {
+    "file": "PhysXCooking.dll",
+    "sha256": "2e5657ae13de0a0c79c56453b8c73ba3978069d55440134873c6534bbada522b",
+    "size": 381280
+  },
+  "PhysXCore.dll": {
+    "file": "PhysXCore.dll",
+    "sha256": "c03f0e20e99a6ca8d72c8627cf3b0108036a734123f75c652c2b78d3043dbdbb",
+    "size": 3516768
+  },
+  "PhysXDevice.dll": {
+    "file": "PhysXDevice.dll",
+    "sha256": "6b9f40f2da693b935163935c7ab56847bf11f7160f5b268c4e4881d2973d9cb7",
+    "size": 65536
+  },
+  "PhysXLoader.dll": {
+    "file": "PhysXLoader.dll",
+    "sha256": "29b2183cbd9b4b43f247d7e47e7a636ed3898d8e79afb109b5ef0e02c5493768",
+    "size": 64352
+  },
+  "cudart32_30_9.dll": {
+    "file": "cudart32_30_9.dll",
+    "sha256": "08c137f66758b6c342c0dd32fa45e8fc8c9f0c287997e46e515610c2aa84d0ed",
+    "size": 290408
+  },
+  "d3dcompiler_43": {
+    "file": "d3dcompiler_43.dll",
+    "sha256": "2f23182ec6f4889397ac4bf03d62536136c5bdba825c7d2c4ef08c827f3a8a1c",
+    "size": 2106216
+  },
+  "d3dx9_43": {
+    "file": "d3dx9_43.dll",
+    "sha256": "0b28546be22c71834501f7d7185ede5d79742457331c7ee09efc14490dd64f5f",
+    "size": 1998168
+  },
+  "fmod_event.dll": {
+    "file": "fmod_event.dll",
+    "sha256": "0cd06b8d7d794adc3c1c59f111a492e1f20206d03d735cd5b333cd323bbaf440",
+    "size": 323584
+  },
+  "fmodex.dll": {
+    "file": "fmodex.dll",
+    "sha256": "e7aa750941fb14918559135ea1797145e319ac0066d21fd22d92d2d498ac0a43",
+    "size": 806912
+  },
+  "game": {
+    "file": "ShootManyRobots.exe",
+    "sha256": "d0f3278988ff9df124ec09e6ed3a91cace573de3e21b35060fc81cc5965b7780",
+    "size": 8068096
+  },
+  "vc90_msvcp90": {
+    "file": "msvcp90.dll",
+    "sha256": "4608beedd8cf9c3fc5ab03716b4ab6f01c7b7d65a7c072af04f514ffb0e02d01",
+    "size": 569664
+  },
+  "vc90_msvcr90": {
+    "file": "msvcr90.dll",
+    "sha256": "e16bc9b66642151de612ee045c2810ca6146975015bd9679a354567f56da2099",
+    "size": 653120
+  }
+}

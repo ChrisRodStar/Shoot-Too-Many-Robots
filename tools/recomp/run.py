@@ -117,13 +117,19 @@ def delta_line(label, before, after, unit="", better="higher"):
 def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code, before, started_at) -> dict:
     text = log_path.read_text(errors="replace") if log_path.is_file() else ""
     parsed = common.parse_log(text)
+    def display_path(path: Path) -> str:
+        try:
+            return str(path.relative_to(common.ROOT))
+        except ValueError:
+            return str(path)
+
     if frames_dir and frames_dir.is_dir():
         parsed["captures"] = sorted(
-            str(p.relative_to(common.ROOT))
+            display_path(p)
             for p in frames_dir.glob("frame_*.png")
             if p.stat().st_mtime >= started_at - 1
         )
-        parsed["frames_dir"] = str(frames_dir.relative_to(common.ROOT))
+        parsed["frames_dir"] = display_path(frames_dir)
     else:
         parsed["frames_dir"] = None
     perf = parsed["perf"]

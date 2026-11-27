@@ -2,7 +2,9 @@
 set -euo pipefail
 project="$(cd "$(dirname "$0")/.." && pwd)"
 work="$project/work"
-runtime="$work/macos-runtime"
+data="${SMR_DATA_ROOT:-$work}"
+runtime="$project/vendor/macos-runtime"
+local_host="$project/src/host"
 boot="$work/boot"
 logs="$project/logs"
 mkdir -p "$logs"
@@ -21,22 +23,6 @@ for input in "$generated/table.c" "$boot/ShootManyRobots.exe" "$runtime/tools/st
     fi
 done
 
-if [[ -d "$runtime/.git" ]]; then
-    patch="$project/patches/macos-startup-host.patch"
-    if git -C "$runtime" apply --check "$patch" >/dev/null 2>&1; then
-        git -C "$runtime" apply "$patch"
-    else
-        git -C "$runtime" apply --reverse --check "$patch"
-    fi
-fi
-# Emitter I/O-port fix used to regenerate the SMR P-code (see patches/smr-io-port-emit.patch).
-# Apply from the project root because work/macos-runtime and work/recompiler are tracked here.
-emit_patch="$project/patches/smr-io-port-emit.patch"
-if git -C "$project" apply --check "$emit_patch" >/dev/null 2>&1; then
-    git -C "$project" apply "$emit_patch"
-fi
-cp "$project/runtime/msvcr90.c" "$runtime/upstream/recomp/host/smr_msvcr90.c"
-cp "$project/runtime/pe_modules.c" "$runtime/upstream/recomp/host/smr_pe_modules.c"
 unicorn_prefix="$("$python" -c 'import pathlib, unicorn; print(pathlib.Path(unicorn.__file__).parent)')"
 build_out="$work/startup-host"
 build_flags=(--jobs "${SMR_BUILD_JOBS:-4}")
@@ -47,13 +33,13 @@ if [[ -n "$variant" && "${SMR_NATIVE_WNDPROC:-1}" != 1 ]]; then
 fi
 if [[ "${SMR_WINDOW:-0}" == 1 ]]; then
     build_out="$work/window-host"
-    build_flags+=(--metal-surface "$project/runtime/surface.m" --windowed)
+    build_flags+=(--metal-surface "$local_host/surface.m" --windowed)
     unset FNV_HEADLESS
     mkdir -p "$boot/window${variant}-frames"
     export FNV_DUMP_FRAMES="${FNV_DUMP_FRAMES:-1,60,120,300}" FNV_DUMP_DIR="$boot/window${variant}-frames"
 elif [[ "${SMR_METAL:-0}" == 1 ]]; then
     build_out="$work/metal-host"
-    build_flags+=(--metal-surface "$project/runtime/offscreen.m")
+    build_flags+=(--metal-surface "$local_host/offscreen.m")
     export FNV_HEADLESS=1 FNV_DUMP_FRAMES=1 FNV_DUMP_DIR="$boot"
     if [[ -n "$variant" ]]; then
         export FNV_DUMP_DIR="$boot/metal${variant}-frames"
@@ -70,6 +56,7 @@ if [[ "${SMR_SKIP_BUILD:-0}" == 1 ]]; then
     fi
 else
     "$python" "$runtime/tools/startup_build.py" "${build_flags[@]}" \
+        --local-host "$local_host" \
         --generated "$generated" --discovery-prefix "$unicorn_prefix" \
         --out "$build_out" --cache "$work/startup${variant}-cache" \
         > "$build_log" 2>&1 || { tail -40 "$build_log" >&2; exit 1; }
@@ -82,9 +69,9 @@ fi
 
 mkdir -p "$boot/user${variant}"
 cd "$boot"
-export SMR_VC90_DIRECTORY="${SMR_VC90_DIRECTORY:-$work/vc90/dlls}"
-export SMR_PHYSX_DIRECTORY="${SMR_PHYSX_DIRECTORY:-$work/installed/app/ShootManyRobots/Binaries}"
-export SMR_D3DX_DIRECTORY="${SMR_D3DX_DIRECTORY:-$work/d3dx}"
+export SMR_VC90_DIRECTORY="${SMR_VC90_DIRECTORY:-$data/vc90/dlls}"
+export SMR_PHYSX_DIRECTORY="${SMR_PHYSX_DIRECTORY:-$data/installed/app/ShootManyRobots/Binaries}"
+export SMR_D3DX_DIRECTORY="${SMR_D3DX_DIRECTORY:-$data/d3dx}"
 export FNV_USER_DIR="$boot/user${variant}"
 if [[ "${SMR_TRACE:-0}" == 1 ]]; then
     export FNV_TRACE=1
@@ -96,26 +83,27 @@ if [[ "${SMR_WINDOW:-0}" == 1 || "${SMR_CONTINUE:-0}" == 1 ]]; then
 else
     export SMR_STOP_AFTER_PRESENT=1
 fi
-export FNV_NO_QOS=1 FNV_ROOT="$work/installed/app/ShootManyRobots"
+export FNV_NO_QOS=1 FNV_ROOT="$data/installed/app/ShootManyRobots"
 probe_log="$logs/native${variant}-startup.log"
 if [[ "${SMR_WINDOW:-0}" == 1 ]]; then
     probe_log="$logs/window${variant}-startup.log"
 fi
 probe_exit=0
-"$python" - "$project" "$boot" "$build_out/fnv-discovery" \
+"$python" - "$project" "$boot" "$data" "$build_out/fnv-discovery" \
     > "$probe_log" 2>&1 <<'PY_TIMEOUT' || probe_exit=$?
 import os
 from pathlib import Path
 import subprocess
 import sys
 
-project, boot, host = map(Path, sys.argv[1:])
+project, boot, data, host = map(Path, sys.argv[1:])
 command = [
     "/usr/bin/sandbox-exec",
     "-D", f"USER_HOME={Path.home()}",
     "-D", f"PROJECT={project}",
     "-D", f"BOOT_DIR={boot}",
-    "-f", str(project / "runtime/startup.sb"),
+    "-D", f"DATA_ROOT={data}",
+    "-f", str(project / "src/host/startup.sb"),
     str(host), str(boot / "ShootManyRobots.exe"),
 ]
 try:

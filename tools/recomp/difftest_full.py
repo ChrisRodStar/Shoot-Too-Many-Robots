@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DIFFTEST = ROOT / "work" / "macos-runtime" / "tools" / "differential" / "difftest.py"
+DIFFTEST = ROOT / "vendor" / "macos-runtime" / "tools" / "differential" / "difftest.py"
 
 spec = importlib.util.spec_from_file_location("difftest_upstream", DIFFTEST)
 upstream = importlib.util.module_from_spec(spec)
