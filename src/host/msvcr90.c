@@ -1046,6 +1046,23 @@ SHIM(fread) {
     RET(c, (uint32_t)fread(MEM + dst, size, count, f), 0);
 }
 
+// Guest fopen() hands out an opaque token, not a real msvcr90 FILE*. Intercept the stream
+// writers too, or the guest CRT would dereference that token and dump its payload to a
+// random handle (we saw a 5 KiB binary cache blob land on stderr this way).
+SHIM(fwrite) {
+    uint32_t src = ARG(c, 0), size = ARG(c, 1), count = ARG(c, 2), stream = ARG(c, 3);
+    FILE *f = NULL;
+    pthread_mutex_lock(&guest_files_lock);
+    for (int i = 0; i < MAX_GUEST_FILES; i++) {
+        if (guest_files[i].guest == stream) { f = guest_files[i].host; break; }
+    }
+    pthread_mutex_unlock(&guest_files_lock);
+    uint64_t total = (uint64_t)size * count;
+    if (!f || !total) { RET(c, 0, 0); return; }
+    check_guest_range(c, src, (uint32_t)(total > UINT32_MAX ? UINT32_MAX : total));
+    RET(c, (uint32_t)fwrite(MEM + src, size, count, f), 0);
+}
+
 SHIM(_fseeki64) {
     uint32_t stream = ARG(c, 0);
     int64_t offset = (int64_t)(((uint64_t)ARG(c, 2) << 32) | ARG(c, 1));
@@ -1292,6 +1309,7 @@ static const MsvcrShimEntry msvcr90_fast_shims[] = {
     {"_wfopen_s", _wfopen_s_},
     {"vfprintf_s", vfprintf_s_},
     {"fread", fread_},
+    {"fwrite", fwrite_},
     {"_fseeki64", _fseeki64_},
     {"getc", getc_},
     {"fgetc", getc_},

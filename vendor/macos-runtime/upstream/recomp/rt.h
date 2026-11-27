@@ -155,11 +155,20 @@ static inline U DIVPS(U a, U b) { U r = a; for (int i = 0; i < 4; i++) r = SETF(
 static inline U RSQRTPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, 1.0f / sqrtf(LANEF(s, i))); return r; }
 static inline U RCPPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, 1.0f / LANEF(s, i)); return r; }
 static inline U RSQRTSS(U d, U s) { return SETF(d, 0, 1.0f / sqrtf(LANEF(s, 0))); }
+static inline U RCPSS(U d, U s) { return SETF(d, 0, 1.0f / LANEF(s, 0)); }
 static inline U SQRTPS(U s) { U r = s; for (int i = 0; i < 4; i++) r = SETF(r, i, sqrtf(LANEF(s, i))); return r; }
 // MMX PSHUFW: each 16-bit result word i is source word (imm >> 2i) & 3 (64-bit register, upper bits zero).
 static inline U PSHUFW(U s, U imm) { U r = 0; for (int i = 0; i < 4; i++) r |= (U)(uint16_t)(s >> (16 * ((imm >> (2 * i)) & 3))) << (16 * i); return r; }
 static inline U PADDUSW(U a, U b) { U r = 0; for (int i = 0; i < 8; i++) { uint32_t x = (uint32_t)(a >> (16 * i)) & 0xffff, y = (uint32_t)(b >> (16 * i)) & 0xffff, z = x + y; r |= (U)(z > 0xffff ? 0xffff : z) << (16 * i); } return r; }
 
+// MMX/SSE2 PACKSSDW: signed dword -> signed word saturation. n is the operand width in bytes:
+// 8 packs 2 dwords from each MMX operand, 16 packs 4 dwords from each XMM operand.
+static inline U PACKSSDW(U a, U b, int n) {
+    int d = n / 4; U r = 0;
+    for (int i = 0; i < d; i++) { int32_t x = (int32_t)(a >> (32 * i)); r |= (U)(uint16_t)(x < -32768 ? -32768 : x > 32767 ? 32767 : x) << (16 * i); }
+    for (int i = 0; i < d; i++) { int32_t x = (int32_t)(b >> (32 * i)); r |= (U)(uint16_t)(x < -32768 ? -32768 : x > 32767 ? 32767 : x) << (16 * (d + i)); }
+    return r;
+}
 // ---- fast path (narrow values, cached registers) ----------------------------------------------
 typedef uint64_t V;
 typedef int64_t SV;

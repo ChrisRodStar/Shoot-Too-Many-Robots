@@ -245,6 +245,8 @@ class FnEmitter:
             "rcpps": f"RCPPS({a[-1]})" if a else None,
             "rsqrtss": f"RSQRTSS({a[0]},{a[-1]})" if a else None,
             "paddusw": f"PADDUSW({a[0]},{a[1]})" if len(a) > 1 else None,
+            "packssdw": f"PACKSSDW({a[0]},{a[1]},{n})" if len(a) > 1 else None,
+            "rcpss": f"RCPSS({a[0]},{a[-1]})" if len(a) > 1 else None,
             "fsin": f"FP(sin(FG({a[0]},10)),{n})" if a else None,
             "fcos": f"FP(cos(FG({a[0]},10)),{n})" if a else None,
             "fptan": f"FP(tan(FG({a[0]},10)),{n})" if a else None,

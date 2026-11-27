@@ -203,8 +203,6 @@ SHIM(GetProcAddress_) {
         const char *mapped_dll = NULL;
         if (h == smr_module_by_name("msvcr90.dll")) mapped_dll = "msvcr90.dll";
         else if (h == smr_module_by_name("msvcp90.dll")) mapped_dll = "msvcp90.dll";
-        else if (h == smr_module_by_name("fmodex.dll")) mapped_dll = "fmodex.dll";
-        else if (h == smr_module_by_name("fmod_event.dll")) mapped_dll = "fmod_event.dll";
         ShimFn fast = mapped_dll ? smr_find_fast_shim(mapped_dll, name) : NULL;
         if (fast) {
             for (int i = 0; i < host_import_count; i++)

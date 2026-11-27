@@ -24,9 +24,10 @@ stage=$(mktemp -d "$project/lift.XXXXXX")
 alias_dir=$(mktemp -d /tmp/smr-ghidra.XXXXXX)
 ln -s "$project" "$alias_dir/project"
 trap 'rm -rf "$stage" "$alias_dir"' EXIT
-entries=()
+# Bash 3.2 rejects expanding an empty array under `set -u`, so always seed `.text`.
+entries=(.text)
 if [[ -f "config/$name-entries.txt" ]]; then
-    entries=(.text "$PWD/config/$name-entries.txt")
+    entries+=("$PWD/config/$name-entries.txt")
 fi
 "$headless" "$alias_dir/project" "$name" -import "$dll" -overwrite -max-cpu 2 \
     -scriptPath "$PWD/tools/ghidra/scripts" -postScript ResolveJumpTables.java \
