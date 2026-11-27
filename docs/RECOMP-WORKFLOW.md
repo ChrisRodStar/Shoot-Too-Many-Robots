@@ -398,3 +398,32 @@ fps window as an anecdote.
 - N64Recomp (single-file output, overlays, patches): <https://github.com/N64Recomp/N64Recomp>
 - Zelda64Recomp development/testing guide: <https://deepwiki.com/Zelda64Recomp/Zelda64Recomp/10.3-building-and-testing>
 - Static recompilation testing and trace comparison: <https://github.com/sp00nznet/recompclass/blob/master/papers/challenges-in-static-recompilation.md>
+
+### Lifting runtime DLLs
+
+Use the guest load address from `src/host/pe_modules.c`. For D3DX9:
+
+```sh
+./scripts/lift-dll d3dx9 work/d3dx/d3dx9_43.dll 0x12400000
+SMR_BUILD_JOBS=2 ./scripts/recomp run --to tutorial --full
+.venv/bin/python tools/recomp/difftest_d3dx9.py
+```
+
+The lift creates a relocated analysis copy, a private Ghidra project and
+`functions.jsonl` under `work/ghidra-d3dx9/`. The runtime still loads the
+original DLL and binds its imports. The full probe discovers completed lifts
+by the `lifted-dll` marker under `work/*-generated/`. The startup builder can
+also take repeated `--extra-generated DIRECTORY` arguments. Each module's
+translation units retain their own object cache keys.
+
+A module can supply observed guest entry addresses (one hex address per line)
+in `config/<module-name>-entries.txt` for Ghidra's FixEntries pass.
+The D3DX9 list comes from tutorial fallback roots, including CRT initialization.
+To generate the next modules:
+
+```sh
+bin=work/installed/app/ShootManyRobots/Binaries
+./scripts/lift-dll physxcore "$bin/PhysXCore.dll" 0x11400000
+./scripts/lift-dll fmodex "$bin/fmodex.dll" 0x13000000
+./scripts/lift-dll fmod_event "$bin/fmod_event.dll" 0x13200000
+```

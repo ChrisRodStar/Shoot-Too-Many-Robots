@@ -26,6 +26,11 @@ done
 unicorn_prefix="$("$python" -c 'import pathlib, unicorn; print(pathlib.Path(unicorn.__file__).parent)')"
 build_out="$work/startup-host"
 build_flags=(--jobs "${SMR_BUILD_JOBS:-4}")
+if [[ -n "$variant" ]]; then
+    for marker in "$work"/*-generated/lifted-dll; do
+        [[ ! -f "$marker" ]] || build_flags+=(--extra-generated "${marker%/*}")
+    done
+fi
 if [[ -n "$variant" && "${SMR_NATIVE_WNDPROC:-1}" != 1 ]]; then
     # The old native version of this function re-entered Unicorn mid-function because its switch
     # table was unresolved. ResolveJumpTables fixes that; set SMR_NATIVE_WNDPROC=1 to use native code.

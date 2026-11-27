@@ -44,11 +44,17 @@ FLAGS = {"CF": 0, "PF": 2, "AF": 4, "ZF": 6, "SF": 7, "OF": 11}
 CMP_FLAGS = ["CF", "ZF", "SF", "OF"]
 
 
+def pe_image_base(image):
+    pe = struct.unpack_from("<I", image, 0x3c)[0]
+    return struct.unpack_from("<I", image, pe + 24 + 28)[0]
+
+
 def load_pe(path):
     d = open(path, "rb").read()
     pe = struct.unpack_from("<I", d, 0x3C)[0]
     n = struct.unpack_from("<H", d, pe + 6)[0]
     osz = struct.unpack_from("<H", d, pe + 20)[0]
+    image_base = pe_image_base(d)
     size_of_image = struct.unpack_from("<I", d, pe + 24 + 56)[0]
     size_of_headers = struct.unpack_from("<I", d, pe + 24 + 60)[0]
     img = bytearray(size_of_image)
@@ -60,7 +66,7 @@ def load_pe(path):
         ch = struct.unpack_from("<I", d, s + i * 40 + 36)[0]
         img[va:va + min(rs, vs or rs)] = d[rp:rp + min(rs, vs or rs)]
         if ch & 0x80000000:  # IMAGE_SCN_MEM_WRITE
-            writable.append((IMAGE_BASE + va, (max(vs, rs) + 0xFFF) & ~0xFFF))
+            writable.append((image_base + va, (max(vs, rs) + 0xFFF) & ~0xFFF))
     # import address table -> IAT_MAGIC + 4*i, identical on both sides
     imp_rva = struct.unpack_from("<I", d, pe + 24 + 96 + 8)[0]
     o, k = imp_rva, 0
@@ -126,7 +132,7 @@ class Worker:
         Derive that precondition from original opcodes, never from translated C.
         Other entries retain the original randomized function-entry fixture.
         """
-        code=self.img[entry-IMAGE_BASE:entry-IMAGE_BASE+48]
+        code=self.img[entry-self.image_base:entry-self.image_base+48]
         position=0;delta=0
         while position<len(code):
             opcode=code[position]
@@ -147,6 +153,7 @@ class Worker:
 
     def __init__(self, exe, lib, regs):
         self.img, self.writable = load_pe(exe)
+        self.image_base = pe_image_base(self.img)
         self.R = regs
         self.reference_only=lib=='-'
         self.mem=None
@@ -157,11 +164,11 @@ class Worker:
             self.lib.rt_trap_addr.restype = ctypes.c_uint32
             self.lib.rt_run.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_int64]
             self.mem = self.lib.rt_mem()
-            ctypes.memmove(self.mem + IMAGE_BASE, self.img, len(self.img))
+            ctypes.memmove(self.mem + self.image_base, self.img, len(self.img))
         self.cpu = (ctypes.c_uint8 * 8960)()
         self.mu = Uc(UC_ARCH_X86, UC_MODE_32)
-        self.mu.mem_map(IMAGE_BASE, (len(self.img) + 0xFFF) & ~0xFFF)
-        self.mu.mem_write(IMAGE_BASE, self.img)
+        self.mu.mem_map(self.image_base, (len(self.img) + 0xFFF) & ~0xFFF)
+        self.mu.mem_write(self.image_base, self.img)
         self.mu.mem_map(SCRATCH, SCRATCH_SIZE)
         self.mu.mem_map(STACK, STACK_SIZE)
         self.mu.mem_map(TEB, TEB_SIZE)
@@ -181,7 +188,7 @@ class Worker:
         self.mu.reg_write(UC_X86_REG_FS, 3 << 3)
         if self.mem:ctypes.memmove(self.mem + gdt, table, len(table))
         self.regions = [(SCRATCH, SCRATCH_SIZE), (STACK, STACK_SIZE), (TEB, 0x1000)] + self.writable
-        self.pristine = {a: self.img[a - IMAGE_BASE:a - IMAGE_BASE + n] for a, n in self.writable}
+        self.pristine = {a: self.img[a - self.image_base:a - self.image_base + n] for a, n in self.writable}
         self.index = {} if self.reference_only else {self.lib.rt_addr(i): i for i in range(self.lib.rt_count())}
 
     def setreg(self, name, val, size=4):

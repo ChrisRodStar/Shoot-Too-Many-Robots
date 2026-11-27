@@ -46,10 +46,10 @@ class FullMemoryWorker(upstream.Worker):
         super().__init__(exe, lib, regs)
         # The PE is packed and may write outside its declared writable sections.
         # Reset the whole image (not just IMAGE_SCN_MEM_WRITE) for every trial.
-        self.pristine = {upstream.IMAGE_BASE: self.img}
-        image_end = upstream.IMAGE_BASE + aligned(len(self.img))
+        self.pristine = {self.image_base: self.img}
+        image_end = self.image_base + aligned(len(self.img))
         windows = [
-            (0, upstream.IMAGE_BASE),
+            (0, self.image_base),
             (image_end, upstream.SCRATCH),
             (upstream.SCRATCH + upstream.SCRATCH_SIZE, upstream.STACK),
             (upstream.STACK + upstream.STACK_SIZE, upstream.TEB),

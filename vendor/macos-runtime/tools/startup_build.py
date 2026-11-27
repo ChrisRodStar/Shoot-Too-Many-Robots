@@ -14,9 +14,45 @@ ROOT = Path(__file__).resolve().parents[1]
 R = ROOT / 'upstream/recomp'
 H = R / 'host'
 
+def merge_generated(directories, output):
+    """Unify emitter dispatch symbols, letting a definition supersede any stub."""
+    definitions = {}
+    stubs = {}
+    units = []
+    for directory in directories:
+        table = (directory / 'table.c').read_text()
+        addresses = re.search(r'rt_fn_addr\[\] = \{([^}]*)\}', table)[1]
+        pointers = re.search(r'rt_fn_ptr\[\] = \{([^}]*)\}', table)[1]
+        entries = [int(value.rstrip('u'), 16) for value in addresses.split(',') if value]
+        names = [value for value in pointers.split(',') if value]
+        if len(entries) != len(names):
+            raise ValueError(f'inconsistent dispatch arrays in {directory}')
+        for entry, symbol in zip(entries, names):
+            if entry in definitions:
+                raise ValueError(f'duplicate dispatch entry {entry:#x} in {directory}')
+            definitions[entry] = symbol
+        for line in (directory / 'stubs.c').read_text().splitlines():
+            if line.startswith('void '):
+                symbol = line.split('(')[0].split()[1]
+                stubs[symbol] = line
+        units.extend(sorted(directory.glob('tu_*.c')))
+    entries = sorted(definitions)
+    names = [definitions[entry] for entry in entries]
+    header = '#include "rt.h"\n'
+    (output / 'table.c').write_text(
+        header + ''.join(f'void {name}(CPU *);\n' for name in names)
+        + 'const uint32_t rt_fn_addr[] = {' + ','.join(hex(e) for e in entries) + '};\n'
+        + 'const GuestFn rt_fn_ptr[] = {' + ','.join(names) + '};\n'
+        + f'const int rt_fn_count = {len(entries)};\n')
+    (output / 'stubs.c').write_text(header + ''.join(
+        stubs[name] + '\n' for name in sorted(stubs.keys() - set(names))))
+    return [output / 'table.c', output / 'stubs.c', *units]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--generated', type=Path)
+    parser.add_argument('--extra-generated', type=Path, action='append', default=[])
     parser.add_argument('--local-host', type=Path, help='local host sources to compile alongside the pinned upstream host')
     parser.add_argument('--host-check', action='store_true')
     parser.add_argument('--metal-surface', type=Path, help='surface adapter for a Metal probe')
@@ -46,8 +82,6 @@ def main():
         sources += [f for f in sorted(args.local_host.resolve().glob('*.c'))]
     if args.metal_surface:
         sources += [args.metal_surface.resolve(), H/'d3d9_metal.m']
-    if not args.host_check:
-        sources += [args.generated/'table.c', args.generated/'stubs.c', *sorted(args.generated.glob('tu_*.c'))]
     args.out.mkdir(parents=True, exist_ok=True)
     binary = args.out/'fnv-startup'
     cache=args.cache
@@ -58,6 +92,14 @@ def main():
             old_manifest=json.loads((cache/'manifest.json').read_text())
     with tempfile.TemporaryDirectory(dir=args.out) as temp:
         tmp = Path(temp)
+        generated_sources = []
+        if not args.host_check:
+            if args.extra_generated:
+                generated_sources = merge_generated([args.generated, *args.extra_generated], tmp)
+            else:
+                generated_sources = [args.generated/'table.c', args.generated/'stubs.c',
+                                     *sorted(args.generated.glob('tu_*.c'))]
+            sources += generated_sources
         base = [cc, '-isysroot', sdk, '-O1', '-DRT_CALLTRACE', '-I', str(R), '-I', str(H), '-I', str(ROOT/'macos')]
         if args.windowed:
             base.append('-DSMR_METAL_HOST')
@@ -114,7 +156,7 @@ def main():
             obj=tmp/f'{index}.o'
             compiled_source=source
             if transformed:
-                compiled_source=tmp/('probe-'+source.name)
+                compiled_source=tmp/f'probe-{index}-{source.name}'
                 compiled_source.write_bytes(content)
             subprocess.run(base + (['-fobjc-arc'] if source.suffix == '.m' else [])
                            + ['-c', str(compiled_source), '-o', str(obj)], check=True)
@@ -127,7 +169,10 @@ def main():
         objects=[obj for _,obj,_ in compiled]
         if cache:
             manifest={Path(obj).name:hashlib.sha256(Path(obj).read_bytes()).hexdigest() for _,obj,_ in compiled}
-            (cache/'manifest.json').write_text(json.dumps(manifest,indent=2))
+            old_manifest.update(manifest)
+            with tempfile.NamedTemporaryFile(mode='w', dir=cache, delete=False) as f:
+                json.dump(old_manifest, f, indent=2)
+            os.replace(f.name, cache/'manifest.json')
         print(f'Native objects: {sum(reused for _,_,reused in compiled)} reused, {sum(not reused for _,_,reused in compiled)} compiled',flush=True)
         frameworks = ['Foundation', 'AVFoundation', 'CoreGraphics', 'CoreMedia', 'CoreVideo', 'ImageIO', 'UniformTypeIdentifiers']
         if args.metal_surface:
@@ -148,7 +193,7 @@ def main():
             runtime=tmp/'differential-runtime.o'
             subprocess.run([*base,'-c',str(ROOT/'tools/differential/rt_test.c'),'-o',str(runtime)],check=True)
             test_objects=[obj for source,obj,_ in compiled if source==R/'rt_dispatch.c'
-                          or source.parent.resolve()==args.generated.resolve()]
+                          or source in generated_sources]
             subprocess.run([cc,'-isysroot',sdk,'-dynamiclib',*test_objects,str(runtime),
                             '-o',str(args.out/'libfnv-differential.dylib')],check=True)
         if args.discovery_prefix:
