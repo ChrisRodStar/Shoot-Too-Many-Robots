@@ -1106,6 +1106,17 @@ static void d3d_backend_clear_impl(D3DState *s, uint32_t count, uint32_t rects, 
 
 // ---- blits ------------------------------------------------------------------------------------------
 static id<MTLRenderPipelineState> blit_pso[8];
+static id<MTLSamplerState> blit_samp_linear, blit_samp_nearest;
+static id<MTLSamplerState> blit_sampler(int linear) {
+    __strong id<MTLSamplerState> *slot = linear ? &blit_samp_linear : &blit_samp_nearest;
+    if (!*slot) {
+        MTLSamplerDescriptor *sd = [MTLSamplerDescriptor new];
+        sd.minFilter = sd.magFilter = linear ? MTLSamplerMinMagFilterLinear : MTLSamplerMinMagFilterNearest;
+        sd.sAddressMode = sd.tAddressMode = MTLSamplerAddressModeClampToEdge;
+        *slot = [dev newSamplerStateWithDescriptor:sd];
+    }
+    return *slot;
+}
 static id<MTLRenderPipelineState> blit_pipeline(MTLPixelFormat pf) {
     static NSMutableDictionary *cache;
     if (!cache) cache = [NSMutableDictionary dictionary];
@@ -1115,7 +1126,12 @@ static id<MTLRenderPipelineState> blit_pipeline(MTLPixelFormat pf) {
     if (!lib) {
         NSString *src = @"#include <metal_stdlib>\nusing namespace metal;\n"
             "struct V { float4 p [[position]]; float2 uv; };\n"
-            "vertex V bv(uint i [[vertex_id]], constant float4 &r [[buffer(0)]]) { float2 q = float2((i << 1) & 2, i & 2); V v; v.p = float4(q * 2.0 - 1.0, 0, 1); v.p.y = -v.p.y; v.uv = r.xy + q * r.zw; return v; }\n"
+            "vertex V bv(uint i [[vertex_id]], constant float4 &r [[buffer(0)]], constant float4 &s [[buffer(1)]]) {\n"
+            "    float2 q = float2((i << 1) & 2, i & 2);\n"
+            "    float2 d = r.xy + q * r.zw;                 // destination rect in [0,1] texture space\n"
+            "    V v; v.p = float4(d * 2.0 - 1.0, 0, 1); v.p.y = -v.p.y;\n"
+            "    v.uv = s.xy + q * s.zw; return v;\n"
+            "}\n"
             "fragment float4 bf(V v [[stage_in]], texture2d<float> t [[texture(0)]], sampler s [[sampler(0)]]) { return t.sample(s, v.uv); }\n";
         lib = [dev newLibraryWithSource:src options:copts error:nil];
     }
@@ -1151,13 +1167,56 @@ static void blit(id<MTLTexture> src, id<MTLTexture> dst, NSUInteger dlevel, NSUI
     id<MTLRenderCommandEncoder> e = [cmd renderCommandEncoderWithDescriptor:rp];
     [e setRenderPipelineState:blit_pipeline(dst.pixelFormat)];
     float r[4] = {0, 0, 1, 1};
+    float s[4] = {0, 0, 1, 1};
     [e setVertexBytes:r length:16 atIndex:0];
+    [e setVertexBytes:s length:16 atIndex:1];
     [e setFragmentTexture:src atIndex:0];
-    MTLSamplerDescriptor *sd = [MTLSamplerDescriptor new];
-    sd.minFilter = sd.magFilter = linear ? MTLSamplerMinMagFilterLinear : MTLSamplerMinMagFilterNearest;
-    [e setFragmentSamplerState:[dev newSamplerStateWithDescriptor:sd] atIndex:0];
+    [e setFragmentSamplerState:blit_sampler(linear) atIndex:0];
     [e drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
     [e endEncoding];
+}
+// Letterbox/pillarbox-aware blit: draw the whole of src into the (x, y, w, h) rect of dst and
+// clear the rest of dst to black. Used for the drawable, dumps and recordings when the window
+// aspect no longer matches the guest backbuffer (user resize, fullscreen, camera-housing strip).
+static void blit_rect(id<MTLTexture> src, id<MTLTexture> dst, NSUInteger x, NSUInteger y, NSUInteger w, NSUInteger h, int linear) {
+    if (!src || !dst || src.sampleCount > 1 || !w || !h) return;
+    NSUInteger dw = dst.width, dh = dst.height;
+    if (!dw || !dh) return;
+    if (x > dw) x = dw; if (y > dh) y = dh;
+    if (w > dw - x) w = dw - x;
+    if (h > dh - y) h = dh - y;
+    if (!w || !h) return;
+    end_pass(); ensure_cmd();
+    MTLRenderPassDescriptor *rp = [MTLRenderPassDescriptor renderPassDescriptor];
+    rp.colorAttachments[0].texture = dst;
+    rp.colorAttachments[0].loadAction = MTLLoadActionClear;
+    rp.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+    rp.colorAttachments[0].storeAction = MTLStoreActionStore;
+    id<MTLRenderCommandEncoder> e = [cmd renderCommandEncoderWithDescriptor:rp];
+    [e setRenderPipelineState:blit_pipeline(dst.pixelFormat)];
+    float r[4] = {(float)x / (float)dw, (float)y / (float)dh, (float)w / (float)dw, (float)h / (float)dh};
+    float s[4] = {0, 0, 1, 1};
+    [e setVertexBytes:r length:16 atIndex:0];
+    [e setVertexBytes:s length:16 atIndex:1];
+    [e setFragmentTexture:src atIndex:0];
+    [e setFragmentSamplerState:blit_sampler(linear) atIndex:0];
+    [e drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+    [e endEncoding];
+}
+// Largest (x, y, w, h) rect of dst whose aspect matches the src texture.
+static void fit_rect(NSUInteger sw, NSUInteger sh, NSUInteger dw, NSUInteger dh,
+                     NSUInteger *x, NSUInteger *y, NSUInteger *w, NSUInteger *h) {
+    *x = 0; *y = 0; *w = dw; *h = dh;
+    if (!sw || !sh || !dw || !dh) return;
+    double sa = (double)sw / (double)sh, da = (double)dw / (double)dh;
+    NSUInteger fw = dw, fh = dh;
+    if (sa > da) fh = (NSUInteger)llround((double)dw / sa);
+    else if (sa < da) fw = (NSUInteger)llround((double)dh * sa);
+    if (!fw) fw = 1;
+    if (!fh) fh = 1;
+    if (fw > dw) fw = dw;
+    if (fh > dh) fh = dh;
+    *x = (dw - fw) / 2; *y = (dh - fh) / 2; *w = fw; *h = fh;
 }
 static void d3d_backend_stretch_impl(D3DState *s, uint32_t src, uint32_t srect, uint32_t dst, uint32_t drect, uint32_t filter) {
     if (smr_trace_active(s)) fprintf(stderr, "[trace-stretch] src=%#x dst=%#x filter=%u\n", src, dst, filter);
@@ -1310,18 +1369,26 @@ static int want_dump(uint64_t f) {
     char k[32]; snprintf(k, sizeof k, ",%llu,", (unsigned long long)f);
     return strstr(list, k) != NULL;
 }
-static void dump_png(id<MTLTexture> src, uint64_t frame) {
-    MTLTextureDescriptor *d = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:src.width height:src.height mipmapped:NO];
+static void dump_png_ex(id<MTLTexture> src, NSUInteger dw, NSUInteger dh,
+                        NSUInteger x, NSUInteger y, NSUInteger w, NSUInteger h, uint64_t frame) {
+    if (!src || !dw || !dh) return;
+    MTLTextureDescriptor *d = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:dw height:dh mipmapped:NO];
     d.storageMode = MTLStorageModeShared; d.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
     id<MTLTexture> t = [dev newTextureWithDescriptor:d];
-    blit(src, t, 0, 0, 0);
+    if (!t) return;
+    if (dw == src.width && dh == src.height && x == 0 && y == 0 && w == dw && h == dh && src.sampleCount == 1) {
+        blit(src, t, 0, 0, 0);
+    } else {
+        blit_rect(src, t, x, y, w, h, 0);       // black bars around an aspect-fitted image
+    }
     end_pass();
     [cmd commit]; [cmd waitUntilCompleted]; cmd = nil; ensure_cmd();
-    size_t w = t.width, h = t.height, bpr = w * 4;
-    uint8_t *px = malloc(bpr * h);
-    [t getBytes:px bytesPerRow:bpr fromRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0];
+    size_t bw = t.width, bh = t.height, bpr = bw * 4;
+    uint8_t *px = malloc(bpr * bh);
+    if (!px) return;
+    [t getBytes:px bytesPerRow:bpr fromRegion:MTLRegionMake2D(0, 0, bw, bh) mipmapLevel:0];
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate(px, w, h, 8, bpr, cs, kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little);
+    CGContextRef ctx = CGBitmapContextCreate(px, bw, bh, 8, bpr, cs, kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little);
     CGImageRef img = CGBitmapContextCreateImage(ctx);
     char path[512];
     const char *dir = getenv("FNV_DUMP_DIR");
@@ -1331,7 +1398,11 @@ static void dump_png(id<MTLTexture> src, uint64_t frame) {
     CGImageDestinationRef dst = CGImageDestinationCreateWithURL(url, (__bridge CFStringRef)UTTypePNG.identifier, 1, NULL);
     CGImageDestinationAddImage(dst, img, NULL); CGImageDestinationFinalize(dst);
     CFRelease(dst); CFRelease(url); CGImageRelease(img); CGContextRelease(ctx); CGColorSpaceRelease(cs); free(px);
-    fprintf(stderr, "[metal] dumped %s (%zux%zu)\n", path, w, h);
+    fprintf(stderr, "[metal] dumped %s (%zux%zu)\n", path, bw, bh);
+}
+static void dump_png(id<MTLTexture> src, uint64_t frame) {
+    if (!src) return;
+    dump_png_ex(src, src.width, src.height, 0, 0, src.width, src.height, frame);
 }
 
 // ---- recorder ---------------------------------------------------------------------------------------------
@@ -1398,7 +1469,10 @@ static void rec_frame(id<MTLTexture> src) {
     CVMetalTextureCacheCreateTextureFromImage(NULL, rec_cache, pb, NULL, MTLPixelFormatBGRA8Unorm, (size_t)rec_w, (size_t)rec_h, 0, &mt);
     id<MTLTexture> dst = mt ? CVMetalTextureGetTexture(mt) : nil;
     if (!dst) { if (mt) CFRelease(mt); CVPixelBufferRelease(pb); rec_dropped++; return; }
-    blit(src, dst, 0, 0, 1);
+    NSUInteger fx, fy, fw, fh;
+    fit_rect(src.width, src.height, (NSUInteger)rec_w, (NSUInteger)rec_h, &fx, &fy, &fw, &fh);
+    if (fw == (NSUInteger)rec_w && fh == (NSUInteger)rec_h) blit(src, dst, 0, 0, 1);
+    else blit_rect(src, dst, fx, fy, fw, fh, 1);
     CMTime t = CMTimeMake((int64_t)((now - rec_t0) / 1000), 1000000);
     [cmd addCompletedHandler:^(id<MTLCommandBuffer> b) {
         (void)b;
@@ -1748,6 +1822,25 @@ static NSUInteger linear_out_w, linear_out_h;
 static NSUInteger mfx_in_w, mfx_in_h, mfx_out_w, mfx_out_h;
 static MTLPixelFormat mfx_in_fmt;
 
+// Bilinear scale into a persistent intermediate of the requested size. With a window the
+// drawable does this job; headless runs and dumps need the explicit pass so their output is
+// output-sized and aspect-correct.
+static id<MTLTexture> scale_bilinear(id<MTLTexture> src, NSUInteger w, NSUInteger h) {
+    if (!src || !w || !h) return nil;
+    if (src.width == w && src.height == h) return src;
+    if (!linear_out || linear_out_w != w || linear_out_h != h) {
+        MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                      width:w height:h mipmapped:NO];
+        td.storageMode = MTLStorageModePrivate;
+        td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+        linear_out = [dev newTextureWithDescriptor:td];
+        linear_out_w = w; linear_out_h = h;
+    }
+    if (!linear_out) return nil;
+    blit(src, linear_out, 0, 0, 1);
+    return linear_out;
+}
+
 static id<MTLTexture> run_metalfx_spatial(id<MTLTexture> src, NSUInteger outW, NSUInteger outH) {
     if (!src || !outW || !outH) return nil;
     if (![MTLFXSpatialScalerDescriptor supportsDevice:dev]) return nil;
@@ -1834,6 +1927,27 @@ void d3d_backend_init(D3DState *s) {
     dispatch_semaphore_wait(inflight, DISPATCH_TIME_FOREVER);
 }
 static void d3d_backend_resize_impl(D3DState *s) {
+    // Reset runs between presents (present waits for its command buffer), but a pass may still be
+    // open if the game reset mid-frame. Close it before dropping textures it references.
+    end_pass();
+    ec_reset();
+    // Everything sized from the backbuffer follows the new dimensions; let it be re-created lazily.
+    resolve_1x_tex = nil;
+    linear_out = nil; linear_out_w = linear_out_h = 0;
+    mfx_scaler = nil; mfx_out = nil;
+    mfx_in_w = mfx_in_h = mfx_out_w = mfx_out_h = 0; mfx_in_fmt = MTLPixelFormatInvalid;
+    fxaa_out = nil;
+    smaa_edges = nil; smaa_weights = nil; smaa_out = nil;
+    if (dev) {                       // (init aborts without a Metal device)
+        if (s->backbuffer && !G32(OBJ_F(s->backbuffer, S_CONT))) {
+            host_drop(s->backbuffer);          // release the old-size MTLTexture
+            host_tex(s->backbuffer);           // and allocate it at the new guest size
+        }
+        if (s->ds && !G32(OBJ_F(s->ds, S_CONT))) {
+            host_drop(s->ds);
+            host_tex(s->ds);
+        }
+    }
     unsigned outW = fnv_output_width() ? fnv_output_width() : s->width;
     unsigned outH = fnv_output_height() ? fnv_output_height() : s->height;
     fnv_resize_surface(CGSizeMake(outW, outH));
@@ -1857,26 +1971,29 @@ static void d3d_backend_present_impl(D3DState *s) {
         if (final_tex && final_tex.sampleCount > 1) final_tex = resolve_to_1x(final_tex);
         if (final_tex && fnv_graphics_aa() == 1) final_tex = run_smaa(final_tex) ?: final_tex;
         else if (final_tex && fnv_graphics_aa() == 2) final_tex = run_fxaa(final_tex) ?: final_tex;
-        if (final_tex && (final_tex.width != outW || final_tex.height != outH) && fnv_graphics_upscaler() == 1) {
-            id<MTLTexture> up = run_metalfx_spatial(final_tex, outW, outH);
-            if (up) final_tex = up;
-        }
-        if (!drawable && final_tex && fnv_graphics_upscaler() != 1 &&
-            (final_tex.width != outW || final_tex.height != outH)) {
-            if (!linear_out || linear_out_w != outW || linear_out_h != outH) {
-                MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-                                                                                              width:outW height:outH mipmapped:NO];
-                td.storageMode = MTLStorageModePrivate;
-                td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-                linear_out = [dev newTextureWithDescriptor:td];
-                linear_out_w = outW; linear_out_h = outH;
+        // Fill the drawable edge-to-edge when the aspects match; otherwise scale into the largest
+        // matching rect and letterbox/pillarbox over black instead of stretching the image.
+        NSUInteger fitx = 0, fity = 0, fitw = outW, fith = outH;
+        if (final_tex) fit_rect(final_tex.width, final_tex.height, outW, outH, &fitx, &fity, &fitw, &fith);
+        if (final_tex && (final_tex.width != fitw || final_tex.height != fith)) {
+            if (fnv_graphics_upscaler() == 1 && fitw >= final_tex.width && fith >= final_tex.height) {
+                id<MTLTexture> up = run_metalfx_spatial(final_tex, fitw, fith);
+                if (up) final_tex = up;
             }
-            if (linear_out) { blit(final_tex, linear_out, 0, 0, 1); final_tex = linear_out; }
+            if (final_tex.width != fitw || final_tex.height != fith) {
+                id<MTLTexture> scaled = scale_bilinear(final_tex, fitw, fith);
+                if (scaled) final_tex = scaled;
+            }
         }
-        if (final_tex && (want_dump(s->frames + 1) || input_take_dump_request())) dump_png(final_tex, s->frames + 1);
+        if (final_tex && (want_dump(s->frames + 1) || input_take_dump_request())) {
+            if (final_tex.width == outW && final_tex.height == outH)
+                dump_png(final_tex, s->frames + 1);
+            else
+                dump_png_ex(final_tex, outW, outH, fitx, fity, fitw, fith, s->frames + 1);
+        }
         if (smr_trace_active(s) && trace_scene_tex) { dump_png(trace_scene_tex, 9999); trace_scene_tex = nil; }
         if (smr_trace_active(s) && trace_tonemap_tex) { dump_png(trace_tonemap_tex, 9998); trace_tonemap_tex = nil; }
-        if (drawable && final_tex) blit(final_tex, drawable.texture, 0, 0, 1);
+        if (drawable && final_tex) blit_rect(final_tex, drawable.texture, fitx, fity, fitw, fith, 1);
         if (final_tex) rec_frame(final_tex);
         if (drawable) {
             if (!getenv("FNV_NOVSYNC") && fnv_display_refresh() > 62) {
