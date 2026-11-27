@@ -68,6 +68,7 @@ usage: ./scripts/recomp <command> [options]
   status                 coverage, last run, last equivalence check, next action
   verify [addresses...]  offline native-vs-x86 differential test (no game launch)
   run [--to tutorial]    build (incrementally) and run the guest hands-free
+                         (--release: -O2 host, no RT_CALLTRACE; also SMR_RELEASE=1)
   promote [addresses]    make hot Unicorn fallbacks native, then verify + run
                          (--dry-run, --revert to roll back a measured loss)
   build [--full]         rebuild the host only, with cache statistics
@@ -86,6 +87,7 @@ common examples:
   ./scripts/recomp promote                    take the last run's fallbacks native
   ./scripts/recomp run --to tutorial          build + boot + summarize
   ./scripts/recomp run --to tutorial --full   same with all 46k functions native
+  ./scripts/recomp run --to tutorial --full --release   optimized host (-O2, no trace)
   ./scripts/recomp build --full               rebuild only
 
 Run './scripts/recomp <command> --help' for command-specific help.

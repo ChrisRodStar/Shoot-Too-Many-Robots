@@ -46,8 +46,10 @@ def variant_flags(variant: str) -> dict:
     return {"SMR_FULL": "1"} if variant == "full" else {}
 
 
-def artifacts(variant: str, mode: str) -> tuple[Path, Path | None]:
+def artifacts(variant: str, mode: str, release: bool = False) -> tuple[Path, Path | None]:
     suffix = "-full" if variant == "full" else ""
+    if release:
+        suffix += "-release"
     if mode == "window":
         return (
             common.LOGS / f"window{suffix}-startup.log",
@@ -62,6 +64,10 @@ def probe_env(args) -> dict:
     env = os.environ.copy()
     env.update(MODE_ENV[args.mode])
     env.update(variant_flags(args.variant))
+    if args.release:
+        env["SMR_RELEASE"] = "1"
+    else:
+        env.pop("SMR_RELEASE", None)
     if args.no_build:
         env["SMR_SKIP_BUILD"] = "1"
     if args.to and args.mode == "window":
@@ -114,7 +120,7 @@ def delta_line(label, before, after, unit="", better="higher"):
     return f"  {label:<16} {after:.1f}{unit}  ({mark}{abs(change):.1f} vs previous)"
 
 
-def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code, before, started_at) -> dict:
+def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code, before, started_at, release=False) -> dict:
     text = log_path.read_text(errors="replace") if log_path.is_file() else ""
     parsed = common.parse_log(text)
     def display_path(path: Path) -> str:
@@ -138,6 +144,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         "host": socket.gethostname(),
         "variant": variant,
         "mode": mode,
+        "release": bool(release),
         "entry_size": len(common.table_addresses(common.VARIANTS[variant]["generated"])),
         "exit": exit_code,
         "timed_out": timed_out,
@@ -150,6 +157,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
     same_setup = (
         previous.get("variant") == variant
         and previous.get("mode") == mode
+        and bool(previous.get("release")) == bool(release)
         and previous.get("entry_size") == entry["entry_size"]
     )
     old_fallbacks = set(previous.get("fallback_roots", [])) if same_setup else set()
@@ -157,7 +165,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
     entry["new_fallbacks"] = new_fallbacks
 
     print()
-    print(f"  run            {variant}/{mode} — exit {exit_code}" + (" (timeout)" if timed_out else ""))
+    print(f"  run            {variant}/{mode}" + (" release" if release else "") + f" — exit {exit_code}" + (" (timeout)" if timed_out else ""))
     print(f"  wall time      {common.seconds(elapsed)}")
     if not perf:
         print("  no [perf] windows were recorded")
@@ -173,6 +181,7 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
         previous_perf
         and previous.get("variant") == variant
         and previous.get("mode") == mode
+        and bool(previous.get("release")) == bool(release)
         and previous.get("entry_size") == entry["entry_size"]
     )
     if previous_perf and not comparable:
@@ -217,6 +226,8 @@ def summarize(variant, mode, log_path, frames_dir, elapsed, timed_out, exit_code
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="recomp run", description=__doc__.splitlines()[0])
     parser.add_argument("--full", action="store_true", help="use the full 46k-function build")
+    parser.add_argument("--release", action="store_true",
+                        help="optimized host build (-O2, no RT_CALLTRACE); SMR_RELEASE=1 also enables it")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--window", dest="mode", action="store_const", const="window", help="AppKit window (default)")
     group.add_argument("--metal", dest="mode", action="store_const", const="metal", help="offscreen Metal probe")
@@ -232,6 +243,8 @@ def main(argv=None):
     parser.add_argument("--verify", action="store_true", help="gate on the changed translation units before launching")
     parser.add_argument("--trace", action="store_true", help="log individual Windows API calls")
     args = parser.parse_args(argv)
+    if os.environ.get("SMR_RELEASE") == "1":
+        args.release = True
 
     if not common.STARTUP_PROBE.is_file():
         common.fail(f"missing {common.STARTUP_PROBE}")
@@ -256,7 +269,7 @@ def main(argv=None):
     elif args.build_only:
         common.fail("--build-only and --no-build are mutually exclusive")
 
-    log_path, frames_dir = artifacts(args.variant, args.mode)
+    log_path, frames_dir = artifacts(args.variant, args.mode, args.release)
     if frames_dir:
         frames_dir.mkdir(parents=True, exist_ok=True)
     before = previous_run()
@@ -276,7 +289,8 @@ def main(argv=None):
             file=os.sys.stderr,
         )
     entry = summarize(
-        args.variant, args.mode, log_path, frames_dir, elapsed, timed_out, code, before, wall_start
+        args.variant, args.mode, log_path, frames_dir, elapsed, timed_out, code, before, wall_start,
+        args.release,
     )
     entry["script"] = args.script or (f"{args.to}" if args.to else None)
 

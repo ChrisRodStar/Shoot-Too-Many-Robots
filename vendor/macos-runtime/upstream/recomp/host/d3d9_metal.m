@@ -315,6 +315,26 @@ static id<MTLTexture> surf_target(uint32_t s, NSUInteger *level, NSUInteger *sli
 @end
 
 static MTLCompileOptions *copts;
+// In-process MSL -> compiled function cache, shared by prewarm and draw-time translation.
+// Metal's on-disk cache only helps after a variant has been compiled once on this machine and
+// the sandbox lets it write; prewarm used to throw its library away, so the first draw of the
+// same variant still paid the full ~100 ms compile. Keep the function (and library) resident.
+static pthread_mutex_t shader_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+static NSMutableDictionary<NSString *, id<MTLFunction>> *shader_fn_cache;
+static NSMutableArray *shader_fn_keep;
+static id<MTLFunction> shader_cache_lookup(NSString *src) {
+    pthread_mutex_lock(&shader_cache_lock);
+    id<MTLFunction> f = shader_fn_cache[src];
+    pthread_mutex_unlock(&shader_cache_lock);
+    return f;
+}
+static void shader_cache_store(NSString *src, id<MTLLibrary> lib, id<MTLFunction> fn) {
+    if (!fn) return;
+    pthread_mutex_lock(&shader_cache_lock);
+    if (!shader_fn_cache) { shader_fn_cache = [NSMutableDictionary dictionary]; shader_fn_keep = [NSMutableArray array]; }
+    if (!shader_fn_cache[src]) { shader_fn_cache[src] = fn; [shader_fn_keep addObject:fn]; if (lib) [shader_fn_keep addObject:lib]; }
+    pthread_mutex_unlock(&shader_cache_lock);
+}
 static HShader *host_shader(uint32_t o) __attribute__((ns_returns_not_retained));
 static HShader *host_shader(uint32_t o) {
     __unsafe_unretained HShader *h0 = (__bridge HShader *)host_get(o);
@@ -410,15 +430,21 @@ static id<MTLFunction> shader_fn(uint32_t o, HShader *h, const uint16_t *extra, 
     char err[256];
     char *msl = sm_translate((const uint32_t *)(void *)(MEM + G32(OBJ_F(o, 0))), G32(OBJ_F(o, 1)), &info, extra, n_extra, err, sizeof err);
     if (!msl) { fprintf(stderr, "[metal] translate failed: %s\n", err); return nil; }
-    NSError *e = nil;
-    uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-    id<MTLLibrary> lib = [dev newLibraryWithSource:[NSString stringWithUTF8String:msl] options:copts error:&e];
-    uint64_t dt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - t0;
-    stall_ns += dt;
-    if (dt > 4000000) fprintf(stderr, "[metal] shader compile %.1f ms (%s)\n", (double)dt / 1e6, h->info.is_ps ? "ps" : "vs");
+    NSString *src = [NSString stringWithUTF8String:msl];
     free(msl);
-    if (!lib) { fprintf(stderr, "[metal] compile failed: %s\n", e.localizedDescription.UTF8String); return nil; }
-    id<MTLFunction> f = [lib newFunctionWithName:h->info.is_ps ? @"pmain" : @"vmain"];
+    id<MTLFunction> f = shader_cache_lookup(src);
+    if (!f) {
+        NSError *e = nil;
+        uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        id<MTLLibrary> lib = [dev newLibraryWithSource:src options:copts error:&e];
+        uint64_t dt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - t0;
+        stall_ns += dt;
+        if (dt > 4000000) fprintf(stderr, "[metal] shader compile %.1f ms (%s depth_mask=%#x)\n", (double)dt / 1e6, h->info.is_ps ? "ps" : "vs", depth_mask);
+        if (!lib) { fprintf(stderr, "[metal] compile failed: %s\n", e.localizedDescription.UTF8String); return nil; }
+        f = [lib newFunctionWithName:h->info.is_ps ? @"pmain" : @"vmain"];
+        shader_cache_store(src, lib, f);
+    }
+    if (!f) return nil;
     [h.keep addObject:f];
     if (h->nvar < 16) { h->var_key[h->nvar] = key; h->var_fn[h->nvar] = f; h->nvar++; }
     return f;
@@ -1211,9 +1237,9 @@ static void d3d_backend_readback_impl(D3DState *s, uint32_t rt, uint32_t dst) {
 
 // ---- resource lifetime --------------------------------------------------------------------------------
 // Shader prewarm: the game creates (nearly) all its shaders at boot. Translate each one's default
-// variant now and compile it on background threads; the compiled result lands in Metal's on-disk
-// shader cache, so the draw-time compile of that variant later is a cache hit instead of a stall of
-// up to ~130 ms. Results are discarded here; FNV_NO_PREWARM=1 disables.
+// variant now and compile it on background threads, keeping the function in the in-process cache so
+// the draw-time lookup is a hit even when Metal's on-disk cache is unavailable. FNV_NO_PREWARM=1
+// disables.
 static void prewarm_shader(uint32_t o) {
     static int off = -1;
     static dispatch_queue_t q; static dispatch_semaphore_t width;
@@ -1232,9 +1258,25 @@ static void prewarm_shader(uint32_t o) {
     if (!msl) return;
     NSString *src = [NSString stringWithUTF8String:msl];
     free(msl);
+    if (shader_cache_lookup(src)) return;
+    NSString *name = info.is_ps ? @"pmain" : @"vmain";
+    int is_ps = info.is_ps;
     dispatch_async(q, ^{
         dispatch_semaphore_wait(width, DISPATCH_TIME_FOREVER);
-        @autoreleasepool { (void)[dev newLibraryWithSource:src options:copts error:nil]; }
+        @autoreleasepool {
+            if (!shader_cache_lookup(src)) {
+                NSError *e = nil;
+                uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+                id<MTLLibrary> lib = [dev newLibraryWithSource:src options:copts error:&e];
+                uint64_t dt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - t0;
+                if (lib) {
+                    shader_cache_store(src, lib, [lib newFunctionWithName:name]);
+                    if (dt > 20000000) fprintf(stderr, "[metal] prewarm compile %.1f ms (%s)\n", (double)dt / 1e6, is_ps ? "ps" : "vs");
+                } else if (e) {
+                    fprintf(stderr, "[metal] prewarm compile failed: %s\n", e.localizedDescription.UTF8String);
+                }
+            }
+        }
         dispatch_semaphore_signal(width);
     });
 }

@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--discovery-prefix', type=Path, help='optional installed Unicorn prefix for a separate Mac discovery binary')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--jobs', type=int, default=2)
+    parser.add_argument('--release', action='store_true', help='optimized host: -O2 and no RT_CALLTRACE (default stays -O1 + trace)')
     parser.add_argument('--cache', type=Path, help='private, verified object cache for this compiler/SDK/header configuration')
     parser.add_argument('--trace-entries', default='', help='comma-separated selected guest entry addresses for read-only state probes')
     parser.add_argument('--trace-returns', default='', help='comma-separated selected callees for read-only post-return probes')
@@ -58,7 +59,10 @@ def main():
             old_manifest=json.loads((cache/'manifest.json').read_text())
     with tempfile.TemporaryDirectory(dir=args.out) as temp:
         tmp = Path(temp)
-        base = [cc, '-isysroot', sdk, '-O1', '-DRT_CALLTRACE', '-I', str(R), '-I', str(H), '-I', str(ROOT/'macos')]
+        # The optimization/define set is part of the object-cache signature, so release and dev
+        # objects coexist in one cache directory without colliding.
+        opt = ['-O2'] if args.release else ['-O1', '-DRT_CALLTRACE']
+        base = [cc, '-isysroot', sdk, *opt, '-I', str(R), '-I', str(H), '-I', str(ROOT/'macos')]
         if args.windowed:
             base.append('-DSMR_METAL_HOST')
         if args.host_check:
