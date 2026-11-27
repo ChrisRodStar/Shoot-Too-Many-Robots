@@ -90,6 +90,11 @@ static uc_engine *engine(CPU *c) {
     if (tl_uc) return tl_uc;
     uc_engine *uc;
     if (uc_open(UC_ARCH_X86, UC_MODE_32, &uc) != UC_ERR_OK) { fprintf(stderr, "[fallback] uc_open failed\n"); abort(); }
+#ifdef UC_CTL_TCG_BUFFER_SIZE
+    // Unicorn grows its TCG cache on demand and keeps it for the engine's lifetime. 32 MiB is
+    // ample for the handful of interpreted paths and keeps the footprint predictable.
+    uc_ctl_set_tcg_buffer_size(uc, 32u << 20);
+#endif
     uc_err e = uc_mem_map_ptr(uc, 0, (size_t)1 << 32, UC_PROT_ALL, MEM);
     if (e != UC_ERR_OK) { fprintf(stderr, "[fallback] map: %s\n", uc_strerror(e)); abort(); }
     uint32_t teb = REG(c, 272), gdt = teb + 0x1F00;
