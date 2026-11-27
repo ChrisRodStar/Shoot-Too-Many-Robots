@@ -54,10 +54,18 @@ elif [[ "${SMR_METAL:-0}" == 1 ]]; then
 fi
 build_out="${build_out}${variant}"
 build_log="$work/startup${variant}-build.log"
-"$python" "$runtime/tools/startup_build.py" "${build_flags[@]}" \
-    --generated "$generated" --discovery-prefix "$unicorn_prefix" \
-    --out "$build_out" --cache "$work/startup${variant}-cache" \
-    > "$build_log" 2>&1 || { tail -40 "$build_log" >&2; exit 1; }
+if [[ "${SMR_SKIP_BUILD:-0}" == 1 ]]; then
+    # Reuse the existing host (scripts/recomp builds once, then launches separately).
+    if [[ ! -x "$build_out/fnv-discovery" ]]; then
+        printf 'No existing build at %s (run without SMR_SKIP_BUILD)\n' "$build_out" >&2
+        exit 2
+    fi
+else
+    "$python" "$runtime/tools/startup_build.py" "${build_flags[@]}" \
+        --generated "$generated" --discovery-prefix "$unicorn_prefix" \
+        --out "$build_out" --cache "$work/startup${variant}-cache" \
+        > "$build_log" 2>&1 || { tail -40 "$build_log" >&2; exit 1; }
+fi
 
 if [[ "${SMR_BUILD_ONLY:-0}" == 1 ]]; then
     tail -2 "$build_log"

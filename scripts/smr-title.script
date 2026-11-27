@@ -1,0 +1,4 @@
+# Deterministic boot to a stable title screen: one frame dump, then quit.
+0 waitsteady 20 100
+180 dump
+300 quit

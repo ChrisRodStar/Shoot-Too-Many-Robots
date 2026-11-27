@@ -1,0 +1,18 @@
+# Deterministic boot: title screen -> tutorial, three frame dumps, clean quit.
+#
+# The host applies events when the presented-frame counter reaches the number in
+# column one.  `waitsteady` pauses the script until the draw count has not
+# changed for N frames (optionally with a minimum draw count), and later frame
+# numbers are counted from that sync point.  That keeps the script independent
+# of startup timing and GPU shader-compile hitches.
+#
+# Title screen: ~150 draws.  Tutorial: ~500+ draws.  The default 189-entry
+# build is slow because the tutorial's hot path falls back to Unicorn, so keep
+# the post-sync window short; use --full when fps matters.
+0 waitsteady 20 100
+60 tap 57
+120 waitsteady 30 400
+360 dump
+480 dump
+600 dump
+660 quit

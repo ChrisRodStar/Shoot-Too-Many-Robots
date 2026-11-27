@@ -29,6 +29,19 @@ The full build with `SMR_NATIVE_WNDPROC=1` runs `0x5c88f0` natively; only 1 game
 
 Across the latest run (`run11`, 516 draws/frame, `ff-skipped 0`), the tutorial runs at **~26–28 fps** (`main_cpu_ms` ~34–35 ms, `gpu_ms` ~1.4 ms) and exits cleanly on scripted quit. See the [full run](work/boot/window-full-startup.log) and [full-run CPU sample](work/perf/full-tutorial.sample.txt).
 
+## Fast iteration loop
+
+`scripts/recomp` makes the inner loop measurable without booting the game each time. See [docs/RECOMP-WORKFLOW.md](docs/RECOMP-WORKFLOW.md) for the design and the limitations.
+
+```sh
+./scripts/recomp status                    # coverage, fallbacks, last run, next action
+./scripts/recomp verify --changed          # native-vs-x86 check of what you just recompiled
+./scripts/recomp verify --full --sample 100 # seeded sample of all 46k functions
+./scripts/recomp run --to tutorial         # hands-free build + boot + summary + deltas
+```
+
+`verify` links the exact production translation units into a cached diagnostic dylib and compares each function against the original x86 bytes in Unicorn from identical randomized state (registers, flags, x87, XMM and touched memory). It runs in seconds, needs no window, and exits non-zero on a real mismatch. Results distinguish an actual translation bug from an isolated-harness limitation such as a call into a Windows import or a deliberate CPUID divergence. `run` drives a checked-in [tutorial input script](scripts/smr-tutorial.script), enforces a timeout, parses fps/draws/fallbacks/faults and prints deltas against the previous run.
+
 The executable extracted from the installer is a 32-bit Windows PE whose entry point lands in `.bind` and whose `.text` section is packed. The diagnostic uses the loose executable from Downloads, which differs from the installer executable. The Microsoft Visual C++, PhysX, DirectX, and FMOD DLLs come from the installer and its bundled redistributables.
 
 ### Project inputs

@@ -1,0 +1,11 @@
+#!/bin/bash
+# Front door for the recomp dev loop. See docs/RECOMP-WORKFLOW.md.
+set -euo pipefail
+project="$(cd "$(dirname "$0")/.." && pwd)"
+python="$project/.venv/bin/python"
+if [[ ! -x "$python" ]]; then
+    printf 'recomp: missing %s (create the venv described in the README)\n' "$python" >&2
+    exit 2
+fi
+cd "$project"
+exec "$python" -m tools.recomp.cli "$@"
