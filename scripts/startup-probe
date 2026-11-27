@@ -4,6 +4,8 @@ project="$(cd "$(dirname "$0")/.." && pwd)"
 work="$project/work"
 runtime="$work/macos-runtime"
 boot="$work/boot"
+logs="$project/logs"
+mkdir -p "$logs"
 python="$project/.venv/bin/python"
 generated="$work/smr-entry-generated"
 variant=""
@@ -59,7 +61,7 @@ elif [[ "${SMR_METAL:-0}" == 1 ]]; then
     fi
 fi
 build_out="${build_out}${variant}"
-build_log="$work/startup${variant}-build.log"
+build_log="$logs/startup${variant}-build.log"
 if [[ "${SMR_SKIP_BUILD:-0}" == 1 ]]; then
     # Reuse the existing host (scripts/recomp builds once, then launches separately).
     if [[ ! -x "$build_out/fnv-discovery" ]]; then
@@ -95,9 +97,9 @@ else
     export SMR_STOP_AFTER_PRESENT=1
 fi
 export FNV_NO_QOS=1 FNV_ROOT="$work/installed/app/ShootManyRobots"
-probe_log="$boot/native${variant}-startup.log"
+probe_log="$logs/native${variant}-startup.log"
 if [[ "${SMR_WINDOW:-0}" == 1 ]]; then
-    probe_log="$boot/window${variant}-startup.log"
+    probe_log="$logs/window${variant}-startup.log"
 fi
 probe_exit=0
 "$python" - "$project" "$boot" "$build_out/fnv-discovery" \

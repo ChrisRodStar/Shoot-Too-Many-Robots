@@ -50,12 +50,12 @@ def artifacts(variant: str, mode: str) -> tuple[Path, Path | None]:
     suffix = "-full" if variant == "full" else ""
     if mode == "window":
         return (
-            common.BOOT / f"window{suffix}-startup.log",
+            common.LOGS / f"window{suffix}-startup.log",
             common.BOOT / f"window{suffix}-frames",
         )
     if mode == "metal":
-        return common.BOOT / f"native{suffix}-startup.log", common.BOOT / f"metal{suffix}-frames"
-    return common.BOOT / f"native{suffix}-startup.log", None
+        return common.LOGS / f"native{suffix}-startup.log", common.BOOT / f"metal{suffix}-frames"
+    return common.LOGS / f"native{suffix}-startup.log", None
 
 
 def probe_env(args) -> dict:

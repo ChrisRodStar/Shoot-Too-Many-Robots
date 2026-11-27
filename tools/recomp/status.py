@@ -43,9 +43,9 @@ def last_run() -> tuple[dict, Path | None, bool]:
     data = common.load_json(common.DEV / "last-run.json", None)
     if data:
         return data, common.ROOT / data["log"] if data.get("log") else None, False
-    logs = sorted(common.BOOT.glob("window*-startup.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    logs = sorted(common.LOGS.glob("window*-startup.log"), key=lambda p: p.stat().st_mtime, reverse=True)
     if not logs:
-        logs = sorted(common.BOOT.glob("native*-startup.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+        logs = sorted(common.LOGS.glob("native*-startup.log"), key=lambda p: p.stat().st_mtime, reverse=True)
     if not logs:
         return {}, None, False
     log = logs[0]
@@ -182,7 +182,7 @@ def main(argv=None):
             print("                 fallbacks none — every dispatched function was native")
 
     # The full build is the reference for what is still missing from the game image.
-    full_log = common.BOOT / "window-full-startup.log"
+    full_log = common.LOGS / "window-full-startup.log"
     full_gaps = []
     if full_log.is_file() and (not run_log or full_log.resolve() != run_log.resolve()):
         full_gaps = common.parse_log(full_log.read_text(errors="replace")).get("fallback_exe") or []

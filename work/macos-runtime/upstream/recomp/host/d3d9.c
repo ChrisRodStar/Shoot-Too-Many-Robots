@@ -852,8 +852,9 @@ static void Direct3DCreate9_(CPU *c) {
     RET(c, newobj(vt_d3d, 0, 0, 0), 1);
 }
 static void D3DPERF_SetOptions_(CPU *c) { RET(c, 0, 1); }
+static void DebugSetMute_(CPU *c) { RET(c, 0, 0); }
 
-const ShimTable d3d9_shims = { (const Shim[]){ {"Direct3DCreate9", Direct3DCreate9_}, {"D3DPERF_SetOptions", D3DPERF_SetOptions_} }, 2 };
+const ShimTable d3d9_shims = { (const Shim[]){ {"Direct3DCreate9", Direct3DCreate9_}, {"D3DPERF_SetOptions", D3DPERF_SetOptions_}, {"DebugSetMute", DebugSetMute_} }, 3 };
 
 // ---- entry points for d3dx9.c ------------------------------------------------------------------
 uint32_t d3d9_create_texture(uint32_t dev, int cube, uint32_t w, uint32_t h, uint32_t levels, uint32_t usage, uint32_t fmt, uint32_t pool) {
