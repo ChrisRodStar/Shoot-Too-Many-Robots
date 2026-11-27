@@ -1,0 +1,56 @@
+// Repair a function entry that auto-analysis split at a mid-instruction address.
+// Args: <good-entry>:<bad-entry> ...  (e.g. 0x626770:0x626772)
+// Removes the bogus function at <bad-entry>, clears its (overlapping) code units,
+// disassembles at <good-entry>, and creates a function there. Run without -readOnly.
+//@category BYOG
+
+import ghidra.app.cmd.disassemble.DisassembleCommand;
+import ghidra.app.cmd.function.CreateFunctionCmd;
+import ghidra.app.script.GhidraScript;
+import ghidra.program.model.address.*;
+import ghidra.program.model.listing.*;
+
+public class FixSplitEntry extends GhidraScript {
+    @Override
+    public void run() throws Exception {
+        Listing listing = currentProgram.getListing();
+        FunctionManager fm = currentProgram.getFunctionManager();
+        for (String spec : getScriptArgs()) {
+            String[] parts = spec.split(":");
+            Address good = toAddr(Long.decode(parts[0]));
+            Address bad = toAddr(Long.decode(parts[1]));
+            Function fBad = fm.getFunctionAt(bad);
+            if (fBad != null) {
+                Address end = fBad.getBody().getMaxAddress();
+                println("removing function " + fBad.getEntryPoint() + ".." + end);
+                fm.removeFunction(bad);
+                listing.clearCodeUnits(bad, end, false);
+            } else {
+                Instruction containing = listing.getInstructionContaining(bad);
+                if (containing != null) {
+                    println("clearing instruction containing " + bad + ": " + containing);
+                    listing.clearCodeUnits(containing.getMinAddress(), containing.getMaxAddress(), false);
+                }
+            }
+            Instruction overlap = listing.getInstructionContaining(good);
+            if (overlap != null && listing.getInstructionAt(good) == null) {
+                println("clearing overlapping instruction " + overlap);
+                listing.clearCodeUnits(overlap.getMinAddress(), overlap.getMaxAddress(), false);
+            }
+            DisassembleCommand dc = new DisassembleCommand(good, null, true);
+            println("disassemble " + good + " -> " + dc.applyTo(currentProgram, monitor));
+            Instruction at = listing.getInstructionAt(good);
+            println("instruction at " + good + " = " + at);
+            if (at == null) continue;
+            if (fm.getFunctionAt(good) == null) {
+                CreateFunctionCmd cf = new CreateFunctionCmd(good);
+                println("create function -> " + cf.applyTo(currentProgram, monitor));
+            }
+            Function f = fm.getFunctionAt(good);
+            if (f != null) {
+                CreateFunctionCmd.fixupFunctionBody(currentProgram, f, monitor);
+                println("function " + f.getEntryPoint() + ".." + f.getBody().getMaxAddress());
+            }
+        }
+    }
+}

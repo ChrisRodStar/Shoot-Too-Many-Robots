@@ -223,7 +223,9 @@ Everything added by this tool lives under `work/recomp-dev/` (ignored by Git):
 | `pcode-index.json` | cached guest-address index over `smr-fixed.jsonl` |
 | `last-run.json`, `runs.jsonl`, `runs/` | run summaries and logs |
 
-The executable, DLLs, P-code, generated C and save data stay where they were.
+The full re-emit also uses `work/smr-extra-entries.json`, the recovered
+secondary-entry map described under “Closing the last game-exe gaps”. The
+executable, DLLs, P-code, generated C and save data stay where they were.
 
 ## Promoting hot fallbacks
 
@@ -280,13 +282,77 @@ reverted to the curated 189 functions. (The absolute fps deltas are small and
 run-to-run variance is around 1 fps; the decisive result is that each round
 revealed another layer of indirect callees instead of closing the gap.) Use
 `run --to tutorial --full` when the frame rate matters: the full 46k build is
-the performance path (~28 fps, two game.exe gaps). `promote` is still useful for
+the performance path. As of 2026-11-26 it has **zero game.exe gaps** and one
+unreachable packed-region `XBEGIN` skip. `promote` is still useful for
 a genuinely hot, self-contained function, and now refuses to leave a regression
 in place. A profiling-driven promotion that closes over the whole dynamic callee
 set would be the next step, not one-root-at-a-time promotion.
 
 Promotion only affects game-exe code. Fallbacks inside `msvcr90`, `msvcp90`,
 PhysX, FMOD and friends remain; those need separate analysis and emission.
+
+### Closing the last game-exe gaps
+
+The final two full-run fallbacks were `0x626770` and `0x7c7290`; both are now
+native.
+
+- **`0x626770` — Ghidra split the entry two bytes late.** The real bytes are
+  `MOV EAX,[ESP+4]; MOV CL,[EAX+4]; MOV [EAX],CL; MOV dword [EAX+1],0; RET 4`,
+  but analysis had created `FUN_00626772` starting at the `AND AL,4` inside that
+  first instruction. `work/recompiler/ghidra_scripts/FixSplitEntry.java` (added
+  by `patches/smr-ghidra-fix-split-entry.patch`) removes the bogus function,
+  clears its overlapping code units, disassembles `0x626770`, and creates
+  `FUN_00626770`. The re-export changed exactly two functions: added
+  `0x626770`, removed `0x626772`; every other function line was byte-identical.
+- **`0x7c727c` / `0x7c7290` — I/O-port CALLOTHERs.** `0x7c727c` starts at
+  `OUTSB`; its real secondary entry `0x7c7290` is the address the game actually
+  enters. Both emitters now handle the `in` and `out` CALLOTHERs
+  (`patches/smr-io-port-emit.patch`, applied by `scripts/startup-probe`).
+  **Semantics were taken from the current fallback, not guessed:** Unicorn has
+  no port device attached, so it executes `IN`/`INS` as a zero read and discards
+  `OUT`/`OUTS`. The native translation preserves that (`in` writes 0, `out` is a
+  no-op) rather than trapping. `swi` (`INT n`) is emitted as a non-returning
+  trap because Unicorn raises `UC_ERR_EXCEPTION`; this lets the remaining
+  data/packed I/O-port functions link. The one still-skipped function,
+  `0x96006b`, fails on `XBEGIN`, not on port I/O, and is unreachable in the
+  tutorial.
+
+Reproduction order: apply both patches, run `FixSplitEntry.java`, re-run
+`DumpPcode.java`, then emit with the recovered secondary-entry map:
+
+```sh
+export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
+headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
+"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis \
+  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -postScript FixSplitEntry.java 0x626770:0x626772
+"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis -readOnly \
+  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -postScript DumpPcode.java "$PWD/work/smr-fixed.jsonl" all
+.venv/bin/python work/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
+  --extra work/smr-extra-entries.json
+```
+
+`work/smr-extra-entries.json` holds the 3,739 secondary entries recovered from
+the prior generated C; it must stay with the P-code export or a re-emit drops
+them. If it is lost, rebuild it from the prior `smr-generated/tu_*.c` by pairing
+each `void g_<extra>(...){...b_<owner>(c,k);}` with its owner. The existing full
+artifact was reproduced with `work/recompiler/recomp/emit.py`, not the older
+`work/macos-runtime` copy (the latter lacks `sqrtps`/`pshufw`); both were patched
+so they agree on I/O ports.
+
+Acceptance for this change:
+
+```sh
+./scripts/recomp verify --full 0x626770,0x7c727c,0x7c7290   # pass 1, flags-only 2, no real mismatch
+./scripts/recomp verify --full --sample 100                 # exit 0
+SMR_NATIVE_WNDPROC=1 ./scripts/recomp run --to tutorial --full
+# exit 0, 0 game.exe fallbacks, 0 faults/traps, frames dumped
+```
+
+The latest acceptance run's last-window fps was noisy (15.8); earlier full runs
+measured roughly 26–28 fps, so use the functional result above and treat a single
+fps window as an anecdote.
 
 ## What this does not solve (yet)
 

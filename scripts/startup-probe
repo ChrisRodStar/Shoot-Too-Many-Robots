@@ -27,6 +27,12 @@ if [[ -d "$runtime/.git" ]]; then
         git -C "$runtime" apply --reverse --check "$patch"
     fi
 fi
+# Emitter I/O-port fix used to regenerate the SMR P-code (see patches/smr-io-port-emit.patch).
+# Apply from the project root because work/macos-runtime and work/recompiler are tracked here.
+emit_patch="$project/patches/smr-io-port-emit.patch"
+if git -C "$project" apply --check "$emit_patch" >/dev/null 2>&1; then
+    git -C "$project" apply "$emit_patch"
+fi
 cp "$project/runtime/msvcr90.c" "$runtime/upstream/recomp/host/smr_msvcr90.c"
 cp "$project/runtime/pe_modules.c" "$runtime/upstream/recomp/host/smr_pe_modules.c"
 unicorn_prefix="$("$python" -c 'import pathlib, unicorn; print(pathlib.Path(unicorn.__file__).parent)')"

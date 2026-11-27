@@ -512,6 +512,21 @@ class FnEmitter:
             "log2": f"FP(log2(FG({a[0]},10)),{n})" if a else None,
             "f2xm1": f"FP(expm1(FG({a[0]},10)*M_LN2),{n})" if a else None,
         }
+        if name == "in":
+            # IN/INS are privileged on real x86, but Unicorn (the current fallback) executes
+            # them as a zero read: no port device is attached. Preserve that behavior instead
+            # of trapping, because game.exe has data/packed regions that decode as these and
+            # a reached path would otherwise change from Unicorn's zero value to a host trap.
+            return self.wr(out, "0") if out is not None else ""
+        if name == "out":
+            # OUT/OUTS are likewise a discarded write under Unicorn. The surrounding P-code
+            # already models the string-index and memory effects, so the port write is a no-op.
+            return "/* out: no port device attached */"
+        if name == "swi":
+            # INT n is a non-returning software interrupt. Unicorn raises UC_ERR_EXCEPTION
+            # for these; emit a trap so the remaining I/O-port-containing data/packed
+            # functions still link natively instead of staying on the fallback boundary.
+            return f"SAVE_REGS;rt_trap(c,TRAP_UNSUPPORTED,0x{hx(insn['a'])}u);"
         if name == "LOCK":                 # x86 LOCK prefix: make the RMW atomic w.r.t. other LOCKed ops
             return "rt_lock();"
         if name == "UNLOCK":

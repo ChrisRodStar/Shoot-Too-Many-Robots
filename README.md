@@ -4,12 +4,12 @@ Apple Silicon compatibility research for the Windows release of *Shoot Many Robo
 
 ## Current status
 
-The original Windows executable reaches the first tutorial in a 1280 × 720 AppKit window on the Apple M4. Pressing Space advances past the title screen and loading screen into the tutorial (`50,195` functions emitted; `~26–28 fps` in the 500+ draw/frame tutorial with `ff-skipped 0`). See the [title screen](work/boot/window-frames/title-window.png), [chapter loading screen](work/boot/window-frames/frame_2138.png), and [full-build log](work/boot/window-full-startup.log).
+The original Windows executable reaches the first tutorial in a 1280 × 720 AppKit window on the Apple M4. Pressing Space advances past the title screen and loading screen into the tutorial (`50,203` functions emitted, including 3,739 secondary entries; `ff-skipped 0`). The full build now has **zero game.exe fallbacks**: the last acceptance run exited 0 with no faults or traps and dumped the expected frames. See the [title screen](work/boot/window-frames/title-window.png), [chapter loading screen](work/boot/window-frames/frame_2138.png), and [full-build log](work/boot/window-full-startup.log).
 
 - **Resolved startup & tagged-pointer crashes.** Re-running Ghidra with `ResolveJumpTables`, `FixNoReturn`, and `FixEntries` resolved the `0x5c88f0` window-procedure switch table (`SMR_NATIVE_WNDPROC=1`). Added `SQRTPS`/`PSHUFW` support to fix the `0x83f6e0` trap. Moved the guest heap in `gheap.c` from `0x40000000` to `0x18000000–0x40000000` because the game's handle resolver (`0x764a80`) treats bit 30 (`0x40000000`) as a tagged-index flag, which caused the `0x5c9c86` null-call trap.
 - **Scene rendering diagnosis.** Supporting depth-only (`ps=0`) draws eliminated all skipped fixed-function draws (`ff-skipped 0`), and adding a `texture3d` LUT fallback in `d3d9_metal.m` eliminated the solid magenta backbuffer. The G-buffer geometry and normals (`frame_9000.png` / `frame_9999.png`) render cleanly, and the albedo buffer (`frame_9010.png`) shows the scene geometry (tinted magenta), while the deferred directional-light HDR pass currently outputs black because its pixel shader constants (`cf0..cf2`) are all zero.
 - **Input.** The window forwards keyboard input, mouse buttons, and relative mouse motion to the guest. A focused input test verified Space and left-click delivery, including button release after the window loses focus.
-- **Next milestone.** Fix the zeroed pixel shader constants (`cf0..cf2`) in the deferred lighting pass and the magenta tint in the G-buffer albedo so the tutorial scene renders lit and textured; audio and DLL-fallback optimization (`~198` DLL roots) come later.
+- **Next milestone.** Fix the zeroed pixel shader constants (`cf0..cf2`) in the deferred lighting pass and the magenta tint in the G-buffer albedo so the tutorial scene renders lit and textured; audio and DLL-fallback optimization (`~251` unique DLL roots in the latest run) come later.
 
 ## Run the startup probe
 
@@ -25,9 +25,9 @@ Set `SMR_TRACE=1` to log individual Windows API calls. For non-windowed runs, `S
 
 The default ARM64 host runs recompiled startup functions and uses Unicorn for remaining x86 code. To test the full translation, run `SMR_FULL=1 SMR_WINDOW=1 ./scripts/startup-probe`. This uses a separate build, log, frame directory, and save directory. Add `SMR_BUILD_ONLY=1` to build without launching. Network access is disabled and probe output and saves stay under `work/boot/`.
 
-The full build with `SMR_NATIVE_WNDPROC=1` runs `0x5c88f0` natively; only 1 game-exe address (`0x626770`) and ~198 Windows DLL addresses still fall back to Unicorn.
+The full build with `SMR_NATIVE_WNDPROC=1` runs `0x5c88f0` natively and has **0 game.exe fallbacks**; the only remaining fallbacks are 251 unique Windows DLL addresses. One packed-region function (`0x96006b`) is skipped for an unsupported `XBEGIN` and is not reached by the tutorial.
 
-Across the latest run (`run11`, 516 draws/frame, `ff-skipped 0`), the tutorial runs at **~26–28 fps** (`main_cpu_ms` ~34–35 ms, `gpu_ms` ~1.4 ms) and exits cleanly on scripted quit. See the [full run](work/boot/window-full-startup.log) and [full-run CPU sample](work/perf/full-tutorial.sample.txt).
+The latest acceptance run (`work/recomp-dev/runs/20261126-214349`, 575 draws last / 645 peak, `ff-skipped 0`) exited cleanly on scripted quit with 0 faults and 0 traps. Its last-window fps was 15.8 (`main_cpu_ms` 61.96, `gpu_ms` 1.52); single-run fps is noisy, so treat the earlier ~26–28 fps full runs as the performance reference, not this one. See the [full run](work/boot/window-full-startup.log) and [full-run CPU sample](work/perf/full-tutorial.sample.txt).
 
 ## Fast iteration loop
 
@@ -45,13 +45,37 @@ Across the latest run (`run11`, 516 draws/frame, `ff-skipped 0`), the tutorial r
 
 `promote` is a measured experiment, not automatic progress: it reverts itself if the tutorial gets slower by more than 1 fps or the game.exe fallback count does not drop. On this title the observed roots are thin wrappers around further Unicorn entries, so one-at-a-time promotion lost to the fallback boundary cost and was reverted. Use `run --to tutorial --full` when the frame rate matters; the full build is the performance path.
 
+### Last two game.exe gaps (2026-11-26)
+
+The full build no longer falls back for any game.exe address. The last two gaps were closed as follows:
+
+- `0x626770` was a real entry that Ghidra had split two bytes late at `0x626772`. `work/recompiler/ghidra_scripts/FixSplitEntry.java` (added by `patches/smr-ghidra-fix-split-entry.patch`) removes the bogus function, disassembles and creates `FUN_00626770`, and the P-code was re-exported. The new export differs from the old one only by adding `0x626770` and removing `0x626772`; every other function line is byte-identical.
+- `0x7c727c` (`OUTSB`) and its secondary entry `0x7c7290` are emitted after teaching both emitters the `in`/`out` CALLOTHERs (`patches/smr-io-port-emit.patch`, auto-applied by `scripts/startup-probe`). **Semantics:** Unicorn, the current fallback, executes `IN`/`INS` as a zero read and discards `OUT`/`OUTS` because no port device is attached. The native emitter preserves that (`in` writes 0, `out` is a no-op) instead of trapping. `swi` (`INT n`) is emitted as a non-returning trap because Unicorn raises `UC_ERR_EXCEPTION`; this lets the remaining packed/data I/O-port functions link. One function, `0x96006b`, is still skipped for `XBEGIN` and is unreachable in the tutorial.
+
+Reproduce after applying the two patches:
+
+```sh
+export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
+headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
+"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis \
+  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -postScript FixSplitEntry.java 0x626770:0x626772
+"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis -readOnly \
+  -scriptPath "$PWD/work/recompiler/ghidra_scripts" \
+  -postScript DumpPcode.java "$PWD/work/smr-fixed.jsonl" all
+.venv/bin/python work/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
+  --extra work/smr-extra-entries.json
+```
+
+The `--extra` map is the 3,739 secondary entries recovered from the existing generated C; keep it with the P-code export so a re-emit does not drop them. Verification: `./scripts/recomp verify --full 0x626770,0x7c727c,0x7c7290` reported pass 1 / flags-only 2 with no real mismatches, and `./scripts/recomp verify --full --sample 100` also exited 0.
+
 The executable extracted from the installer is a 32-bit Windows PE whose entry point lands in `.bind` and whose `.text` section is packed. The diagnostic uses the loose executable from Downloads, which differs from the installer executable. The Microsoft Visual C++, PhysX, DirectX, and FMOD DLLs come from the installer and its bundled redistributables.
 
 ### Project inputs
 
 - `work/recompiler` contains [the P-code exporter and emitter](https://github.com/thetheoryofR/Fallout-NV-MacOS) at `ff8e0d791e3e1f0148a2245c12c7706855e66926`.
-- `work/macos-runtime` contains [the macOS host](https://github.com/pedroh77/Fallout-ElderScrolls-macOS-Port) at `9470dcf94dd69f37263a9f94db69957a76dbed7b`. The startup script applies `patches/macos-startup-host.patch` and adds the local guest-module loader and CRT shims.
-- Ghidra analyzed 21,111 entries. The full emission report is `work/smr-generated/emit_report.json`. It emitted 21,108 functions and skipped three functions with unsupported P-code operations. The default build uses `work/smr-entry-generated/`. Full mode uses `work/smr-generated/`.
+- `work/macos-runtime` contains [the macOS host](https://github.com/pedroh77/Fallout-ElderScrolls-macOS-Port) at `9470dcf94dd69f37263a9f94db69957a76dbed7b`. The startup script applies `patches/macos-startup-host.patch`, applies `patches/smr-io-port-emit.patch` when needed, and adds the local guest-module loader and CRT shims.
+- Ghidra exported 46,464 primary function entries. The full emission report is `work/smr-generated/emit_report.json`; it emitted 50,203 functions (46,464 primary plus 3,739 secondary entries) and skipped one packed-region function (`0x96006b`, unsupported `XBEGIN`). The default build uses `work/smr-entry-generated/` (189 curated entries). Full mode uses `work/smr-generated/`.
 - `work/installed/` contains the unpacked game and redistributables. `work/vc90/dlls/` contains the two x86 CRT DLLs from the nested Visual C++ cabinet, and `work/d3dx/` contains the two x86 DirectX DLLs from the June 2010 cabinets. `work/boot/ShootManyRobots.exe` is the guest input. The project keeps these files and generated artifacts out of Git.
 
 ## Verified middleware probe
