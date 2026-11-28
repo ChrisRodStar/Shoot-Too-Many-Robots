@@ -191,7 +191,8 @@ class FnEmitter:
         if opc == "TRUNC":
             return self.wr(out, f"FTRUNC(trunc(FG({r(ins[0])},{n0})),{n})")
         if opc == "ROUND":
-            return self.wr(out, f"FP(nearbyint(FG({r(ins[0])},{n0})),{n})")
+            rnd = "FRND" if n0 == 10 else "MXRND"
+            return self.wr(out, f"FP({rnd}(R,FG({r(ins[0])},{n0})),{n})")
         if opc == "FLOAT_CEIL":
             return self.wr(out, f"FP(ceil(FG({r(ins[0])},{n0})),{n})")
         if opc == "FLOAT_FLOOR":

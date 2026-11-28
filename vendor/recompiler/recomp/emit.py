@@ -366,7 +366,7 @@ class FnEmitter:
         if opc == "TRUNC":
             return self.wr(out, f"FTRUNC(trunc({fg(ins[0])}),{n})" if n > 8 else f"FTRUNCV(trunc({fg(ins[0])}),{n})")
         if opc == "ROUND":
-            return self.wr(out, fp(f"nearbyint({fg(ins[0])})"))
+            return self.wr(out, fp(f"MXRND(R,{fg(ins[0])})"))
         if opc == "FLOAT_CEIL":
             return self.wr(out, fp(f"ceil({fg(ins[0])})"))
         if opc == "FLOAT_FLOOR":
@@ -441,7 +441,7 @@ class FnEmitter:
             return put(f"(double)SXV({self.rd(ins[0])},{n0})" if n0 <= 8 else f"(double)SX({self.rdU(ins[0])},{n0})")
         if opc == "FLOAT2FLOAT": return put(fg(ins[0]))
         if opc == "TRUNC": return self.wr(out, f"FTRUNC(trunc({fg(ins[0])}),{n})" if n > 8 else f"FTRUNCV(trunc({fg(ins[0])}),{n})")
-        if opc == "ROUND": return put(f"nearbyint({fg(ins[0])})")
+        if opc == "ROUND": return put(f"FRND(R,{fg(ins[0])})")
         if opc == "FLOAT_CEIL": return put(f"ceil({fg(ins[0])})")
         if opc == "FLOAT_FLOOR": return put(f"floor({fg(ins[0])})")
         raise Unsupported(f"float op {opc}")
