@@ -52,6 +52,7 @@ Tracked source, config, and tools are strictly separated from large/generated lo
 | [`vendor/macos-runtime/`](vendor/macos-runtime/) | Pinned macOS Win32 + D3D9 → Metal host runtime with local fixes applied directly |
 | [`vendor/recompiler/`](vendor/recompiler/) | Pinned x86 P-code exporter and C emitter (`emit.py`) |
 | [`tools/recomp/`](tools/recomp/) | Python CLI backing `./scripts/recomp` (build, run, differential verify, explain, promote, doctor) |
+| [`tools/assets/`](tools/assets/) | SAR v3 extractor and standalone local asset viewer |
 | [`tools/ghidra/scripts/`](tools/ghidra/scripts/) | Ghidra headless analysis and P-code export scripts (`DumpPcode.java`, `FixSplitEntry.java`, etc.) |
 | [`scripts/`](scripts/) | Entry points (`recomp`, `startup-probe`, `dev-setup`) and deterministic input scripts (`smr-title.script`, `smr-tutorial.script`) |
 | [`config/`](config/) | Curated small inputs (`guest-manifest.json`, `entry-set.json`, `smr-extra-entries.json`, `learned-entries.txt`) |
@@ -63,6 +64,17 @@ Tracked source, config, and tools are strictly separated from large/generated lo
 ---
 
 ## Quick Start & Dev Loop
+
+### Browse Extracted Assets
+
+Extract the five supplied legacy Seoul Engine v3 bundles, then open [`tools/assets/viewer.html`](tools/assets/viewer.html) in a browser and choose the extracted folder:
+
+```sh
+python3 tools/assets/extract_sar.py
+open tools/assets/viewer.html
+```
+
+The extractor writes the original members and a SHA-256 manifest under ignored `work/assets-extracted/`. If Pillow is installed, it also makes PNG previews for the cooked DDS/SIF textures while preserving each original. The viewer separates textures, character/model data, environments/props, UI, audio, and remaining data into tabs; cooked model and animation files can be saved in their original formats.
 
 First verify your local toolchain and game data under `work/`:
 

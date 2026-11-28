@@ -12,8 +12,71 @@ extern void host_set_window_focused(int focused);
 
 static NSWindow *game_window;
 static CAMetalLayer *game_layer;
+static int fullscreen_transition;
 
 static void smr_sync_drawable(void);
+
+static int smr_env_on(const char *name) {
+    const char *value = getenv(name);
+    return value && value[0] && strcmp(value, "0") != 0;
+}
+
+static NSScreen *smr_target_screen(void) {
+    return game_window.screen ?: NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+}
+
+// Pixel size macOS presents this screen at. In full screen the drawable is exactly this size, so
+// it is the "native" resolution for 1:1 rendering (on scaled Retina modes it is the backing size,
+// not the physical panel).
+static CGFloat smr_screen_scale(NSScreen *screen);
+static CGSize smr_screen_pixels(NSScreen *screen) {
+    CGDirectDisplayID did = CGMainDisplayID();
+    if (screen) {
+        NSNumber *num = screen.deviceDescription[@"NSScreenNumber"];
+        if (num) did = (CGDirectDisplayID)num.unsignedIntValue;
+    }
+    CGDisplayModeRef mode = CGDisplayCopyDisplayMode(did);
+    if (mode) {
+        size_t w = CGDisplayModeGetPixelWidth(mode), h = CGDisplayModeGetPixelHeight(mode);
+        CGDisplayModeRelease(mode);
+        if (w >= 640 && h >= 480) return CGSizeMake((CGFloat)w, (CGFloat)h);
+    }
+    if (screen) {
+        CGFloat scale = smr_screen_scale(screen);
+        return CGSizeMake(round(screen.frame.size.width * scale), round(screen.frame.size.height * scale));
+    }
+    return CGSizeMake(1280, 720);
+}
+
+static CGFloat smr_screen_scale(NSScreen *screen) {
+    CGFloat scale = screen ? screen.backingScaleFactor : 1.0;
+    return scale > 0 ? scale : 1.0;
+}
+
+// The D3D9 shim reports fnv_display_width/height as the adapter's desktop mode, and the guest
+// creates its device with a 0x0 backbuffer (so that fallback decides the render resolution).
+// Publishing the panel size here is what makes the guest render natively instead of 1280x720.
+// SMR_RENDER_SCALE=50..100 renders smaller and lets MetalFX/bilinear scale to the panel.
+static void smr_configure_display(void) {
+    if (!smr_env_on("SMR_NATIVE_RES")) return;
+    NSScreen *screen = smr_target_screen();
+    CGSize px = smr_screen_pixels(screen);
+    int pct = 100;
+    if (getenv("SMR_RENDER_SCALE")) {
+        pct = atoi(getenv("SMR_RENDER_SCALE"));
+        if (pct < 50) pct = 50;
+        if (pct > 100) pct = 100;
+    }
+    fnv_display_configure_scaled((unsigned)px.width, (unsigned)px.height, (unsigned)pct);
+    int hz = 60;
+    if (screen && [screen respondsToSelector:@selector(maximumFramesPerSecond)])
+        hz = (int)screen.maximumFramesPerSecond;
+    if (hz <= 0) hz = 60;
+    fnv_display_set_refresh(hz);
+    fprintf(stderr, "[smr-window] display %ux%u px, render %ux%u (%d%%), %d Hz%s\n",
+            (unsigned)px.width, (unsigned)px.height, fnv_display_width(), fnv_display_height(),
+            pct, hz, screen && screen.safeAreaInsets.top > 0 ? " (notch)" : "");
+}
 
 @interface SMRMetalView : NSView
 @end
@@ -193,8 +256,20 @@ static void smr_sync_drawable(void);
 - (void)windowDidResignKey:(NSNotification *)notification { (void)notification; host_set_window_focused(0); }
 - (void)windowDidChangeBackingProperties:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }
 - (void)windowDidMove:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }
-- (void)windowDidEnterFullScreen:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }
-- (void)windowDidExitFullScreen:(NSNotification *)notification { (void)notification; smr_sync_drawable(); }
+- (void)windowDidEnterFullScreen:(NSNotification *)notification {
+    (void)notification;
+    fullscreen_transition = 0;
+    smr_sync_drawable();
+    fprintf(stderr, "[smr-window] entered full screen, drawable %.0f x %.0f px\n",
+            game_layer.drawableSize.width, game_layer.drawableSize.height);
+}
+- (void)windowDidExitFullScreen:(NSNotification *)notification {
+    (void)notification;
+    fullscreen_transition = 0;
+    smr_sync_drawable();
+    fprintf(stderr, "[smr-window] left full screen, drawable %.0f x %.0f px\n",
+            game_layer.drawableSize.width, game_layer.drawableSize.height);
+}
 @end
 
 static void smr_sync_drawable(void) {
@@ -243,8 +318,11 @@ int fnv_run_game(int argc, char **argv);
 CAMetalLayer *fnv_surface(id<MTLDevice> device, CGSize size) {
     dispatch_sync(dispatch_get_main_queue(), ^{
         NSScreen *screen = NSScreen.mainScreen ?: NSScreen.screens.firstObject;
-        NSSize wanted = NSMakeSize(size.width > 0 ? size.width : 1280,
-                                   size.height > 0 ? size.height : 720);
+        // The renderer passes the swap chain's pixel size; AppKit sizes are points. Dividing by
+        // the backing scale keeps a Retina window from being created twice as large as the panel.
+        CGFloat scale = smr_screen_scale(screen);
+        NSSize wanted = NSMakeSize(size.width > 0 ? size.width / scale : 1280,
+                                   size.height > 0 ? size.height / scale : 720);
         NSSize content = smr_fitted_content_size(wanted);
         NSRect bounds = NSMakeRect(0, 0, content.width, content.height);
         game_window = [[SMRGameWindow alloc] initWithContentRect:bounds
@@ -282,6 +360,12 @@ CAMetalLayer *fnv_surface(id<MTLDevice> device, CGSize size) {
         [game_window makeKeyAndOrderFront:nil];
         [game_window makeFirstResponder:view];
         [NSApp activateIgnoringOtherApps:YES];
+        // Demo/benchmark escape hatch: the guest may have saved Fullscreen=False, but the host can
+        // still open in full screen. Delayed so the game's boot-time windowed style call is done.
+        if (smr_env_on("SMR_FORCE_FULLSCREEN")) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{ fnv_set_fullscreen(1); });
+        }
         fprintf(stderr, "[smr-window] opened %.0f x %.0f points, drawable %.0f x %.0f px\n",
                 content.width, content.height, game_layer.drawableSize.width, game_layer.drawableSize.height);
     });
@@ -293,11 +377,25 @@ void fnv_resize_surface(CGSize size) {
     dispatch_async(dispatch_get_main_queue(), ^{
         if (!game_window || !game_layer) return;
         if (!(game_window.styleMask & NSWindowStyleMaskFullScreen)) {
-            NSSize content = smr_fitted_content_size(NSMakeSize(size.width, size.height));
+            CGFloat scale = smr_screen_scale(smr_target_screen());
+            NSSize content = smr_fitted_content_size(NSMakeSize(size.width / scale, size.height / scale));
             [game_window setContentSize:content];
             smr_keep_on_screen();
         }
         smr_sync_drawable();
+    });
+}
+
+void fnv_set_fullscreen(int fullscreen) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!game_window) return;
+        BOOL is_fullscreen = (game_window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+        if ((fullscreen != 0) == (is_fullscreen != 0) || fullscreen_transition) return;
+        // The game restyles its window (WS_POPUP + SetWindowPos) around a device Reset; mapping
+        // that onto the real window is what turns the guest's "full screen" into full screen.
+        fprintf(stderr, "[smr-window] full screen request %s\n", fullscreen ? "enter" : "leave");
+        fullscreen_transition = 1;
+        [game_window toggleFullScreen:nil];
     });
 }
 
@@ -335,6 +433,7 @@ static void smr_install_menu(void) {
 }
 
 int smr_run_windowed(int argc, char **argv) {
+    @autoreleasepool { smr_configure_display(); }
     if (getenv("FNV_HEADLESS")) {
         return fnv_run_game(argc, argv);
     }

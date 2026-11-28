@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SMR Asset Viewer</title>
+  <style>
+    :root{color-scheme:dark;--bg:#111315;--panel:#191c1f;--line:#2c3034;--muted:#92999f;--text:#edf0f1;--accent:#f3b443;--soft:#24282b}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    button,input,select{font:inherit;color:inherit}button{border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:9px 12px;cursor:pointer}button:hover{border-color:#62696f;background:#2a2e31}button.primary{background:var(--accent);border-color:var(--accent);color:#171717;font-weight:700}button:disabled{opacity:.45;cursor:default}
+    header{height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 22px;background:#151719;position:sticky;top:0;z-index:4}.brand{font-weight:750;letter-spacing:.01em}.brand span{color:var(--accent)}.topnote{color:var(--muted);font-size:12px;margin-left:auto}
+    .app{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:calc(100vh - 64px)}main{min-width:0;padding:22px}.toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.toolbar input[type=search]{width:min(360px,100%);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}.toolbar select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 30px 9px 10px}.summary{color:var(--muted);font-size:12px;margin:16px 0}.drop{border:1px dashed #454b50;border-radius:12px;padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;gap:14px;background:#151719}.drop.hot{border-color:var(--accent);background:#211d15}.drop p{margin:0;color:var(--muted);font-size:12px}.drop strong{color:var(--text);font-size:13px}.notice{border:1px solid #594622;background:#211d15;color:#d7c49f;border-radius:10px;padding:12px 14px;font-size:12px;margin-bottom:16px}.notice b{color:#f1d497}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}.card{min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color .15s,transform .15s}.card:hover{border-color:#62696f;transform:translateY(-1px)}.card.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}.thumb{height:128px;background:#101214;display:grid;place-items:center;overflow:hidden;color:#70777d}.thumb img{width:100%;height:100%;object-fit:contain;background-color:#141618;background-image:linear-gradient(45deg,#1b1e20 25%,transparent 25%),linear-gradient(-45deg,#1b1e20 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#1b1e20 75%),linear-gradient(-45deg,transparent 75%,#1b1e20 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0}.kind{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}.cardtext{padding:9px 10px 11px}.filename{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 0}.filemeta{font-size:10px;color:var(--muted)}.empty{border:1px dashed var(--line);border-radius:12px;text-align:center;padding:54px 20px;color:var(--muted)}
+    .category-tabs{display:flex;gap:5px;overflow-x:auto;margin:18px 0 0;border-bottom:1px solid var(--line);scrollbar-width:thin}.category-tab{white-space:nowrap;border:0;border-radius:0;background:transparent;color:var(--muted);padding:10px 12px;margin-bottom:-1px;border-bottom:2px solid transparent}.category-tab:hover{color:var(--text);background:transparent}.category-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:transparent}.tab-count{font-size:10px;color:inherit;opacity:.7;margin-left:5px}
+    aside{border-left:1px solid var(--line);background:#151719;padding:18px;position:sticky;top:64px;height:calc(100vh - 64px);overflow:auto}.aside-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.aside-head h2{font-size:14px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.preview{margin:16px 0;background:#0d0f10;border:1px solid var(--line);border-radius:10px;min-height:230px;display:grid;place-items:center;overflow:hidden}.preview img,.preview video{display:block;max-width:100%;max-height:48vh;object-fit:contain}.preview audio{width:calc(100% - 24px)}.preview .placeholder{padding:24px;text-align:center;color:var(--muted);font-size:12px}.details{font-size:12px}.detail{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}.detail span:first-child{color:var(--muted)}.detail span:last-child{text-align:right;overflow-wrap:anywhere}.actions{display:flex;gap:8px;margin-top:16px}.actions button{flex:1}.hint{color:var(--muted);font-size:11px;line-height:1.5;margin-top:14px}
+    @media(max-width:850px){.app{grid-template-columns:1fr}aside{position:static;height:auto;border-left:0;border-top:1px solid var(--line)}.preview{min-height:160px}.preview img,.preview video{max-height:60vh}.topnote{display:none}}
+  </style>
+</head>
+<body>
+  <header><div class="brand">SMR <span>ASSET VIEWER</span></div><div class="topnote">Local files stay in your browser</div></header>
+  <div class="app">
+    <main>
+      <div class="toolbar">
+        <button class="primary" id="folderBtn">Open asset folder</button>
+        <button id="filesBtn">Add files</button>
+        <input id="search" type="search" placeholder="Search filenames and folders…" aria-label="Search assets">
+        <select id="typeFilter" aria-label="Filter by type"><option value="all">All types</option><option value="image">Images / textures</option><option value="model">Model data</option><option value="animation">Animation data</option><option value="physics">Physics setup</option><option value="audio">Audio</option><option value="video">Video</option><option value="text">Text and data</option><option value="archive">Archives</option><option value="other">Other</option></select>
+        <select id="sort" aria-label="Sort assets"><option value="name">Name</option><option value="size">Largest</option><option value="type">Type</option></select>
+      </div>
+      <nav class="category-tabs" id="categoryTabs" role="tablist" aria-label="Asset categories"></nav>
+      <div class="summary" id="summary">Choose an extracted asset folder, or drop files below.</div>
+      <div class="drop" id="drop"><div><strong>Drop extracted assets here</strong><p>Images, audio, video, text, and metadata files are previewed in place.</p></div></div>
+      <div class="notice"><b>Originals stay intact:</b> The extractor writes cooked DDS/SIF textures and other game files to <code>work/assets-extracted/</code>. PNGs in its hidden preview folder are only for browsing; <b>Save original</b> downloads the original game file.</div>
+      <div class="grid" id="grid"></div>
+      <div class="empty" id="empty">Open an extracted asset folder to build the gallery.</div>
+    </main>
+    <aside>
+      <div class="aside-head"><h2 id="selectedName">No asset selected</h2><span id="selectedKind" class="kind"></span></div>
+      <div class="preview" id="preview"><div class="placeholder">Select an asset to preview it.</div></div>
+      <div class="details" id="details"></div>
+      <div class="actions"><button id="saveBtn" disabled>Save original</button><button id="clearBtn">Clear</button></div>
+      <div class="hint">Use the category tabs to focus on art, characters, environments, UI, audio, or data. Model and animation files are kept in their cooked game formats; <b>Save original</b> downloads the untouched file.</div>
+    </aside>
+  </div>
+  <input id="folderInput" type="file" webkitdirectory directory multiple hidden>
+  <input id="filesInput" type="file" multiple hidden>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const state = { files: [], visible: [], selected: null, urls: new Map(), previews: new Map(), category: 'textures' };
+    const imageExt = new Set(['png','jpg','jpeg','bmp','gif','webp','avif','svg','tif','tiff','ico','dds','sif','tga']);
+    const audioExt = new Set(['wav','mp3','ogg','oga','m4a','aac','flac','opus']);
+    const videoExt = new Set(['mp4','webm','mov','m4v','ogv']);
+    const textExt = new Set(['txt','json','xml','csv','tsv','ini','cfg','lua','cs','js','css','html','md','log','yaml','yml']);
+    const archiveExt = new Set(['sar','zip','7z','pak','cab','rar']);
+    const modelExt = new Set(['sol']);
+    const animationExt = new Set(['nsa','mor']);
+    const physicsExt = new Set(['nxa']);
+    const artDataExt = new Set(['sol','nsa','mor','nxa','sif','dds']);
+    const extOf = (name) => (name.split('/').pop().split('.').pop() || '').toLowerCase();
+    const kindOf = (file) => { const e=extOf(file.name); if(imageExt.has(e)||file.type.startsWith('image/'))return'image'; if(modelExt.has(e))return'model'; if(animationExt.has(e))return'animation'; if(physicsExt.has(e))return'physics'; if(audioExt.has(e)||file.type.startsWith('audio/'))return'audio'; if(videoExt.has(e)||file.type.startsWith('video/'))return'video'; if(textExt.has(e)||file.type.startsWith('text/'))return'text'; if(archiveExt.has(e))return'archive'; return'other'; };
+    const prettySize = (n) => { if(n<1024)return `${n} B`; if(n<1048576)return `${(n/1024).toFixed(1)} KB`; if(n<1073741824)return `${(n/1048576).toFixed(1)} MB`; return `${(n/1073741824).toFixed(2)} GB`; };
+    const fileUrl = (file) => { if(!state.urls.has(file))state.urls.set(file,URL.createObjectURL(file)); return state.urls.get(file); };
+    const relativePath = (file) => { const path=file.viewerPath||file.webkitRelativePath||file.name; const slash=path.indexOf('/'); return slash<0?path:path.slice(slash+1); };
+    const imageUrl = (file) => { const path=relativePath(file); return state.previews.get(path)||fileUrl(file); };
+    const safe = (s) => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const label = (kind) => ({image:'Image / texture',model:'Model data',animation:'Animation data',physics:'Physics setup',audio:'Audio',video:'Video',text:'Text / data',archive:'Archive',other:'File'}[kind]);
+    const categoryNames = {all:'All files',textures:'Textures',characters:'Characters & models',environment:'Environment & props',ui:'UI',audio:'Audio',data:'Data'};
+    function categoryMatches(file, category){
+      if(category==='all')return true;
+      const pieces=relativePath(file).replaceAll('\\','/').split('/');
+      const archive=(pieces.shift()||'').toLowerCase(), path=pieces.join('/').toLowerCase(), ext=extOf(file.name);
+      if(category==='textures')return kindOf(file)==='image';
+      if(category==='characters')return (path.startsWith('char/')||path.startsWith('weapons/'))&&artDataExt.has(ext);
+      if(category==='environment')return (path.startsWith('environment/')||path.startsWith('maps/'))&&artDataExt.has(ext);
+      if(category==='ui')return archive==='pc_ui'||path.startsWith('ui/');
+      if(category==='audio')return archive==='pc_sound'||path.startsWith('sound/')||['fev','fsb'].includes(ext);
+      if(category==='data')return !['textures','characters','environment','ui','audio'].some(id=>categoryMatches(file,id));
+      return true;
+    }
+    function renderTabs(){
+      const ids=Object.keys(categoryNames);
+      $('#categoryTabs').innerHTML=ids.map(id=>{
+        const count=state.files.filter(f=>categoryMatches(f,id)).length;
+        return `<button class="category-tab ${state.category===id?'active':''}" role="tab" aria-selected="${state.category===id}" data-category="${id}">${categoryNames[id]}<span class="tab-count">${count.toLocaleString()}</span></button>`;
+      }).join('');
+      document.querySelectorAll('.category-tab').forEach(tab=>tab.addEventListener('click',()=>{state.category=tab.dataset.category;render();}));
+    }
+    function addFiles(list){
+      const known=new Set(state.files.map(f=>`${f.name}\0${f.size}\0${f.lastModified}`));
+      for(const f of list){
+        const path=f.webkitRelativePath||f.name;
+        Object.defineProperty(f,'viewerPath',{value:path,configurable:true});
+        const rel=relativePath(f);
+        if(rel.startsWith('__previews__/')){state.previews.set(rel.slice('__previews__/'.length).replace(/\.png$/i,''),fileUrl(f));continue;}
+        if(rel==='manifest.json')continue;
+        const key=`${path}\0${f.size}\0${f.lastModified}`;if(!known.has(key)){state.files.push(f);known.add(key);}
+      }
+      render();
+    }
+    function render(){
+      renderTabs();
+      const q=$('#search').value.trim().toLowerCase(), filter=$('#typeFilter').value, sort=$('#sort').value;
+      state.visible=state.files.filter(f=>categoryMatches(f,state.category)&&(filter==='all'||kindOf(f)===filter)&&(!q||`${f.viewerPath} ${f.name}`.toLowerCase().includes(q)));
+      state.visible.sort((a,b)=> sort==='size'?b.size-a.size:sort==='type'?kindOf(a).localeCompare(kindOf(b))||a.name.localeCompare(b.name):a.viewerPath.localeCompare(b.viewerPath));
+      $('#summary').textContent=`${categoryNames[state.category]} · ${state.visible.length.toLocaleString()} shown · ${state.files.length.toLocaleString()} total`;
+      $('#grid').innerHTML=state.visible.map((f,i)=>{
+        const kind=kindOf(f), image=kind==='image'?`<img loading="lazy" src="${imageUrl(f)}" alt="">`:`<span>${kind==='audio'?'♫':kind==='video'?'▶':kind==='archive'?'▤':kind==='text'?'≡':kind==='model'?'◈':kind==='animation'?'↝':kind==='physics'?'⌘':'◇'}</span>`;
+        return `<article class="card ${state.selected===f?'active':''}" data-index="${i}"><div class="thumb">${image}</div><div class="cardtext"><div class="kind">${label(kind)}</div><div class="filename" title="${safe(f.viewerPath)}">${safe(f.name)}</div><div class="filemeta">${prettySize(f.size)} · ${safe(extOf(f.name)||'no extension')}</div></div></article>`;
+      }).join('');
+      $('#empty').style.display=state.visible.length?'none':'block';
+      $('#empty').textContent=state.files.length?'No files match these filters.':'Open an extracted asset folder to build the gallery.';
+      document.querySelectorAll('.card').forEach(card=>card.addEventListener('click',()=>select(state.visible[Number(card.dataset.index)])));
+    }
+    function select(file){
+      state.selected=file; render(); if(!file)return;
+      const kind=kindOf(file), url=fileUrl(file); $('#selectedName').textContent=file.name; $('#selectedName').title=file.viewerPath; $('#selectedKind').textContent=label(kind); $('#saveBtn').disabled=false;
+      const p=$('#preview');
+      if(kind==='image')p.innerHTML=`<img src="${imageUrl(file)}" alt="${safe(file.name)}">`;
+      else if(kind==='audio')p.innerHTML=`<audio controls preload="metadata" src="${url}"></audio>`;
+      else if(kind==='video')p.innerHTML=`<video controls preload="metadata" src="${url}"></video>`;
+      else if(kind==='model')p.innerHTML=`<div class="placeholder">Cooked Seoul Engine model/object data. The mesh is preserved in the original file, but this browser viewer does not render it as a 3D model.</div>`;
+      else if(kind==='animation')p.innerHTML=`<div class="placeholder">Cooked character or object animation data. Save the original file to work with it in a format-aware tool.</div>`;
+      else if(kind==='physics')p.innerHTML=`<div class="placeholder">PhysX collision and rig setup data. <code>.NXA</code> files describe physics; they are not the visible character mesh.</div>`;
+      else if(kind==='text'){
+        p.innerHTML='<div class="placeholder">Loading text preview…</div>';
+        file.slice(0,65536).text().then(t=>{if(state.selected===file)p.innerHTML=`<pre style="white-space:pre-wrap;overflow:auto;max-height:46vh;width:100%;padding:14px;margin:0;color:#c9d0d4;font:11px/1.5 ui-monospace,monospace">${safe(t)}${file.size>65536?'\n\n… preview limited to 64 KB':''}</pre>`;});
+      } else p.innerHTML=`<div class="placeholder">${kind==='archive'?'Archive contents are not decoded by this viewer.':'No inline preview for this file type.'}<br><br>${safe(file.name)}</div>`;
+      const rows=[['Path',file.viewerPath],['Asset group',label(kind)],['Type',file.type||extOf(file.name)||'unknown'],['Size',prettySize(file.size)],['Last modified',file.lastModified?new Date(file.lastModified).toLocaleString():'unknown']];
+      $('#details').innerHTML=rows.map(([k,v])=>`<div class="detail"><span>${k}</span><span>${safe(v)}</span></div>`).join('');
+    }
+    $('#folderBtn').onclick=()=>$('#folderInput').click(); $('#filesBtn').onclick=()=>$('#filesInput').click();
+    $('#folderInput').onchange=e=>addFiles(e.target.files); $('#filesInput').onchange=e=>addFiles(e.target.files);
+    $('#search').oninput=render; $('#typeFilter').onchange=render; $('#sort').onchange=render;
+    $('#saveBtn').onclick=()=>{if(!state.selected)return;const a=document.createElement('a');a.href=fileUrl(state.selected);a.download=state.selected.name;a.click();};
+    $('#clearBtn').onclick=()=>{for(const url of state.urls.values())URL.revokeObjectURL(url);state.files=[];state.visible=[];state.selected=null;state.urls.clear();state.previews.clear();$('#folderInput').value='';$('#filesInput').value='';$('#selectedName').textContent='No asset selected';$('#selectedKind').textContent='';$('#preview').innerHTML='<div class="placeholder">Select an asset to preview it.</div>';$('#details').innerHTML='';$('#saveBtn').disabled=true;render();};
+    const drop=$('#drop'); ['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add('hot');})); ['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove('hot');}));
+    drop.addEventListener('drop',e=>addFiles(e.dataTransfer.files)); document.addEventListener('dragover',e=>e.preventDefault());document.addEventListener('drop',e=>e.preventDefault());
+    render();
+  </script>
+</body>
+</html>

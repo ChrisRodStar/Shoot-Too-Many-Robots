@@ -59,6 +59,10 @@ fi
 export FNV_ROOT SMR_VC90_DIRECTORY SMR_PHYSX_DIRECTORY SMR_D3DX_DIRECTORY
 export FNV_NO_QOS=1
 export SMR_WINDOW=1
+# Render at the Mac's native panel size and follow the game's own fullscreen option. Both are
+# host features added for the native-resolution work; set them to 0 to opt out.
+export SMR_NATIVE_RES="${SMR_NATIVE_RES:-1}"
+export SMR_AUTO_FULLSCREEN="${SMR_AUTO_FULLSCREEN:-1}"
 unset FNV_HEADLESS
 
 if [ ! -f "$GAME_EXE" ]; then

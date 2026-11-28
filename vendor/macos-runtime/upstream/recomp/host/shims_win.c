@@ -67,9 +67,29 @@ SHIM(CreateWindowExA) {
     RET(c, FAKE_HWND, 12);
 }
 SHIM(DestroyWindow) { RET(c, 1, 1); }
-SHIM(ShowWindow) { RET(c, 1, 2); }
+static int trace_window(void) {
+    static int t = -1;
+    if (t < 0) t = getenv("SMR_TRACE_WINDOW") != NULL;
+    return t;
+}
+static int env_on(const char *name) {
+    const char *value = getenv(name);
+    return value && value[0] && strcmp(value, "0") != 0;
+}
+// Strong definition in the host window layer (src/host/surface.m / FNVApp.m). The shim module is
+// also linked into standalone harnesses that have no window, so keep a no-op fallback.
+__attribute__((weak)) void fnv_set_fullscreen(int fullscreen) { (void)fullscreen; }
+SHIM(ShowWindow) {
+    if (trace_window()) fprintf(stderr, "[host] ShowWindow(hwnd=%#x, cmd=%u)\n", ARG(c, 0), ARG(c, 1));
+    RET(c, 1, 2);
+}
 SHIM(UpdateWindow) { RET(c, 1, 1); }
-SHIM(SetWindowPos) { RET(c, 1, 7); }
+SHIM(SetWindowPos) {
+    if (trace_window())
+        fprintf(stderr, "[host] SetWindowPos(hwnd=%#x, after=%#x, x=%d, y=%d, cx=%u, cy=%u, flags=%#x)\n",
+                ARG(c, 0), (uint32_t)ARG(c, 1), (int32_t)ARG(c, 2), (int32_t)ARG(c, 3), ARG(c, 4), ARG(c, 5), ARG(c, 6));
+    RET(c, 1, 7);
+}
 SHIM(SetTimer) { RET(c, ARG(c, 1) ? ARG(c, 1) : 1, 4); }
 SHIM(KillTimer) { RET(c, 1, 2); }
 SHIM(InvalidateRect) { RET(c, 1, 3); }
@@ -103,6 +123,11 @@ SHIM(SetWindowLongA) {
     uint32_t previous = field ? *field : 0;
     if (field)
         *field = ARG(c, 2);
+    if (field && (int32_t)ARG(c, 1) == -16 /* GWL_STYLE */ && env_on("SMR_AUTO_FULLSCREEN"))
+        fnv_set_fullscreen((ARG(c, 2) & 0x80000000u /* WS_POPUP */) != 0);
+    if (trace_window())
+        fprintf(stderr, "[host] SetWindowLongA(hwnd=%#x, index=%d, value=%#x) -> %#x\n",
+                ARG(c, 0), (int32_t)ARG(c, 1), ARG(c, 2), previous);
     RET(c, previous, 3);
 }
 SHIM(GetClassLongA) { RET(c, 0, 2); }

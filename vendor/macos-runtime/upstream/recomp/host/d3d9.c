@@ -664,7 +664,7 @@ static void Dev_Reset(CPU *c) {
     memcpy(g_d3d.pp, MEM + pp, 56);
     if (G32(pp)) g_d3d.width = G32(pp); if (G32(pp + 4)) g_d3d.height = G32(pp + 4);
     fnv_display_client(g_d3d.width,g_d3d.height);
-    fprintf(stderr, "[d3d9] Reset %ux%u\n", g_d3d.width, g_d3d.height);
+    fprintf(stderr, "[d3d9] Reset %ux%u windowed=%u\n", g_d3d.width, g_d3d.height, G32(pp + 32));
     uint32_t w = g_d3d.width, h = g_d3d.height;
     if (w && h) {
         uint32_t ms = G32(pp + 16);                              // D3DPRESENT_PARAMETERS.MultiSampleType
