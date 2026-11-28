@@ -121,6 +121,20 @@ Start with a small 2× pilot using a recognizable interface icon, a tiled ground
 
 Use a separate ignored location such as `work/assets/upgrades/` for experiments. Keep candidate files keyed by the original asset path. Before testing a replacement in the runtime, check texture encoding, alpha handling, and mipmaps against the original. The extraction contains DXT1 and DXT5 textures, so use a compatible legacy format when testing DDS output. Treat SIF repacking and interface layout integration as separate checks. [DirectXTex texture processing](https://github.com/microsoft/DirectXTex/wiki/texconv)
 
+### Run the 2× Color Texture Pilot
+
+Use Python 3 with Pillow 11.3+ and the [Real-ESRGAN macOS portable release](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0). The script looks for the executable and its adjacent `models/` folder under `work/assets/upgrades/tools/realesrgan/`. Use `--upscaler` if the executable is elsewhere.
+
+```sh
+python3 tools/assets/upscale_textures.py --pack-from work/inputs/installed/app/ShootManyRobots/Data/PC_ContentPC.sar
+```
+
+The default pilot contains the Overlord diffuse map and one Farmland dirt texture. It writes PNG previews, DDS-backed SIF replacements, and the optional test archive under `work/assets/upgrades/texture-pilot/`. The test archive preserves the other entries from the original. The script checks dimensions and compression and regenerates the mip chain.
+
+In the asset viewer, choose **Upscaled only** and select a texture to open its before-and-after view. Click either image to zoom, drag to pan, and press Escape to return to the gallery. Refresh the viewer after creating a new batch. It discovers batch folders directly under `work/assets/upgrades/`.
+
+Use `--list` with repeated `--match` globs to review a larger batch before running it. For example, `--match 'Environment/Farmland/Ground_Tiles/Dirt_0?.SIF'` selects the three Farmland dirt variants. Texture names alone cannot establish channel usage, so select known color maps and use a separate `--output` directory for each batch.
+
 First verify your local toolchain and game data under `work/`:
 
 ```sh

@@ -4,11 +4,11 @@ import { resolveAsset } from './catalog';
 
 export const splashPath = 'Loose/splashscreen.bmp';
 const generated = new Map([
-  ['new', { filename: 'shoot-many-robots-remaster.bmp', type: 'image/bmp' }],
+  ['new', { filename: 'shoot-many-robots-remaster-4k.bmp', type: 'image/bmp' }],
   ['master', { filename: 'shoot-many-robots-remaster-4k.png', type: 'image/png' }],
 ]);
 
-export async function getSplash(version) {
+export async function getSplash(version: string) {
   try {
     if (version === 'original') {
       const file = await resolveAsset(splashPath);
@@ -21,7 +21,7 @@ export async function getSplash(version) {
     const info = await stat(actual);
     return info.isFile() ? { ...variant, actual, size: info.size } : null;
   } catch (error) {
-    if (error.code === 'ENOENT') return null;
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
     throw error;
   }
 }

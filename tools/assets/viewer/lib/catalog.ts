@@ -1,13 +1,16 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
-import { classify, inlineTypes } from './asset-types';
+import { classify, inlineTypes, type Asset, type ImageInfo } from './asset-types';
 
 const root = resolve(process.cwd(), '../../../work/assets/extracted');
 const manifestPath = resolve(root, 'manifest.json');
-let cached;
+type ManifestEntry = { archive: string; path: string; size: number; sha256: string; preview?: string; image?: ImageInfo };
+type Catalog = { assets: Asset[]; entries: Map<string, { asset: Asset; converted: boolean }> };
 
-function isRelativePath(value) {
+let cached: { ino: number; mtime: number; size: number; catalog: Catalog } | undefined;
+
+function isRelativePath(value: unknown): value is string {
   return typeof value === 'string' && value.split('/').every(
     (part) => part && part !== '..' && part !== '.' && !/[\\:\x00-\x1f]/.test(part),
   );
@@ -19,8 +22,8 @@ export async function getCatalog() {
     return cached.catalog;
   }
 
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  const entries = new Map();
+  const manifest: { files: ManifestEntry[] } = JSON.parse(await readFile(manifestPath, 'utf8'));
+  const entries: Catalog['entries'] = new Map();
   for (const record of manifest.files) {
     const archive = record.archive.replace(/\.sar$/i, '');
     if (!isRelativePath(archive) || archive.includes('/') || !isRelativePath(record.path)) continue;
@@ -31,7 +34,7 @@ export async function getCatalog() {
     const preview = `__previews__/${path}.png`;
     const converted = record.preview === preview;
     const native = Object.hasOwn(inlineTypes, type.extension);
-    const asset = {
+    const asset: Asset = {
       id, path, archive, ...type,
       size: record.size,
       sha256: record.sha256,
@@ -47,7 +50,7 @@ export async function getCatalog() {
   return catalog;
 }
 
-export async function resolveAsset(path) {
+export async function resolveAsset(path: string) {
   const [directory, actual] = await Promise.all([realpath(root), realpath(resolve(root, path))]);
   if (!actual.startsWith(directory + sep)) return null;
   const info = await stat(actual);

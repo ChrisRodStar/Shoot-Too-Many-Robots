@@ -2,12 +2,12 @@ import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { getSplash } from '../../../../lib/splash';
 
-export async function GET(_request, { params }) {
+export async function GET(_request: Request, { params }: RouteContext<'/compare/splash/[version]'>) {
   const { version } = await params;
   const file = await getSplash(version);
   if (!file) return new Response(null, { status: 404 });
 
-  return new Response(Readable.toWeb(createReadStream(file.actual)), {
+  return new Response(Readable.toWeb(createReadStream(file.actual)) as ReadableStream<Uint8Array>, {
     headers: {
       'Content-Type': file.type,
       'Content-Length': String(file.size),

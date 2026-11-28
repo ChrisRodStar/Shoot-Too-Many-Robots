@@ -33,7 +33,7 @@ export default async function SplashComparison() {
               <div className="splash-downloads">
                 <a className="secondary" href="/compare/splash/master" download={master.filename}>Save full-resolution PNG</a>
                 {replacement && (
-                  <a className="secondary" href="/compare/splash/new" download={replacement.filename}>Save 640 × 480 BMP</a>
+                  <a className="secondary" href="/compare/splash/new" download={replacement.filename}>Save 3840 × 2880 BMP</a>
                 )}
               </div>
             </>
