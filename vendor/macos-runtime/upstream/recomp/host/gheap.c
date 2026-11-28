@@ -1,5 +1,7 @@
 // Guest heap: size-class free lists for small blocks, a first-fit page allocator for large ones.
-// Everything lives in [HEAP_LO, HEAP_HI) of the guest space so guest pointers stay 32-bit.
+// Guest pointers must keep bit 30 clear: the engine tags handles with 0x40000000
+// (FUN_00764a80). The heap therefore uses two windows and skips the tagged
+// 0x40000000..0x7FFFFFFF band; the upper window ends before 0xC0000000.
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -11,8 +13,10 @@ static pthread_mutex_t hl = PTHREAD_MUTEX_INITIALIZER;
 #define L pthread_mutex_lock(&hl)
 #define UL pthread_mutex_unlock(&hl)
 
-#define HEAP_LO 0x18000000u
-#define HEAP_HI 0x40000000u
+#define HEAP_LO 0x14000000u
+#define HEAP_TAG_LO 0x40000000u
+#define HEAP_TAG_HI 0x80000000u
+#define HEAP_HI 0xC0000000u
 #define HDR 16                       // [size:4][class:4][pad:8] before every block (16-aligned)
 #define NCLASS 20                    // 16 B .. 8 MB
 static uint32_t brk_ = HEAP_LO;
@@ -23,7 +27,10 @@ static unsigned fixed_count;
 int gheap_reserve_fixed(uint32_t lo,uint32_t hi){
     if(lo>=hi)return 0;
     L;
-    int ok=!(brk_>HEAP_LO&&lo<brk_&&HEAP_LO<hi);
+    int ok=1;
+    uint32_t low_end=brk_<HEAP_TAG_LO?brk_:HEAP_TAG_LO;
+    if(brk_>HEAP_LO&&lo<low_end&&HEAP_LO<hi)ok=0;
+    if(brk_>HEAP_TAG_HI&&lo<brk_&&HEAP_TAG_HI<hi)ok=0;
     for(unsigned i=0;ok&&i<fixed_count;i++)if(lo<fixed_ranges[i].hi&&fixed_ranges[i].lo<hi)ok=0;
     if(ok&&lo<HEAP_HI&&HEAP_LO<hi){
         if(fixed_count==4096)ok=0;
@@ -150,6 +157,9 @@ static uint32_t bump(uint32_t n) {
     uint64_t p=((uint64_t)brk_+15)&~15ull;
     for(;;){
         int moved=0;
+        if(p<HEAP_TAG_HI&&p+n>HEAP_TAG_LO){
+            p=HEAP_TAG_HI;moved=1;
+        }
         for(unsigned i=0;i<fixed_count;i++)if(p<fixed_ranges[i].hi&&fixed_ranges[i].lo<p+n){
             fprintf(stderr,"[address-map] heap skips reserved %#x..%#x request=%u\n",fixed_ranges[i].lo,fixed_ranges[i].hi,n);
             p=((uint64_t)fixed_ranges[i].hi+0xFFFFull)&~0xFFFFull;moved=1;break;
@@ -270,9 +280,11 @@ int gpages_free(uint32_t addr, uint32_t size, int release, int zero) { L; int r 
 
 void gheap_report(void) {
     L;
+    uint32_t used=brk_>HEAP_TAG_HI?(HEAP_TAG_LO-HEAP_LO)+(brk_-HEAP_TAG_HI):brk_-HEAP_LO;
+    uint32_t capacity=(HEAP_TAG_LO-HEAP_LO)+(HEAP_HI-HEAP_TAG_HI);
     fprintf(stderr, "[gheap] used %u MB of %u: class %llu MB, huge %llu MB (freed-not-reused %llu MB), "
             "pages bump %llu MB (live %llu MB, free-list %llu MB, reused %llu MB, released %llu MB), live %llu MB\n",
-            (brk_ - HEAP_LO) >> 20, (HEAP_HI - HEAP_LO) >> 20, (unsigned long long)(st_bump_class >> 20),
+            used >> 20, capacity >> 20, (unsigned long long)(st_bump_class >> 20),
             (unsigned long long)(st_bump_huge >> 20), (unsigned long long)(st_huge_freed >> 20),
             (unsigned long long)(st_bump_pages >> 20),
             (unsigned long long)(st_page_live >> 20), (unsigned long long)(st_page_free_bytes >> 20),

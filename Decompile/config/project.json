@@ -1,0 +1,33 @@
+{
+  "game": "Shoot Many Robots",
+  "release": "Windows PC (Steam), 2012",
+  "developer": "Demiurge Studios",
+  "engine": "Seoul Engine",
+  "original_image": "work/inputs/exe/ShootManyRobots.exe",
+  "sha256": "d0f3278988ff9df124ec09e6ed3a91cace573de3e21b35060fc81cc5965b7780",
+  "size": 8068096,
+  "pe": {
+    "format": "PE32",
+    "machine": "i386",
+    "image_base": "0x00400000",
+    "entry_point": "0x0083e167",
+    "timestamp": 1334071689,
+    "sections": [".text", ".rdata", ".data", ".rsrc", ".reloc", ".bind"],
+    "pdb_path": "c:\\Demiurge1683\\Sandbox\\SomervillePC\\Dev\\Somerville\\Binaries\\PC\\Ship\\ShootManyRobots.pdb",
+    "exports": 200
+  },
+  "toolchain": {
+    "compiler": "Microsoft Visual C++ 2008 (cl 15.00, VC9)",
+    "runtime": "MSVCR90.DLL / MSVCP90.DLL",
+    "directx": "d3dx9_43.dll / d3dcompiler_43.dll (June 2010)",
+    "audio": "fmodex.dll / fmod_event.dll",
+    "physics": "PhysX 2.8.4"
+  },
+  "ghidra": {
+    "version": "12.2",
+    "project_dir": "work/ghidra/game",
+    "project_name": "smr",
+    "program": "ShootManyRobots.exe",
+    "language": "x86:LE:32:default"
+  }
+}

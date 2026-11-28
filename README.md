@@ -4,6 +4,8 @@
 
 This project lifts the 32-bit x86 Windows executable through Ghidra P-code into native ARM64 C, links it against a custom macOS Win32 + Direct3D 9 → Metal host runtime, statically recompiles the D3DX9 and FMOD audio middleware, and runs the remaining third-party x86 DLLs (`PhysXCore`, `msvcr90`) under a transparent Unicorn fallback until shimmed or recompiled natively.
 
+> **Decompilation:** [`Decompile/`](Decompile/) is a separate, readable decompilation of the game (Ghidra C, RTTI/vtable recovery, searchable indexes, and the start of a Fallout-style byte-exact matching harness). It is not needed to run the game. See [`Decompile/README.md`](Decompile/README.md).
+
 ---
 
 ## Status at a Glance
@@ -193,7 +195,7 @@ SMR_DATA_ROOT="/path/to/main/checkout/work" ./scripts/dev-setup
 <details>
 <summary><strong>Key Runtime &amp; Rendering Fixes</strong></summary>
 
-- **Startup & tagged-pointer crashes:** Re-running Ghidra with `ResolveJumpTables`, `FixNoReturn`, and `FixEntries` resolved the `0x5c88f0` window-procedure switch table (`SMR_NATIVE_WNDPROC=1`). Added `SQRTPS`/`PSHUFW` emission for `0x83f6e0`, and moved the guest heap in `gheap.c` to `0x18000000–0x40000000` so handle bit 30 (`0x40000000`, used as a tagged-index flag by `0x764a80`) never collides with heap pointers.
+- **Startup & tagged-pointer crashes:** Re-running Ghidra with `ResolveJumpTables`, `FixNoReturn`, and `FixEntries` resolved the `0x5c88f0` window-procedure switch table (`SMR_NATIVE_WNDPROC=1`). Added `SQRTPS`/`PSHUFW` emission for `0x83f6e0`, and gave the guest heap a tag-safe two-window layout in `gheap.c` (`0x14000000–0x40000000` plus `0x80000000–0xC0000000`, skipping the `0x40000000–0x7FFFFFFF` tagged band) so handle bit 30 (`0x40000000`, used as a tagged-index flag by `0x764a80`) never collides with heap pointers.
 - **Last two `game.exe` fallback gaps:** `FixSplitEntry.java` corrected `0x626770` (split two bytes late at `0x626772`), and teaching both emitters `in`/`out`/`swi` CALLOTHERs enabled `0x7c727c` (`OUTSB`) and `0x7c7290` with Unicorn-matching no-op port semantics (`in` → `0`, `out` → no-op, `swi` → trap).
 - **Deferred HDR lighting:** `copy_tokens` in `vendor/macos-runtime/upstream/recomp/host/d3d9.c` now skips `OP_COMMENT` (`0xFFFE`) blocks instead of terminating early on `0x0000FFFF` inside D3DX `PRES` preshader comments.
 - **2D & 3D LUT texture loading:** `Unk_QueryInterface` rejects D3D9Ex IIDs (`IID_IDirect3DDevice9Ex`, `IID_IDirect3D9Ex`, `IID_IDirect3DSwapChain9Ex`) and cross-type texture queries so `d3dx9_43.dll` permits `D3DPOOL_MANAGED` loads (all 343 2D textures + 32×32×32 LUT). Added `IDirect3DVolumeTexture9` and `IDirect3DVolume9` (`GetLevelDesc`, `GetVolumeLevel`, `LockBox`, `UnlockBox`) with Metal `MTLTextureType3D` upload.
