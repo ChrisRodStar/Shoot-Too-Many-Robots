@@ -5,3 +5,7 @@
 /share/
 __pycache__/
 *.pyc
+*.obj
+*.pdb
+*.ilk
+*.exp

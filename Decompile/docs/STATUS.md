@@ -19,7 +19,7 @@ export.
 | Functions with string references | **4,314** |
 | Call edges recorded | **81,390** |
 | Medium/high name suggestions | **4,026** |
-| Byte-verified functions | **173** (945 bytes) |
+| Byte-verified functions | **196** (1,547 bytes) |
 | Compiler | MSVC 2008 SP1 + RTM, under Wine/Docker |
 | Steam `.bind` packer stubs excluded | 6 |
 
@@ -73,11 +73,13 @@ PhysX imports.
 - `Class::vfunc_N` is a **locator**, not a source method name. Secondary base
   vtables and shared thunks mean 98 names repeat across 405 records (C++
   overloads account for some of that too).
-- **173 functions (945 bytes)** have been shown to rebuild to the original
-  bytes with MSVC 2008: 149 pure tail-call thunks, 19 32-bit field accessors,
-  one real function with two resolved relocations (`rand() * 2^-15`), and four
-  trivial leaf functions used to prove the loop. Run
-  `python3 Decompile/tools/match/verify.py`.
+- **196 functions (1,547 bytes)** have been shown to rebuild to the original
+  bytes with MSVC 2008: 149 pure tail-call thunks, 19 field accessors, one real
+  function with two resolved relocations (`rand() * 2^-15`), and 23
+  reconstructed C++/C functions in `bank_0088` (constructors, copy methods,
+  setters, wrappers). Run `python3 Decompile/tools/match/verify.py`.
+- `bank_0088` progress: **34 / 250 functions, 657 bytes**. It is the first bank
+  under active reconstruction; the other banks are still reference-only.
 
 ## Toolchain
 

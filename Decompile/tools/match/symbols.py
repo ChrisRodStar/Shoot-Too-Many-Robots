@@ -21,7 +21,8 @@ from pe import PE
 
 
 class Resolver:
-    def __init__(self, pe: PE, units_path: str | Path | None = None):
+    def __init__(self, pe: PE, units_path: str | Path | None = None,
+                 extra: dict[str, int] | None = None):
         self.pe = pe
         self.by_name: dict[str, int] = {}
 
@@ -38,6 +39,9 @@ class Resolver:
         for name, va in pe.exports():
             self._add(name, va)
             self._add(name.lstrip("_"), va)
+
+        for name, va in (extra or {}).items():
+            self._add(name, va if isinstance(va, int) else int(va, 16))
 
         for _dll, name, iat in pe.imports():
             for alias in (name, f"_{name}", f"__imp_{name}", f"__imp__{name}",

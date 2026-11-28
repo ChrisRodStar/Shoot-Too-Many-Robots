@@ -104,6 +104,10 @@ python3 Decompile/tools/match/verify.py
 python3 Decompile/tools/match/compare.py \
     --object work/match/obj/simple.obj --addr 0x401050:5 \
     --symbol-map my-symbols.json --verbose
+
+# C++ method calls can be bound explicitly
+python3 Decompile/tools/match/compare.py --object obj --addr 0x8b2280:19 \
+    --symbol-map map.json --reloc-symbols relocs.json
 ```
 
 Until `compare.py` reports `MATCH`, the function is still reference-only, no
@@ -121,11 +125,16 @@ matter how convincing the C looks.
   `INCLUDE`/`LIB` paths.
 - `tools/match/verify.py`: compiles every entry in `config/matched.json`,
   compares it at its original address, and reports functions and bytes.
-- The current registry has **173/173 functions matched (945 bytes)**:
+- The current registry has **196/196 functions matched (1,547 bytes)**:
   - 149 pure tail-call thunks (`jmp target`, REL32 resolved),
   - 19 32-bit field accessors (`mov eax,[eax+off]`),
+  - 23 `bank_0088` functions: C++ `thiscall` constructors, copy/clear
+    methods, setters, wrappers, and a destructor/free helper,
   - 1 real function with two relocations (`rand() * 2^-15`),
   - 4 trivial leaf functions that proved the initial loop.
+- Per-entry `relocations` in `config/matched.json` bind object symbols for
+  unreconstructed C++ methods to their original VAs (for example
+  `?base@FC1@@QAEXPAUFA1@@@Z -> 0x008b1fa0`).
 - Relocations are resolved symbolically: `REL32` through callee addresses,
   `DIR32` through the import IAT, and data constants/strings via the original
   instruction's pointer validated against the object's bytes.

@@ -16,10 +16,11 @@ to play it, and nothing here is playable.
 > plus Ghidra RTTI, and 2,850 recovered from **608 RTTI vtables across 527
 > classes** (class/slot labels, recorded as guesses). The other 43,095 are
 > `FUN_` placeholders. The 6 Steam-packer stubs in `.bind` are deliberately
-> excluded. **173 functions (945 bytes) have been rebuilt byte-identical** with
-> MSVC 2008, which now runs under Wine/Docker: 149 tail-call thunks, one real
-> function with two resolved relocations, 19 field accessors, and four leaf sanity
-> checks. The next milestone is the first real bank. See [docs/STATUS.md](docs/STATUS.md),
+> excluded. **196 functions (1,547 bytes) have been rebuilt byte-identical** with
+> MSVC 2008, which now runs under Wine/Docker. They include 149 tail-call thunks,
+> 19 field accessors, 10 C++ `thiscall` constructors/methods, wrappers and
+> setters, and `bank_0088` is at 34/250 functions. The next milestone is a full
+> bank. See [docs/STATUS.md](docs/STATUS.md),
 > [docs/FINDINGS.md](docs/FINDINGS.md) and [docs/MSVC2008.md](docs/MSVC2008.md).
 
 ---
@@ -50,6 +51,7 @@ to play it, and nothing here is playable.
 | `tools/ghidra/` | Export scripts |
 | `tools/match/` | PE + COFF readers, comparison harness, `verify.py` |
 | `tools/msvc/` | Dockerfile + Wine wrapper for Visual C++ 2008 |
+| `tools/progress/` | Next.js 16 dashboard: byte-exact coverage, 186-bank map, verified registry, naming stats |
 | `config/project.json` | Image fingerprint, PE facts, toolchain |
 | `docs/` | [Method](docs/METHOD.md), [status](docs/STATUS.md), [findings](docs/FINDINGS.md), [matching](docs/MATCHING.md), [MSVC 2008](docs/MSVC2008.md), [roadmap](docs/ROADMAP.md) |
 
@@ -88,6 +90,29 @@ python3 Decompile/tools/decompile.py search lobby --field strings
 # compile and verify the matched-function registry (needs Docker)
 python3 Decompile/tools/match/verify.py
 ```
+
+### Track progress
+
+The dashboard reads `config/matched.json` and the generated `build/game/` indexes
+directly, so it always reflects the last verify run:
+
+```sh
+npm ci --prefix Decompile/tools/progress
+npm --prefix Decompile/tools/progress run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) (the launcher falls back to
+**3001** if 3000 is already in use). It shows overall
+function and byte coverage, named/decompiled/verified rails, the verified
+manifest by kind, a selectable 186-bank map, and the full registry with kind,
+size, source, and evidence filters. It watches the registry and indexes and
+updates within a second of a write, with a 30-second poll as fallback.
+`GET /api/progress` serves the same totals as JSON.
+
+Agent sessions publish their state in the repo-root
+`work/dev/agent-status.json`; the dashboard shows it as a **DECOMPILATION
+AGENT** strip. The handoff contract is
+[`tools/progress/AGENTS.md`](tools/progress/AGENTS.md).
 
 `explain` prints the metadata and the C body without opening Ghidra:
 
@@ -139,8 +164,8 @@ much is actually unknown. See [docs/METHOD.md](docs/METHOD.md).
 - Original function names for 92.8% of the code.
 - Original struct layouts, enums, and class hierarchies beyond RTTI basics.
 - Original source file boundaries and compiler flags.
-- Whether most Ghidra bodies compile to the original bytes (173 tested, mostly
-  thunks and accessors; the first real bank is next).
+- Whether most Ghidra bodies compile to the original bytes (196 tested, mostly
+  thunks/accessors plus 34 in bank_0088; a full bank is next).
 
 ---
 
@@ -158,15 +183,22 @@ compilers are installed; see [docs/MSVC2008.md](docs/MSVC2008.md).
 python3 Decompile/tools/match/verify.py
 ```
 
-Current registry: **173/173 functions matched, 945 bytes**, with relocations
-resolved through callee addresses, the import IAT, and validated data pointers:
+Current registry: **196/196 functions matched, 1,547 bytes**, with relocations
+resolved through callee addresses, the import IAT, validated data pointers, and
+per-entry C++ method targets:
 
 ```text
 149  pure tail-call thunks          jmp target
  19  32-bit field accessors          mov eax,[eax+off]
-  1  FUN_00401000 (rand * 2^-15)      27 bytes, 2 relocations
-  4  leaf sanity checks                19 bytes
+ 10  bank_0088 C++ thiscall methods  constructors / copy / clear
+  4  bank_0088 setters               field copy + method call
+  4  bank_0088 float-copy methods    field copy + tail call
+  1  FUN_00401000 (rand * 2^-15)     27 bytes, 2 relocations
+  9  wrappers / leaf / misc
 ```
+
+`bank_0088` is the first bank under active reconstruction: **34 of 250**
+functions are verified.
 
 A useful warning from the same harness: clang encodes `xor eax,eax` as
 `31 c0`, the game's MSVC 2008 build as `33 c0`, so only the original compiler

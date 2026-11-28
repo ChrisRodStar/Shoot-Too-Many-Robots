@@ -18,8 +18,9 @@ Run the check:
 python3 Decompile/tools/match/verify.py
 ```
 
-Current contents: 149 pure tail-call thunks in `engine/tail_thunks.c`, 19
-32-bit field accessors in `engine/field_getters.c`, one real function with two
-resolved relocations in `engine/rand_scale.c`, and four leaf sanity checks in
-`engine/simple.c`. Do not add a function until
+Current contents: 149 tail-call thunks (`engine/tail_thunks.c`), 19 field
+accessors (`engine/field_getters.c`), `bank_0088` C++ methods
+(`engine/bank_0088_methods.cpp`), misc C (`engine/bank_0088_misc.c`), one real
+relocation-heavy function (`engine/rand_scale.c`), and four leaf sanity checks
+(`engine/simple.c`). Do not add a function until
 `verify.py` reports `MATCH` for it.

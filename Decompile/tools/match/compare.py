@@ -239,6 +239,7 @@ def main() -> int:
     ap.add_argument("--bank", help="bank name, e.g. bank_0000")
     ap.add_argument("--addr", action="append", default=[], help="function address (repeatable)")
     ap.add_argument("--symbol-map", help="JSON {addr: object symbol}")
+    ap.add_argument("--reloc-symbols", help="JSON {object symbol: original VA}")
     ap.add_argument("--strict-relocs", action="store_true")
     ap.add_argument("--no-resolve", action="store_true",
                     help="mask relocation spans instead of resolving them")
@@ -293,7 +294,11 @@ def main() -> int:
     resolver = None
     if not args.no_resolve:
         from symbols import Resolver
-        resolver = Resolver(pe, units_path)
+        extra = {}
+        if args.reloc_symbols:
+            extra = {k: int(v, 16) for k, v in
+                     json.loads(Path(args.reloc_symbols).read_text()).items()}
+        resolver = Resolver(pe, units_path, extra)
     results = [compare_one(pe, r, obj_map, symbol_map, args.strict_relocs,
                            args.verbose, resolver)
                for r in wanted]

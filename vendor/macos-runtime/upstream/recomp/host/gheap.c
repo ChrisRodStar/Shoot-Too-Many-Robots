@@ -206,7 +206,13 @@ static uint32_t gmalloc_u(uint32_t size) {
 
 static void gfree_u(uint32_t q) {
     if (!q) return;
-    Allocation *a=allocation_check(q);a->live=0;
+    Allocation *a=allocation_find(q,0);
+    if(!a||!a->live){
+        static int warned;
+        if(!warned){fprintf(stderr,"[gheap] free on unowned/freed pointer %#x\n",q);warned=1;}
+        return;
+    }
+    a->live=0;
     uint32_t p = q - HDR, c = G32(p + 4);
     if (c == 0xFFFFFFFFu) {                      // huge: onto the reuse list
         st_huge_freed += G32(p + 12); st_live -= G32(p);
@@ -219,7 +225,19 @@ static void gfree_u(uint32_t q) {
 }
 
 static uint32_t gsize_u(uint32_t q){return q?allocation_check(q)->size:0;}
-uint32_t gsize(uint32_t q) { L;uint32_t n=gsize_u(q);UL;return n; }
+uint32_t gsize(uint32_t q) {
+    L;
+    uint32_t n=0;
+    if(q){
+        Allocation *a=allocation_find(q,0);
+        if(a&&a->live) n=a->size;
+        else {
+            static int warned;
+            if(!warned){fprintf(stderr,"[gheap] _msize on unowned/freed pointer %#x\n",q);warned=1;}
+        }
+    }
+    UL;return n;
+}
 
 static uint32_t grealloc_u(uint32_t q, uint32_t size) {
     if (!q) return gmalloc_u(size);

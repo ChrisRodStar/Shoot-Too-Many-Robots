@@ -59,6 +59,7 @@ Tracked source, config, and tools are strictly separated from large/generated lo
 | [`scripts/`](scripts/) | Entry points (`recomp`, `startup-probe`, `dev-setup`) and deterministic input scripts (`smr-title.script`, `smr-tutorial.script`) |
 | [`config/`](config/) | Curated small inputs (`guest-manifest.json`, `entry-set.json`, `smr-extra-entries.json`, `learned-entries.txt`) |
 | [`patches/`](patches/) | Reusable upstream reference deltas (`pe-image-base.patch`, `recompiler-mmx-sse.patch`) |
+| [`AGENTS.md`](AGENTS.md) | Agent handoff: status heartbeat, decompilation rules, dashboard contract |
 | [`docs/`](docs/) | Detailed engineering docs — see [`docs/RECOMP-WORKFLOW.md`](docs/RECOMP-WORKFLOW.md) for the dev loop design |
 | `work/` *(ignored)* | Local 7 GB workspace — guest inputs, P-code, Ghidra projects, generated C, builds, reports, runtime scratch, extracted assets, and packaged app. See [the work layout](#work-directory-layout) |
 | `logs/` *(ignored)* | Build and runtime logs (`window-full-startup.log`, `window-startup.log`, `native-startup.log`) |
@@ -86,7 +87,8 @@ work/
 ├── reports/       differential-test fixtures and reports (*-diff.json)
 ├── run/           runtime scratch: frame dumps (frames/) and per-flavor user dirs
 ├── assets/        extracted SAR content (extracted/) and upgrade experiments
-├── dev/           recomp dev state: verify cache, run history, promotion backups
+├── dev/           recomp dev state: verify cache, run history, promotion backups,
+│                  and work/dev/agent-status.json for the progress dashboard
 ├── scratch/       perf samples, one-off patches, stale experiments, old dumps
 └── dist/          packaged "Shoot Too Many Robots.app"
 ```
@@ -109,6 +111,19 @@ npm --prefix tools/assets/viewer run dev
 Open [the local asset viewer](http://127.0.0.1:3060). It reads the SHA-256 manifest in `work/assets/extracted/`, where originals retain their archive-relative paths. Categories follow the assets' role, with separate filters for file type and group. For example, choose **Environment → Image / texture** for environment textures or **Interface → HUD** for the HUD files. **Save original** returns the extracted file. The [standalone viewer](tools/assets/viewer.html) is also available for browsing an ad hoc folder from the browser.
 
 With Pillow installed, `python3 tools/assets/extract_sar.py --previews-only` refreshes the PNG previews and adds original dimensions and encoding to the manifest. The previews fit within 512 × 512 pixels. For image work, decode a full-resolution master from the original DDS or SIF.
+
+### Track Decompilation Progress
+
+The [`Decompile/`](Decompile/) project includes a local Next.js 16 dashboard that reads the matching registry and generated indexes directly:
+
+```sh
+npm ci --prefix Decompile/tools/progress
+npm --prefix Decompile/tools/progress run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) (or **3001** automatically if 3000 is taken) for byte-exact function and byte coverage, named/decompiled/verified rails, the verified manifest by kind, a selectable 186-bank map, and the full registry with search and evidence filters. It watches the registry and indexes for changes and exposes the same totals at `/api/progress`.
+
+The dashboard also shows a **DECOMPILATION AGENT** strip from `work/dev/agent-status.json`, so you can see whether a decompilation session is active. Agent handoff and the heartbeat rules are documented in [`AGENTS.md`](AGENTS.md) and [`Decompile/tools/progress/AGENTS.md`](Decompile/tools/progress/AGENTS.md).
 
 ### Plan Image Upgrades
 

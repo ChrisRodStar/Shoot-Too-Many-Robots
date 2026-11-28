@@ -1540,6 +1540,337 @@
       "source": "src/matched/engine/field_getters.c",
       "kind": "accessor",
       "note": "32-bit field read at +0xec"
+    },
+    {
+      "address": "0x008b0a40",
+      "size": 22,
+      "symbol": "??0Anon_8b0a40@@QAE@XZ",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "constructor: six int fields to zero"
+    },
+    {
+      "address": "0x008b10e0",
+      "size": 17,
+      "symbol": "??0Anon_8b10e0@@QAE@XZ",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "constructor: two shorts and an int"
+    },
+    {
+      "address": "0x008b0230",
+      "size": 21,
+      "symbol": "??0Anon_8b0230@@QAE@XZ",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "constructor: int, float, int"
+    },
+    {
+      "address": "0x008b0be0",
+      "size": 25,
+      "symbol": "??0Anon_8b0be0@@QAE@XZ",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "constructor: shorts and two floats"
+    },
+    {
+      "address": "0x008b2e00",
+      "size": 26,
+      "symbol": "??0Anon_8b2e00@@QAE@XZ",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "constructor: five floats and an int"
+    },
+    {
+      "address": "0x008a9050",
+      "size": 9,
+      "symbol": "?clear@NxEffectorDesc@@QAEXXZ",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "NxEffectorDesc: clear two fields"
+    },
+    {
+      "address": "0x008b1510",
+      "size": 35,
+      "symbol": "?copyFrom@Anon_8b1510@@QAEXABU1@H@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "copy 5 ints; thiscall + two stack args"
+    },
+    {
+      "address": "0x008b10a0",
+      "size": 29,
+      "symbol": "?copyFrom@Anon_8b10a0@@QAEXABU1@H@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "copy 4 ints; thiscall + two stack args"
+    },
+    {
+      "address": "0x008b10c0",
+      "size": 29,
+      "symbol": "?copyTo@Anon_8b10c0@@QAEXAAU1@H@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "copy 4 ints outward; thiscall + two stack args"
+    },
+    {
+      "address": "0x008b15e0",
+      "size": 23,
+      "symbol": "?copyFrom@Anon_8b15e0@@QAEXABU1@H@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "thiscall",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "note": "copy 3 floats; thiscall + two stack args"
+    },
+    {
+      "address": "0x008a8ba0",
+      "size": 26,
+      "symbol": "?FUN_008a8ba0@@YAHPAUC@@HH@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "wrapper",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?g@C@@QAEHHH@Z": "0x8a89d0"
+      },
+      "note": "wrapper: conditional call to method at 0x8a89d0"
+    },
+    {
+      "address": "0x008a8ab0",
+      "size": 31,
+      "symbol": "?FUN_008a8ab0@@YAHPAUC@@HH0@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "wrapper",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?g@C@@QAEHPAU1@HH@Z": "0x8a88d0"
+      },
+      "note": "wrapper: conditional call to method at 0x8a88d0"
+    },
+    {
+      "address": "0x008a8cb0",
+      "size": 38,
+      "symbol": "_FUN_008a8cb0",
+      "source": "src/matched/engine/bank_0088_misc.c",
+      "kind": "leaf",
+      "note": "reads field, writes out-param and byte flag"
+    },
+    {
+      "address": "0x008b04d0",
+      "size": 24,
+      "symbol": "?f@C1@@QAEXPAUA1@@PAUB1@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "setter",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?method@B1@@QAEXPAXPAUA1@@@Z": "0x8d5420"
+      },
+      "note": "copy a->18 to this->20, call method at 0x8d5420"
+    },
+    {
+      "address": "0x008b04f0",
+      "size": 24,
+      "symbol": "?f@C2@@QAEXPAUA2@@PAUB2@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "setter",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?method@B2@@QAEXPAUA2@@PAX@Z": "0x8d31a0"
+      },
+      "note": "copy this->20 to a->18, call method at 0x8d31a0"
+    },
+    {
+      "address": "0x008b0610",
+      "size": 24,
+      "symbol": "?f@C3@@QAEXPAUA3@@PAUB3@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "setter",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?method@B3@@QAEXPAXPAUA3@@@Z": "0x8d5770"
+      },
+      "note": "copy a->18 to this->18, call method at 0x8d5770"
+    },
+    {
+      "address": "0x008b0630",
+      "size": 24,
+      "symbol": "?f@C4@@QAEXPAUA4@@PAUB4@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "setter",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?method@B4@@QAEXPAUA4@@PAX@Z": "0x8d34b0"
+      },
+      "note": "copy this->18 to a->18, call method at 0x8d34b0"
+    },
+    {
+      "address": "0x008b2280",
+      "size": 19,
+      "symbol": "?f@FC1@@QAEXPAUFA1@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "float_copy",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?base@FC1@@QAEXPAUFA1@@@Z": "0x8b1fa0"
+      },
+      "note": "copy one float then tail-call 0x8b1fa0"
+    },
+    {
+      "address": "0x008b2100",
+      "size": 31,
+      "symbol": "?f@FC3@@QAEXPAUFA3@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "float_copy",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?base@FC3@@QAEXPAUFA3@@@Z": "0x8b1fa0"
+      },
+      "note": "copy three floats then tail-call 0x8b1fa0"
+    },
+    {
+      "address": "0x008b21c0",
+      "size": 37,
+      "symbol": "?f@FC4@@QAEXPAUFA4@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "float_copy",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?base@FC4@@QAEXPAUFA4@@@Z": "0x8b1fa0"
+      },
+      "note": "copy four floats then tail-call 0x8b1fa0"
+    },
+    {
+      "address": "0x008b23d0",
+      "size": 31,
+      "symbol": "?f@FC2@@QAEXPAUFA2@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "float_copy",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?base@FC2@@QAEXPAUFA2@@@Z": "0x8b1fa0"
+      },
+      "note": "copy two floats and an int then tail-call"
+    },
+    {
+      "address": "0x008b22a0",
+      "size": 30,
+      "symbol": "?f@CC@@QAEXPAUCCA@@H@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "call_copy",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "?g@CC@@QAEXPAUCCA@@H@Z": "0x8b2020"
+      },
+      "note": "call method at 0x8b2020, then copy float"
+    },
+    {
+      "address": "0x008a27f0",
+      "size": 27,
+      "symbol": "?f@@YAXPAUC@@@Z",
+      "source": "src/matched/engine/bank_0088_methods.cpp",
+      "kind": "dtor_wrapper",
+      "flags": [
+        "/O2",
+        "/TP",
+        "/MD"
+      ],
+      "relocations": {
+        "??1C@@QAE@XZ": "0x8c6d30",
+        "?del@@YAXPAX@Z": "0x821090"
+      },
+      "note": "if non-null: destructor at 0x8c6d30 then free at 0x821090"
     }
   ]
 }

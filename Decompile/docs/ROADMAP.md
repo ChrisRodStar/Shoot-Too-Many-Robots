@@ -52,11 +52,11 @@ Ghidra `undefined*` types, and still decompiles consistently.
 
 - [x] MSVC 2008 SP1 + RTM running under Wine/Docker (`tools/msvc/`)
 - [x] `tools/match/verify.py`: compile and compare the matched registry
-- [x] First matched units: 149 tail thunks + 19 accessors + 5 leaf/reloc functions (173 functions, 945 bytes)
+- [x] First matched units: 149 tail thunks + 19 accessors + 23 bank_0088 methods + 5 leaf/reloc (196 functions, 1,547 bytes)
 - [ ] Relocation-aware comparison through the unit symbol map
 - [ ] Per-unit flags inferred from the binary
 - [ ] Exception-handling and `fold_alias` accounting
-- [ ] First fully matched bank (start with small Seoul Engine exports)
+- [ ] First fully matched bank (bank_0088 is at 34/250)
 - [ ] CI-style check that compares changed banks only
 
 Exit test: a bank reports `N/N functions match`, reproduced from a clean

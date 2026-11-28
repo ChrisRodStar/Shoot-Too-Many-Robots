@@ -77,7 +77,11 @@ def main() -> int:
             obj_map.setdefault(undecorate(sym.name), (sym, size, sec, co))
 
     pe = PE(args.image)
-    resolver = Resolver(pe, args.units)
+    extra = {}
+    for e in entries:
+        for name, va in e.get("relocations", {}).items():
+            extra[name] = int(va, 16)
+    resolver = Resolver(pe, args.units, extra)
     symbol_map = {norm_addr(e["address"]): e["symbol"] for e in entries}
     results = []
     for e in entries:
