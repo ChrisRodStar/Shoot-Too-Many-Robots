@@ -17,6 +17,46 @@ This repository has two halves:
 - Do not edit generated trees (`Decompile/build/`, `Decompile/src/game/`,
   `Decompile/include/game/`) by hand.
 
+## Commit your work
+
+**Any agent doing compilation or matching work must commit its tracked changes
+before handing back.** Do not leave verified work uncommitted.
+
+1. Run the verifier first:
+
+   ```sh
+   python3 Decompile/tools/match/verify.py
+   ```
+
+   Every entry in `Decompile/config/matched.json` must pass. If verification
+   fails, fix it or report `blocked`; do not commit a broken registry.
+
+2. Stage only the matching work — usually:
+
+   ```sh
+   git add AGENTS.md Decompile/README.md Decompile/config/matched.json \
+       Decompile/docs Decompile/src/matched Decompile/tools/match
+   ```
+
+   Never stage `work/`, generated trees (`Decompile/src/game/`,
+   `Decompile/build/`, `Decompile/include/game/`), compiler artifacts
+   (`*.obj`, `*.pdb`, `*.ilk`, `*.exp`), or unrelated working-tree changes.
+   Leave other agents' untracked work (for example `Decompile/tools/progress/`
+   unless the task is the dashboard) out of the commit.
+
+3. Use a descriptive commit message and include the verified result, for
+   example:
+
+   ```text
+   feat(decompile): match 34 functions in bank_0088
+
+   Registry: 196/196 functions, 1,547 bytes verified with
+   MSVC 2008 SP1 (/O2 /MD) and the original release.
+   ```
+
+4. After committing, confirm `git status --short` shows no leftover matching
+   changes. Update the agent heartbeat to `idle` (or `blocked`) as usual.
+
 ## Tell the user you are active
 
 The decompilation dashboard at `Decompile/tools/progress/` watches
