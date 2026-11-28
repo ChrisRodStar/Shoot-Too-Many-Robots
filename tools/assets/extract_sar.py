@@ -106,17 +106,27 @@ def build_image_previews(records: list[dict[str, object]], output: Path) -> int:
     made = 0
     for record in records:
         member = Path(str(record["path"]))
-        if member.suffix.casefold() not in (".dds", ".sif", ".bmp", ".tga"):
+        extension = member.suffix.casefold()
+        converted = extension in (".dds", ".sif", ".bmp", ".tga")
+        if not converted and extension not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
             continue
         source = output / Path(str(record["archive"])).stem / member
         target = output / "__previews__" / Path(str(record["archive"])).stem / (member.as_posix() + ".png")
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
             with Image.open(source) as image:
+                record["image"] = {
+                    "width": image.width,
+                    "height": image.height,
+                    "format": getattr(image, "pixel_format", None) or image.format,
+                }
+                if not converted:
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
                 image.seek(0)
                 image.thumbnail((512, 512), Image.Resampling.LANCZOS)
                 image.convert("RGBA").save(target, format="PNG", optimize=False)
             record["preview"] = target.relative_to(output).as_posix()
+            record.pop("preview_error", None)
             made += 1
         except (OSError, ValueError) as error:
             record["preview_error"] = str(error)
@@ -183,7 +193,9 @@ def main() -> int:
         "files": all_records,
     }
     args.output.mkdir(parents=True, exist_ok=True)
-    (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    temporary_manifest = manifest_path.with_suffix(".json.tmp")
+    temporary_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    temporary_manifest.replace(manifest_path)
     print(f"Image previews: {preview_count:,} PNGs")
     print(f"Total: {len(all_records):,} files exported to {args.output}")
     return 0

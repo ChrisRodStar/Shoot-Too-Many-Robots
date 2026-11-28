@@ -52,7 +52,7 @@ Tracked source, config, and tools are strictly separated from large/generated lo
 | [`vendor/macos-runtime/`](vendor/macos-runtime/) | Pinned macOS Win32 + D3D9 → Metal host runtime with local fixes applied directly |
 | [`vendor/recompiler/`](vendor/recompiler/) | Pinned x86 P-code exporter and C emitter (`emit.py`) |
 | [`tools/recomp/`](tools/recomp/) | Python CLI backing `./scripts/recomp` (build, run, differential verify, explain, promote, doctor) |
-| [`tools/assets/`](tools/assets/) | SAR v3 extractor and standalone local asset viewer |
+| [`tools/assets/`](tools/assets/) | SAR v3 extractor and local Next.js asset viewer |
 | [`tools/ghidra/scripts/`](tools/ghidra/scripts/) | Ghidra headless analysis and P-code export scripts (`DumpPcode.java`, `FixSplitEntry.java`, etc.) |
 | [`scripts/`](scripts/) | Entry points (`recomp`, `startup-probe`, `dev-setup`) and deterministic input scripts (`smr-title.script`, `smr-tutorial.script`) |
 | [`config/`](config/) | Curated small inputs (`guest-manifest.json`, `entry-set.json`, `smr-extra-entries.json`, `learned-entries.txt`) |
@@ -67,14 +67,29 @@ Tracked source, config, and tools are strictly separated from large/generated lo
 
 ### Browse Extracted Assets
 
-Extract the five supplied legacy Seoul Engine v3 bundles, then open [`tools/assets/viewer.html`](tools/assets/viewer.html) in a browser and choose the extracted folder:
+From the project root, install the viewer and start it with Node.js 20.9 or later. If `work/assets-extracted/manifest.json` is missing, run `python3 tools/assets/extract_sar.py` first.
 
 ```sh
-python3 tools/assets/extract_sar.py
-open tools/assets/viewer.html
+npm ci --prefix tools/assets/viewer
+npm --prefix tools/assets/viewer run dev
 ```
 
-The extractor writes the original members and a SHA-256 manifest under ignored `work/assets-extracted/`. If Pillow is installed, it also makes PNG previews for the cooked DDS/SIF textures while preserving each original. The viewer separates textures, character/model data, environments/props, UI, audio, and remaining data into tabs; cooked model and animation files can be saved in their original formats.
+Open [the local asset viewer](http://127.0.0.1:3060). It reads the SHA-256 manifest in `work/assets-extracted/`, where originals retain their archive-relative paths. Categories follow the assets' role, with separate filters for file type and group. For example, choose **Environment → Image / texture** for environment textures or **Interface → HUD** for the HUD files. **Save original** returns the extracted file. The [standalone viewer](tools/assets/viewer.html) is also available for browsing an ad hoc folder from the browser.
+
+With Pillow installed, `python3 tools/assets/extract_sar.py --previews-only` refreshes the PNG previews and adds original dimensions and encoding to the manifest. The previews fit within 512 × 512 pixels. For image work, decode a full-resolution master from the original DDS or SIF.
+
+### Plan Image Upgrades
+
+Start with a small 2× pilot using a recognizable interface icon, a tiled ground texture, a character color map, and a translucent effect. Compare the full-resolution decode, a conventional resize, and a Real-ESRGAN candidate at actual display size. Check readability, repeated tile seams, alpha edges, and in-game appearance before expanding the batch. [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)
+
+| Asset type | Approach |
+| --- | --- |
+| Interface icons, fonts, and HUD | For assets with editable masters, export from those at the target resolution. For new replacements, use editable vectors or type. Check any sprite bounds, padding, and other layout data referenced by the interface movie. |
+| Character, weapon, and environment color textures | Start with a 2× comparison for visible, low-resolution textures. Preserve the UV layout and check seams and bleed at lower mip levels. |
+| Normal maps, channel-packed masks, LUTs, and FX | Identify the role and channel mapping first. Resample channels according to their data, renormalize normals, and preserve LUT dimensions unless the shader is updated too. Check translucent effects over light and dark backgrounds. |
+| Meshes and animation | Prioritize only assets whose shapes or movement need work. New meshes or animations require a separate authoring and import workflow. |
+
+Use a separate ignored location such as `work/assets-upgrades/` for experiments. Keep candidate files keyed by the original asset path. Before testing a replacement in the runtime, check texture encoding, alpha handling, and mipmaps against the original. The extraction contains DXT1 and DXT5 textures, so use a compatible legacy format when testing DDS output. Treat SIF repacking and interface layout integration as separate checks. [DirectXTex texture processing](https://github.com/microsoft/DirectXTex/wiki/texconv)
 
 First verify your local toolchain and game data under `work/`:
 
