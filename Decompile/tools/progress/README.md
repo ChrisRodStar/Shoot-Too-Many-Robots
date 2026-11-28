@@ -90,6 +90,23 @@ Set `SMR_DECOMPILE_ROOT` to point at another checkout:
 SMR_DECOMPILE_ROOT=/path/to/Decompile npm --prefix Decompile/tools/progress run dev
 ```
 
+## Visual direction
+
+The UI treats the decompilation as a **field report** from the game's world. The
+language comes from the retail HUD, inventory, and menu art in
+`work/assets/extracted/PC_UI/` and the gameplay screenshots:
+
+- cream paper inventory cards with rough edges, tape, and yellow starbursts
+- black stencil/condensed display type, distressed at the edges
+- dark wood HUD plates with green/cyan cell meters and hazard-yellow accents
+- rust, olive, teal, and warning-tape details
+
+Fonts are Anton, Barlow Condensed, Special Elite, and IBM Plex Mono via
+`next/font`. The paper, wood, and grunge textures in `public/textures/` are
+procedurally generated for this project. No extracted game art is copied into
+the app or served by it; the game assets are used only as local visual
+reference.
+
 ## What it shows
 
 - Overall byte-exact function coverage, plus the byte share it represents.

@@ -81,6 +81,24 @@ If you add a new source file that should trigger a refresh, update **both** the
 mtime cache list in `src/lib/progress.ts` and the `WATCHED` set/directories in
 `src/app/api/progress/watch/route.ts`.
 
+## Visual system
+
+The dashboard intentionally mirrors the retail game's UI: cream inventory paper,
+black stencil/condensed type, dark wood HUD plates, hazard yellow, HUD
+green/cyan cell meters, rust and tape.
+
+- Tokens live at the top of `src/app/globals.css`; keep the ink/paper/wood/
+  yellow/green/cyan palette.
+- Fonts: Anton (display), Barlow Condensed (UI), Special Elite (field notes),
+  IBM Plex Mono (addresses/technical values).
+- `public/textures/paper.jpg`, `wood.jpg`, and `grunge.png` are generated for
+  this project. Do not replace them with extracted game textures or add game art
+  to the repo. `work/assets/extracted/` is local reference only.
+- Preserve readability first: ink on paper or cream on wood. Do not lower
+  contrast for atmosphere.
+- Big numeric readouts, paper cards, torn edges, starbursts, tape, and the
+  hazard stripe are intentional; keep them consistent when adding UI.
+
 ## Architecture map
 
 | File | Role |

@@ -294,7 +294,7 @@ svg {
   box-shadow: 4px 4px 0 #0b0906;
   transform: rotate(-3deg);
   clip-path: polygon(2% 0, 98% 3%, 100% 88%, 95% 100%, 4% 96%, 0 14%);
-  filter: url("#roughen");
+  filter: url(#roughen);
 }
 
 .brand-copy {
@@ -576,7 +576,7 @@ h1 {
   letter-spacing: 0.005em;
   color: var(--ink);
   text-transform: uppercase;
-  filter: url("#roughen");
+  filter: url(#roughen);
 }
 
 h1 span {
@@ -627,7 +627,7 @@ h1 span {
   letter-spacing: -0.015em;
   color: var(--ink);
   text-shadow: 4px 4px 0 var(--yellow);
-  filter: url("#roughen");
+  filter: url(#roughen);
 }
 
 .readout-copy {
@@ -1210,7 +1210,7 @@ h1 span {
   letter-spacing: 0.01em;
   color: var(--cream);
   text-transform: uppercase;
-  filter: url("#roughen");
+  filter: url(#roughen);
 }
 
 .section-aside {
@@ -1727,7 +1727,7 @@ h1 span {
   line-height: 0.74;
   color: var(--ink);
   text-shadow: 3px 3px 0 var(--yellow);
-  filter: url("#roughen");
+  filter: url(#roughen);
 }
 
 .naming-big p {
@@ -1963,7 +1963,7 @@ footer::before {
   font-size: clamp(44px, 6vw, 66px);
   line-height: 0.9;
   color: var(--red);
-  filter: url("#roughen");
+  filter: url(#roughen);
 }
 
 .missing-copy {
