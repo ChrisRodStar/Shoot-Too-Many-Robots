@@ -180,3 +180,24 @@ select, .secondary {
   .app-header { grid-template-columns: 1fr; gap: 10px; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+.splash-comparison { max-width: 1416px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 40px) 40px; }
+.splash-heading { margin-bottom: 24px; }
+.splash-heading a { display: inline-block; margin-bottom: 18px; color: var(--accent); }
+.splash-heading h1 { font-size: clamp(26px, 4vw, 40px); }
+.splash-heading p { margin-top: 6px; color: var(--muted); }
+.splash-versions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.splash-versions figure { margin: 0; min-width: 0; }
+.splash-versions figcaption { margin-bottom: 8px; font-weight: 650; }
+.splash-versions img, .splash-missing {
+  display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; border: 1px solid var(--line);
+}
+.splash-missing { display: grid; place-items: center; padding: 15px; color: var(--muted); }
+.splash-versions a { display: inline-block; margin-top: 10px; text-decoration: none; }
+@media (max-width: 680px) {
+  .splash-versions { grid-template-columns: 1fr; }
+}
+
+.splash-versions figcaption { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.splash-versions figcaption span { font: 12px var(--mono); color: var(--muted); }
+.splash-downloads { display: flex; flex-wrap: wrap; gap: 0 8px; }

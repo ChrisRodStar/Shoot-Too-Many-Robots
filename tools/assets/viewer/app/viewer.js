@@ -94,6 +94,9 @@ function Inspector({ asset, onClose, panelRef }) {
             <div className="asset-path"><dt>Extracted path</dt><dd>{asset.path}</dd></div>
           </dl>
           <div className="actions">
+            {asset.path === 'Loose/splashscreen.bmp' && (
+              <a className="download" href="/compare/splash">Compare startup splash</a>
+            )}
             <a className="download" href={assetUrl(asset, 'download')} download={asset.name}>
               <ArrowDown size={17} /> Save original
             </a>
