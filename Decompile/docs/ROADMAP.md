@@ -50,11 +50,14 @@ Ghidra `undefined*` types, and still decompiles consistently.
 
 ## Phase 3 — the matching loop
 
-- [ ] `tools/match/build.py`: verify and invoke `cl 15.00`, per-unit flags
+- [x] MSVC 2008 SP1 + RTM running under Wine/Docker (`tools/msvc/`)
+- [x] `tools/match/verify.py`: compile and compare the matched registry
+- [x] First 4 byte-identical functions (19 bytes), deliberately trivial
 - [ ] Relocation-aware comparison through the unit symbol map
+- [ ] Per-unit flags inferred from the binary
 - [ ] Exception-handling and `fold_alias` accounting
 - [ ] First fully matched bank (start with small Seoul Engine exports)
-- [ ] CI-style `tools/match/check.py` that compares changed banks only
+- [ ] CI-style check that compares changed banks only
 
 Exit test: a bank reports `N/N functions match`, reproduced from a clean
 checkout plus the user's own image.

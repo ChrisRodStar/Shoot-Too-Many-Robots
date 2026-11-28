@@ -16,8 +16,10 @@ to play it, and nothing here is playable.
 > plus Ghidra RTTI, and 2,850 recovered from **608 RTTI vtables across 527
 > classes** (class/slot labels, recorded as guesses). The other 43,095 are
 > `FUN_` placeholders. The 6 Steam-packer stubs in `.bind` are deliberately
-> excluded. Zero functions have been rebuilt to byte-identical machine code so
-> far. See [docs/STATUS.md](docs/STATUS.md) and [docs/FINDINGS.md](docs/FINDINGS.md).
+> excluded. **4 functions (19 bytes) have been rebuilt byte-identical** with
+> MSVC 2008, which now runs under Wine/Docker; the next milestone is the first
+> real bank. See [docs/STATUS.md](docs/STATUS.md),
+> [docs/FINDINGS.md](docs/FINDINGS.md) and [docs/MSVC2008.md](docs/MSVC2008.md).
 
 ---
 
@@ -36,6 +38,8 @@ to play it, and nothing here is playable.
 | `build/game/vtable_names.csv` | Remaining `Class::vfunc_N` proposals (empty once applied) |
 | `build/game/names_applied.csv` | Audit log of every applied name and its provenance |
 | `build/game/suggested_names.csv` | 4,026 string-derived name suggestions |
+| `src/matched/` | Hand-written functions verified byte-identical with MSVC 2008 |
+| `config/matched.json` | Registry: address, size, object symbol, source, flags |
 | `include/smr_ghidra_types.h` | Ghidra type vocabulary (`undefined4`, `float10`, …) |
 | `include/game/` | Exported/inferred type headers |
 | `tools/export.sh` | Headless Ghidra driver (parallel, resumable) |
@@ -43,13 +47,15 @@ to play it, and nothing here is playable.
 | `tools/analyze_vtables.py` | MSVC RTTI + vtable scanner |
 | `tools/apply_names.py` | Apply a rename map to the tree, with provenance |
 | `tools/ghidra/` | Export scripts |
-| `tools/match/` | PE + COFF readers and the byte-exact comparison harness |
+| `tools/match/` | PE + COFF readers, comparison harness, `verify.py` |
+| `tools/msvc/` | Dockerfile + Wine wrapper for Visual C++ 2008 |
 | `config/project.json` | Image fingerprint, PE facts, toolchain |
-| `docs/` | [Method](docs/METHOD.md), [status](docs/STATUS.md), [findings](docs/FINDINGS.md), [matching](docs/MATCHING.md), [roadmap](docs/ROADMAP.md) |
+| `docs/` | [Method](docs/METHOD.md), [status](docs/STATUS.md), [findings](docs/FINDINGS.md), [matching](docs/MATCHING.md), [MSVC 2008](docs/MSVC2008.md), [roadmap](docs/ROADMAP.md) |
 
-Generated output is intentionally kept out of Git: `src/`, `build/`,
-`include/game/` and `share/` are ignored. The tracked part is the pipeline, the
-small config and the docs; anyone with the game can regenerate the tree.
+Generated output is intentionally kept out of Git: `src/game/`, `build/`,
+`include/game/` and `share/` are ignored. `src/matched/` is tracked because it
+is hand-written and byte-verified. The tracked part is the pipeline, the small
+config and the docs; anyone with the game can regenerate the reference tree.
 
 ---
 
@@ -77,6 +83,9 @@ python3 Decompile/tools/decompile.py callers 0x5d5f80
 python3 Decompile/tools/decompile.py strings weapon --limit 20
 python3 Decompile/tools/decompile.py suggest --limit 20
 python3 Decompile/tools/decompile.py search lobby --field strings
+
+# compile and verify the matched-function registry (needs Docker)
+python3 Decompile/tools/match/verify.py
 ```
 
 `explain` prints the metadata and the C body without opening Ghidra:
@@ -129,26 +138,36 @@ much is actually unknown. See [docs/METHOD.md](docs/METHOD.md).
 - Original function names for 92.8% of the code.
 - Original struct layouts, enums, and class hierarchies beyond RTTI basics.
 - Original source file boundaries and compiler flags.
-- Whether a given Ghidra body compiles to the original bytes (none tested yet).
+- Whether most Ghidra bodies compile to the original bytes (4 trivial ones tested).
 
 ---
 
 ## Matching
 
-`tools/match/` is the beginning of the Fallout-style byte-exact loop:
+Visual C++ 2008 now runs under Wine in a 32-bit Docker container through
+OrbStack. Both the SP1 (`15.00.30729.01`) and original (`15.00.21022.08`)
+compilers are installed; see [docs/MSVC2008.md](docs/MSVC2008.md).
 
 ```sh
-# validate the readers against the known image
-python3 Decompile/tools/match/compare.py --selftest
+# first-time toolchain setup (downloads Microsoft's official ISOs)
+./Decompile/tools/msvc/setup.sh
 
-# compare a COFF object with the original functions
-python3 Decompile/tools/match/compare.py \
-    --object build/obj/bank_0000.obj --bank bank_0000
+# compile + byte-verify every registered function
+python3 Decompile/tools/match/verify.py
 ```
 
-It understands PE32 sections, i386 COFF symbols/relocations, and reports
-matches, mismatches, missing symbols, and which relocation bytes were skipped.
-A tiny example already works as a warning: clang encodes `xor eax,eax` as
+Current registry: **4/4 functions matched, 19 bytes**. They are deliberately
+trivial leaf functions that prove the compiler, COFF reader, symbol mapping and
+comparator:
+
+```text
+MATCH    00401050  FUN_00401050  5 bytes
+MATCH    00941900  FUN_00941900  5 bytes
+MATCH    00403740  SomervillePC::vfunc_05  3 bytes
+MATCH    0049eb30  SaveGameSettings::vfunc_02  6 bytes
+```
+
+A useful warning from the same harness: clang encodes `xor eax,eax` as
 `31 c0`, the game's MSVC 2008 build as `33 c0`, so only the original compiler
 can be the authority. See [docs/MATCHING.md](docs/MATCHING.md).
 

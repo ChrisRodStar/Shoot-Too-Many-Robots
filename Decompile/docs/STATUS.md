@@ -19,6 +19,8 @@ export.
 | Functions with string references | **4,314** |
 | Call edges recorded | **81,390** |
 | Medium/high name suggestions | **4,026** |
+| Byte-verified functions | **4** (19 bytes) |
+| Compiler | MSVC 2008 SP1 + RTM, under Wine/Docker |
 | Steam `.bind` packer stubs excluded | 6 |
 
 ## Recovered structure
@@ -71,15 +73,24 @@ PhysX imports.
 - `Class::vfunc_N` is a **locator**, not a source method name. Secondary base
   vtables and shared thunks mean 98 names repeat across 405 records (C++
   overloads account for some of that too).
-- No function has been shown to rebuild to the original bytes.
+- **4 functions** have been shown to rebuild to the original bytes with MSVC
+  2008 (19 bytes total). They are deliberately trivial and live in
+  [`src/matched/engine/simple.c`](../src/matched/engine/simple.c); run
+  `python3 Decompile/tools/match/verify.py`.
+
+## Toolchain
+
+Visual C++ 2008 runs under Wine 8 in a 32-bit Debian container through
+OrbStack. Verified versions: **15.00.30729.01** (SP1) and **15.00.21022.08**
+(original release). Setup, usage and the `xvfb-run` trap are documented in
+[MSVC2008.md](MSVC2008.md).
 
 ## Immediate next work
 
-1. Locate the RakNet RPC registration tables and turn the 142
+1. Add relocation-aware comparison (`REL32`/`DIR32` targets), so matches with
+   calls and data references can be verified.
+2. Match the first real bank: start with the 200 Seoul Engine exports.
+3. Locate the RakNet RPC registration tables and turn the 142
    `Class::Method` strings into sourced names.
-2. Use the 4,026 string suggestions to name the UI and gameplay functions,
+4. Use the 4,026 string suggestions to name the UI and gameplay functions,
    recording `GUESS` confidence.
-3. Split the most coherent banks (engine exports, UI, gameplay) into real
-   translation units.
-4. Stand up MSVC 2008 + Wine and start the first matched bank
-   ([MATCHING.md](MATCHING.md)).

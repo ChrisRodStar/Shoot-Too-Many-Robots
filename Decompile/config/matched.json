@@ -1,0 +1,36 @@
+{
+  "compiler": "msvc9-sp1",
+  "cl_version": "15.00.30729.01",
+  "image": "smr-msvc9",
+  "flags": ["/O2", "/TC"],
+  "functions": [
+    {
+      "address": "0x00401050",
+      "size": 5,
+      "symbol": "_FUN_00401050@16",
+      "source": "src/matched/engine/simple.c",
+      "note": "stdcall, 4 args, returns 0; original ret 0x10"
+    },
+    {
+      "address": "0x00941900",
+      "size": 5,
+      "symbol": "_FUN_00941900",
+      "source": "src/matched/engine/simple.c",
+      "note": "identity, one int argument"
+    },
+    {
+      "address": "0x00403740",
+      "size": 3,
+      "symbol": "_FUN_00403740",
+      "source": "src/matched/engine/simple.c",
+      "note": "returns 0; current tree name SomervillePC::vfunc_05"
+    },
+    {
+      "address": "0x0049eb30",
+      "size": 6,
+      "symbol": "_FUN_0049eb30",
+      "source": "src/matched/engine/simple.c",
+      "note": "returns 1; current tree name SaveGameSettings::vfunc_02"
+    }
+  ]
+}
