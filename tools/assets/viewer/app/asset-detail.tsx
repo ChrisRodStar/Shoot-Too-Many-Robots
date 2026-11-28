@@ -3,6 +3,7 @@
 import { ArrowDown, MagnifyingGlassMinus, MagnifyingGlassPlus, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { categories, formatSize, kinds, type Asset } from '../lib/asset-types';
+import { CompareSlider, type Offset } from './compare-slider';
 
 export function assetUrl(asset: Asset, mode: string) {
   return `/api/asset/${asset.id}?view=${mode}`;
@@ -54,8 +55,7 @@ function FilePreview({ asset }: { asset: Asset }) {
 }
 
 const zoomSteps = [1, 1.5, 2, 3, 4, 6, 8];
-type ViewMode = 'both' | 'before' | 'after';
-type Offset = { x: number; y: number };
+type ViewMode = 'slider' | 'both' | 'before' | 'after';
 const center: Offset = { x: 0, y: 0 };
 
 function limitOffset(offset: Offset, scale: number): Offset {
@@ -140,7 +140,7 @@ export function AssetDetail({ asset, batches, splash, onClose }: {
   const ref = useRef<HTMLDialogElement>(null);
   const [selectedBatch, setSelectedBatch] = useState<string>();
   const batch = selectedBatch && batches.includes(selectedBatch) ? selectedBatch : batches[0];
-  const [mode, setMode] = useState<ViewMode>('both');
+  const [mode, setMode] = useState<ViewMode>('slider');
   const [zoomIndex, setZoomIndex] = useState(0);
   const [offset, setOffset] = useState<Offset>(center);
   const scale = zoomSteps[zoomIndex];
@@ -194,7 +194,7 @@ export function AssetDetail({ asset, batches, splash, onClose }: {
           <div className="detail-toolbar flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
             {comparison && (
               <div className="flex items-center gap-1" role="group" aria-label="Comparison display">
-                {([['both', 'Side by side'], ['before', 'Before'], ['after', 'After']] as const).map(([value, label]) => (
+                {([['slider', 'Slider'], ['both', 'Side by side'], ['before', 'Before'], ['after', 'After']] as const).map(([value, label]) => (
                   <button key={value} type="button" className="detail-control" aria-pressed={mode === value} onClick={() => setMode(value)}>{label}</button>
                 ))}
               </div>
@@ -208,20 +208,36 @@ export function AssetDetail({ asset, batches, splash, onClose }: {
               <button type="button" className="detail-control" aria-label="Zoom out" disabled={zoomIndex === 0} onClick={() => setZoom(zoomIndex - 1)}><MagnifyingGlassMinus size={17} /></button>
               <button type="button" className="detail-control min-w-13 font-mono" aria-label="Fit images" onClick={() => setZoom(0)}>{zoomIndex ? `${scale * 100}%` : 'Fit'}</button>
               <button type="button" className="detail-control" aria-label="Zoom in" disabled={zoomIndex === zoomSteps.length - 1} onClick={() => setZoom(zoomIndex + 1)}><MagnifyingGlassPlus size={17} /></button>
-              <span className="detail-muted ml-2 hidden text-xs sm:inline">Click to zoom · Drag to pan</span>
+              <span className="detail-muted ml-2 hidden text-xs sm:inline">
+                {comparison && mode === 'slider' ? 'Drag the divider · Click to zoom' : 'Click to zoom · Drag to pan'}
+              </span>
             </div>
           </div>
         ) : <div />}
         {image ? (
-          <div className={`detail-images grid min-h-0 gap-2 p-2 sm:gap-3 sm:p-3 ${comparison && mode === 'both' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {(!comparison || mode !== 'after') && (
-              <ImagePane key={before} label={comparison ? 'Before' : 'Original'} src={before}
-                fallback={before === original ? undefined : original} scale={scale} offset={offset} onPan={pan} onZoom={zoom} />
-            )}
-            {comparison && after && mode !== 'before' && (
-              <ImagePane key={after} label="After" src={after} scale={scale} offset={offset} onPan={pan} onZoom={zoom} />
-            )}
-          </div>
+          comparison && after && mode === 'slider' ? (
+            <div className="detail-images grid min-h-0 grid-cols-1 gap-2 p-2 sm:gap-3 sm:p-3">
+              <figure className="detail-pane grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
+                <figcaption className="flex min-h-8 items-center justify-between gap-2 px-3 text-xs">
+                  <span>{splash ? 'Startup splash' : 'Upscale'}</span>
+                  <span className="detail-muted font-mono">Original left · new right</span>
+                </figcaption>
+                <CompareSlider before={before} after={after}
+                  beforeLabel={splash ? 'Original' : 'Before'} afterLabel={splash ? 'Generated' : 'After'}
+                  scale={scale} offset={offset} onPan={pan} onZoom={zoom} />
+              </figure>
+            </div>
+          ) : (
+            <div className={`detail-images grid min-h-0 gap-2 p-2 sm:gap-3 sm:p-3 ${comparison && mode === 'both' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {(!comparison || mode !== 'after') && (
+                <ImagePane key={before} label={comparison ? 'Before' : 'Original'} src={before}
+                  fallback={before === original ? undefined : original} scale={scale} offset={offset} onPan={pan} onZoom={zoom} />
+              )}
+              {comparison && after && mode !== 'before' && (
+                <ImagePane key={after} label="After" src={after} scale={scale} offset={offset} onPan={pan} onZoom={zoom} />
+              )}
+            </div>
+          )
         ) : <div className="detail-media grid min-h-0 place-items-center overflow-auto p-4"><FilePreview asset={asset} /></div>}
         <footer className="detail-footer flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
           <p className="detail-muted text-xs">{categories[asset.category]} · {asset.image?.format ?? kinds[asset.kind]} · {formatSize(asset.size)}</p>

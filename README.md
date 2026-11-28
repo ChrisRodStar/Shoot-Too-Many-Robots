@@ -131,9 +131,19 @@ python3 tools/assets/upscale_textures.py --pack-from work/inputs/installed/app/S
 
 The default pilot contains the Overlord diffuse map and one Farmland dirt texture. It writes PNG previews, DDS-backed SIF replacements, and the optional test archive under `work/assets/upgrades/texture-pilot/`. The test archive preserves the other entries from the original. The script checks dimensions and compression and regenerates the mip chain.
 
-In the asset viewer, choose **Upscaled only** and select a texture to open its before-and-after view. Click either image to zoom, drag to pan, and press Escape to return to the gallery. Refresh the viewer after creating a new batch. It discovers batch folders directly under `work/assets/upgrades/`.
+In the asset viewer, choose **Upscaled only** and select a texture to open its before-and-after view. **Slider** stacks the upscale over the original so you can drag the divider to reveal either one; **Side by side**, **Before**, and **After** are also available. Click to zoom, drag to pan, and press Escape to return to the gallery. While the viewer tab is visible, it picks up completed images from batch folders directly under `work/assets/upgrades/` about every five seconds.
 
 Use `--list` with repeated `--match` globs to review a larger batch before running it. For example, `--match 'Environment/Farmland/Ground_Tiles/Dirt_0?.SIF'` selects the three Farmland dirt variants. Texture names alone cannot establish channel usage, so select known color maps and use a separate `--output` directory for each batch.
+
+### Run the Full 2× Art Batch
+
+```sh
+python3 tools/assets/upscale_all_art.py
+```
+
+The full pass reuses completed character and ground textures. It uses Real-ESRGAN for world and character color maps and interpolates UI and effect images to preserve their shapes and transparency. It keeps identified data maps, weather cubemaps, and images above the input limit at their original size. The batch records every decision in `work/assets/upgrades/all-art-2x/inventory.tsv` and writes rebuilt archives beside it.
+
+Use `--ui-base` with an existing patched `PC_UI.sar` to carry its title-screen upgrade into the batch. The viewer picks up before-and-after PNGs as each texture completes. The rebuilt UI keeps the original Scaleform layout definitions, so check sprite alignment and clipping when reviewing it in-game.
 
 First verify your local toolchain and game data under `work/`:
 

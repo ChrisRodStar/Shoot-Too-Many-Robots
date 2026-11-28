@@ -26,6 +26,8 @@ PILOT = [
 
 
 def level_size(width, height, block):
+    if block == 0:
+        return width * height * 4
     return ((width + 3) // 4) * ((height + 3) // 4) * block
 
 
@@ -33,7 +35,10 @@ def mip_chain(header, image, encoding, count, block):
     mipmaps = []
     for _ in range(count):
         stream = io.BytesIO()
-        image.save(stream, format="DDS", pixel_format=encoding)
+        if encoding == "RGBA":
+            image.save(stream, format="DDS")
+        else:
+            image.save(stream, format="DDS", pixel_format=encoding)
         pixels = stream.getvalue()[128:]
         if len(pixels) != level_size(*image.size, block):
             raise ValueError(f"invalid compressed mip size for {image.size}")
@@ -43,12 +48,38 @@ def mip_chain(header, image, encoding, count, block):
     return bytes(header) + b"".join(mipmaps)
 
 
-def upscale_texture(source, output, member, upscaler, scale, max_edge):
+def upscale_texture(source, output, member, upscaler, scale, max_edge,
+                    *, archive=ARCHIVE, method="ai", wrap=False):
+    path = Path(member)
+    if path.suffix.lower() in (".jpg", ".bmp"):
+        with Image.open(source) as image:
+            original = image.convert("RGB")
+        size = tuple(edge * scale for edge in original.size)
+        if max(size) > max_edge:
+            raise ValueError(f"output {size} exceeds --max-edge {max_edge}")
+        result = original.resize(size, Image.Resampling.LANCZOS)
+        texture = output / "textures" / archive / path
+        texture.parent.mkdir(parents=True, exist_ok=True)
+        if path.suffix.lower() == ".jpg":
+            result.save(texture, quality=96, subsampling=0)
+        else:
+            result.save(texture)
+        save_comparison(output, archive, path, original, result)
+        print(f"{archive}/{member}: {original.width} × {original.height} → {size[0]} × {size[1]}", flush=True)
+        return texture
+
     original = source.read_bytes()
     encoding = original[84:88].decode("ascii", errors="replace")
-    if original[:4] != b"DDS " or encoding not in ("DXT1", "DXT5"):
-        raise ValueError("only DDS-backed DXT1 and DXT5 textures are supported")
-    block = 8 if encoding == "DXT1" else 16
+    if original[:4] != b"DDS ":
+        raise ValueError("expected a DDS-backed texture")
+    if encoding == "\x00" * 4 and struct.unpack_from("<6I", original, 80) == (
+        65, 0, 32, 0xFF0000, 0xFF00, 0xFF
+    ) and struct.unpack_from("<I", original, 104)[0] == 0xFF000000:
+        encoding, block = "RGBA", 0
+    elif encoding in ("DXT1", "DXT5"):
+        block = 8 if encoding == "DXT1" else 16
+    else:
+        raise ValueError(f"unsupported DDS encoding {encoding!r}")
     height, width, _, _, raw_levels = struct.unpack_from("<5I", original, 12)
     levels = max(1, raw_levels)
     if levels > max(width, height).bit_length() or len(original) != 128 + sum(
@@ -65,8 +96,36 @@ def upscale_texture(source, output, member, upscaler, scale, max_edge):
     alpha = rgba.getchannel("A")
     if encoding == "DXT1" and alpha.getextrema() != (255, 255):
         raise ValueError("DXT1 texture has cutout alpha")
-    path = Path(member)
-    color = rgba.convert("RGB")
+    if method == "ai":
+        result = upscale_color(rgba, upscaler, scale, wrap)
+    else:
+        result = rgba.resize(size, Image.Resampling.LANCZOS)
+    if result.size != size:
+        raise ValueError(f"expected {size}, got {result.size}")
+
+    texture = output / "textures" / archive / path
+    texture.parent.mkdir(parents=True, exist_ok=True)
+    header = bytearray(original[:128])
+    count = max(size).bit_length() if levels == max(width, height).bit_length() else levels
+    stored_count = raw_levels if levels == 1 else count
+    stride = size[0] * 4 if block == 0 else level_size(*size, block)
+    struct.pack_into("<5I", header, 12, size[1], size[0], stride, 0, stored_count)
+    texture.write_bytes(mip_chain(header, result, encoding, count, block))
+    save_comparison(output, archive, path, rgba, result)
+    print(f"{archive}/{member}: {width} × {height} → {size[0]} × {size[1]} ({encoding}, {count} levels)", flush=True)
+    return texture
+
+
+def upscale_color(image, upscaler, scale, wrap):
+    color = image.convert("RGB")
+    width, height = color.size
+    border = min(16, width, height) if wrap else 0
+    if border:
+        padded = Image.new("RGB", (width + border * 2, height + border * 2))
+        for y in (-height, 0, height):
+            for x in (-width, 0, width):
+                padded.paste(color, (x + border, y + border))
+        color = padded
     with tempfile.TemporaryDirectory() as temp:
         src, dst = Path(temp) / "input.png", Path(temp) / "output.png"
         color.save(src)
@@ -75,25 +134,23 @@ def upscale_texture(source, output, member, upscaler, scale, max_edge):
             "-m", str(upscaler.parent / "models"), "-n", "realesr-animevideov3",
             "-s", str(scale),
         ], check=True)
-        with Image.open(dst) as image:
-            result = image.convert("RGBA")
+        with Image.open(dst) as upscaled:
+            if upscaled.size != (color.width * scale, color.height * scale):
+                raise ValueError(f"unexpected Real-ESRGAN dimensions: {upscaled.size}")
+            result = upscaled.convert("RGBA")
+    if border:
+        result = result.crop((border * scale, border * scale, (border + width) * scale, (border + height) * scale))
+    result.putalpha(image.getchannel("A").resize(result.size, Image.Resampling.LANCZOS))
+    return result
 
-    if result.size != size:
-        raise ValueError(f"expected {size}, got {result.size} from Real-ESRGAN")
-    result.putalpha(alpha.resize(size, Image.Resampling.LANCZOS))
 
-    texture = output / "textures" / ARCHIVE / path
-    preview = output / "previews" / ARCHIVE / path.with_suffix(path.suffix + ".png")
-    before = output / "originals" / ARCHIVE / path.with_suffix(path.suffix + ".png")
-    texture.parent.mkdir(parents=True, exist_ok=True)
-    preview.parent.mkdir(parents=True, exist_ok=True)
+def save_comparison(output, archive, path, original, result):
+    png = path.with_suffix(path.suffix + ".png")
+    before = output / "originals" / archive / png
+    preview = output / "previews" / archive / png
     before.parent.mkdir(parents=True, exist_ok=True)
-    header = bytearray(original[:128])
-    count = max(size).bit_length() if levels == max(width, height).bit_length() else levels
-    stored_count = raw_levels if levels == 1 else count
-    struct.pack_into("<5I", header, 12, size[1], size[0], level_size(*size, block), 0, stored_count)
-    texture.write_bytes(mip_chain(header, result, encoding, count, block))
-    rgba.save(before)
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    original.save(before)
     with tempfile.NamedTemporaryFile(dir=preview.parent, delete=False) as pending:
         temporary = Path(pending.name)
         try:
@@ -102,8 +159,17 @@ def upscale_texture(source, output, member, upscaler, scale, max_edge):
             os.replace(temporary, preview)
         finally:
             temporary.unlink(missing_ok=True)
-    print(f"{member}: {width} × {height} → {size[0]} × {size[1]} ({encoding}, {count} levels)", flush=True)
-    return texture
+
+
+def write_member(output, source, name):
+    # SAR's XOR stream repeats every 1024 bytes. Build it once per member.
+    stream = decrypt(bytes(1024), name)
+    mask = stream * 1024
+    key = int.from_bytes(mask, "little")
+    with source.open("rb") as payload:
+        while chunk := payload.read(len(mask)):
+            used_key = key if len(chunk) == len(mask) else int.from_bytes(mask[:len(chunk)], "little")
+            output.write((int.from_bytes(chunk, "little") ^ used_key).to_bytes(len(chunk), "little"))
 
 
 def repack(source, destination, replacements):
@@ -130,9 +196,9 @@ def repack(source, destination, replacements):
                     cursor += name_len
                     member = name[:-1].decode().replace("\\", "/")
                     if member in remaining:
-                        pixels = remaining.pop(member).read_bytes()
-                        offset, length = out.tell(), len(pixels)
-                        out.write(decrypt(pixels, name[:-1]))
+                        payload = remaining.pop(member)
+                        offset, length = out.tell(), payload.stat().st_size
+                        write_member(out, payload, name[:-1])
                     entries.append((offset, length, name))
                 if remaining:
                     raise ValueError(f"archive is missing members: {', '.join(remaining)}")

@@ -1,5 +1,6 @@
 import { connection } from 'next/server';
 import { getSplash } from '../../../lib/splash';
+import { CompareSlider } from '../../compare-slider';
 
 export const metadata = { title: 'Compare Startup Splash · Asset Viewer' };
 
@@ -14,32 +15,49 @@ export default async function SplashComparison() {
       <header className="splash-heading">
         <a href="/">← Asset Viewer</a>
         <h1>Startup splash</h1>
+        <p>Drag the divider to compare the original 640 × 480 splash with the generated 3840 × 2880 remaster.</p>
       </header>
-      <div className="splash-versions">
-        <figure>
-          <figcaption>Original <span>640 × 480</span></figcaption>
-          {original ? (
-            <>
-              <img src="/compare/splash/original" width="640" height="480" alt="Original startup splash" />
+      {original && master ? (
+        <figure className="splash-compare">
+          <div className="splash-compare-canvas">
+            <CompareSlider before="/compare/splash/original" after="/compare/splash/master"
+              beforeLabel="Original" afterLabel="Generated" />
+          </div>
+          <figcaption className="splash-compare-caption">
+            <span>Original on the left · generated on the right</span>
+            <span className="splash-downloads">
               <a className="secondary" href="/compare/splash/original" download={original.filename}>Save original BMP</a>
-            </>
-          ) : <p className="splash-missing">The original splash is missing.</p>}
+              <a className="secondary" href="/compare/splash/master" download={master.filename}>Save full-resolution PNG</a>
+              {replacement && (
+                <a className="secondary" href="/compare/splash/new" download={replacement.filename}>Save 3840 × 2880 BMP</a>
+              )}
+            </span>
+          </figcaption>
         </figure>
-        <figure>
-          <figcaption>Generated splash <span>3840 × 2880</span></figcaption>
-          {master ? (
+      ) : (
+        <div className="splash-fallback">
+          <p className="splash-missing">
+            {!original && !master ? 'Both splash images are missing.'
+              : master ? 'The original splash is missing.' : 'The generated splash is missing.'}
+          </p>
+          {original && (
             <>
-              <img src="/compare/splash/master" width="3840" height="2880" alt="Generated startup splash" />
+              <img className="splash-preview" src="/compare/splash/original" alt="Original startup splash" />
               <div className="splash-downloads">
-                <a className="secondary" href="/compare/splash/master" download={master.filename}>Save full-resolution PNG</a>
-                {replacement && (
-                  <a className="secondary" href="/compare/splash/new" download={replacement.filename}>Save 3840 × 2880 BMP</a>
-                )}
+                <a className="secondary" href="/compare/splash/original" download={original.filename}>Save original BMP</a>
               </div>
             </>
-          ) : <p className="splash-missing">The generated splash is missing.</p>}
-        </figure>
-      </div>
+          )}
+          {!original && master && (
+            <>
+              <img className="splash-preview" src="/compare/splash/master" alt="Generated startup splash" />
+              <div className="splash-downloads">
+                <a className="secondary" href="/compare/splash/master" download={master.filename}>Save full-resolution PNG</a>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </main>
   );
 }
