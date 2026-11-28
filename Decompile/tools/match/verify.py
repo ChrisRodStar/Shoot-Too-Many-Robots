@@ -24,6 +24,7 @@ sys.path.insert(0, str(HERE))
 from coff import Coff, undecorate  # noqa: E402
 from compare import compare_one, norm_addr  # noqa: E402
 from pe import PE  # noqa: E402
+from symbols import Resolver  # noqa: E402
 
 
 def object_name(source: str) -> str:
@@ -36,6 +37,7 @@ def main() -> int:
     ap.add_argument("--config", default=str(ROOT / "config/matched.json"))
     ap.add_argument("--image", default=str(REPO / "work/inputs/exe/ShootManyRobots.exe"))
     ap.add_argument("--no-build", action="store_true")
+    ap.add_argument("--units", default=str(ROOT / "build/game/units.json"))
     ap.add_argument("--strict-relocs", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
@@ -75,6 +77,7 @@ def main() -> int:
             obj_map.setdefault(undecorate(sym.name), (sym, size, sec, co))
 
     pe = PE(args.image)
+    resolver = Resolver(pe, args.units)
     symbol_map = {norm_addr(e["address"]): e["symbol"] for e in entries}
     results = []
     for e in entries:
@@ -84,10 +87,10 @@ def main() -> int:
             "size": e["size"],
         }
         results.append(compare_one(pe, rec, obj_map, symbol_map,
-                                   args.strict_relocs, args.verbose))
+                                   args.strict_relocs, args.verbose, resolver))
 
     matched_bytes = 0
-    counts = {"match": 0, "mismatch": 0, "missing": 0}
+    counts = {"match": 0, "mismatch": 0, "missing": 0, "unresolved": 0}
     for r in results:
         counts[r["status"]] += 1
         if r["status"] == "match":
@@ -96,12 +99,14 @@ def main() -> int:
             print(f"{r['status'].upper():8s} {r['addr']}  {r['name']}  {r['detail']}")
 
     print(f"\n{counts['match']}/{len(results)} matched, {matched_bytes} bytes; "
-          f"{counts['mismatch']} mismatch, {counts['missing']} missing")
+          f"{counts['mismatch']} mismatch, {counts['missing']} missing, "
+          f"{counts['unresolved']} unresolved reloc")
     flavor = os.environ.get("SMR_MSVC_FLAVOR", "sp1")
     version = {"sp1": "15.00.30729.01", "rtm": "15.00.21022.08"}.get(
         flavor, cfg.get("cl_version"))
     print(f"compiler: msvc9-{flavor} {version}")
-    return 0 if counts["mismatch"] == 0 and counts["missing"] == 0 else 1
+    return 0 if (counts["mismatch"] == 0 and counts["missing"] == 0
+                 and counts["unresolved"] == 0) else 1
 
 
 if __name__ == "__main__":

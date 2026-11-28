@@ -52,7 +52,7 @@ Ghidra `undefined*` types, and still decompiles consistently.
 
 - [x] MSVC 2008 SP1 + RTM running under Wine/Docker (`tools/msvc/`)
 - [x] `tools/match/verify.py`: compile and compare the matched registry
-- [x] First 4 byte-identical functions (19 bytes), deliberately trivial
+- [x] First matched units: 149 tail thunks + 19 accessors + 5 leaf/reloc functions (173 functions, 945 bytes)
 - [ ] Relocation-aware comparison through the unit symbol map
 - [ ] Per-unit flags inferred from the binary
 - [ ] Exception-handling and `fold_alias` accounting

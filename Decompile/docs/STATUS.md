@@ -19,7 +19,7 @@ export.
 | Functions with string references | **4,314** |
 | Call edges recorded | **81,390** |
 | Medium/high name suggestions | **4,026** |
-| Byte-verified functions | **4** (19 bytes) |
+| Byte-verified functions | **173** (945 bytes) |
 | Compiler | MSVC 2008 SP1 + RTM, under Wine/Docker |
 | Steam `.bind` packer stubs excluded | 6 |
 
@@ -73,9 +73,10 @@ PhysX imports.
 - `Class::vfunc_N` is a **locator**, not a source method name. Secondary base
   vtables and shared thunks mean 98 names repeat across 405 records (C++
   overloads account for some of that too).
-- **4 functions** have been shown to rebuild to the original bytes with MSVC
-  2008 (19 bytes total). They are deliberately trivial and live in
-  [`src/matched/engine/simple.c`](../src/matched/engine/simple.c); run
+- **173 functions (945 bytes)** have been shown to rebuild to the original
+  bytes with MSVC 2008: 149 pure tail-call thunks, 19 32-bit field accessors,
+  one real function with two resolved relocations (`rand() * 2^-15`), and four
+  trivial leaf functions used to prove the loop. Run
   `python3 Decompile/tools/match/verify.py`.
 
 ## Toolchain
@@ -87,9 +88,10 @@ OrbStack. Verified versions: **15.00.30729.01** (SP1) and **15.00.21022.08**
 
 ## Immediate next work
 
-1. Add relocation-aware comparison (`REL32`/`DIR32` targets), so matches with
-   calls and data references can be verified.
-2. Match the first real bank: start with the 200 Seoul Engine exports.
+1. Match the first real bank: start with the 200 Seoul Engine exports and
+   infer per-unit flags from the binary.
+2. Grow the non-thunk matched set; the thunk unit is byte-verified but does not
+   exercise argument or type reconstruction.
 3. Locate the RakNet RPC registration tables and turn the 142
    `Class::Method` strings into sourced names.
 4. Use the 4,026 string suggestions to name the UI and gameplay functions,

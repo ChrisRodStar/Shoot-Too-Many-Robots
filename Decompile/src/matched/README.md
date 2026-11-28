@@ -18,6 +18,8 @@ Run the check:
 python3 Decompile/tools/match/verify.py
 ```
 
-The current first entries are deliberately trivial (`return 0`, `return 1`,
-identity) — they prove the toolchain and comparator before the real work
-starts. Do not add a function until `verify.py` reports `MATCH` for it.
+Current contents: 149 pure tail-call thunks in `engine/tail_thunks.c`, 19
+32-bit field accessors in `engine/field_getters.c`, one real function with two
+resolved relocations in `engine/rand_scale.c`, and four leaf sanity checks in
+`engine/simple.c`. Do not add a function until
+`verify.py` reports `MATCH` for it.

@@ -114,24 +114,30 @@ matter how convincing the C looks.
 - `--selftest` verifies the PE fingerprint, the 200 exports, a known 5-byte
   function, and parses a clang-built COFF object.
 - `compare.py` parses PE32 sections and i386 COFF symbols/relocations, matches
-  object functions by name (with C decoration removal), compares bytes, reports
-  the first difference, and masks/report relocation spans.
+  object functions by name (with C decoration removal), resolves relocations
+  against original VAs, reports the first difference, and refuses to count
+  unresolved relocation bytes as a match.
 - `tools/msvc/cl.sh`: runs the selected `cl.exe` under Wine with the SDK
   `INCLUDE`/`LIB` paths.
 - `tools/match/verify.py`: compiles every entry in `config/matched.json`,
   compares it at its original address, and reports functions and bytes.
-- The current registry has **4/4 functions matched (19 bytes)** — deliberately
-  trivial leaf functions that prove the compiler and comparator first.
+- The current registry has **173/173 functions matched (945 bytes)**:
+  - 149 pure tail-call thunks (`jmp target`, REL32 resolved),
+  - 19 32-bit field accessors (`mov eax,[eax+off]`),
+  - 1 real function with two relocations (`rand() * 2^-15`),
+  - 4 trivial leaf functions that proved the initial loop.
+- Relocations are resolved symbolically: `REL32` through callee addresses,
+  `DIR32` through the import IAT, and data constants/strings via the original
+  instruction's pointer validated against the object's bytes.
 
 ## Next steps
 
-1. **Relocation comparison.** Resolve `REL32`/`DIR32` targets through
-   `units.json` and compare target addresses, not zeroed bytes.
-2. **First matched bank.** Pick a bank dominated by small, self-contained
+1. **First matched bank.** Pick a bank dominated by small, self-contained
    functions (the Seoul Engine exports are ideal) and get it to 100% match.
-3. **Per-unit flags.** Determine the optimisation/SEH flags from function
+   The 149-thunk unit is the first batch, not a bank.
+2. **Per-unit flags.** Determine the optimisation/SEH flags from function
    prologues and the linker map, not by guessing.
-4. **Type promotion.** Move inferred structs into `include/game/` as call sites
+3. **Type promotion.** Move inferred structs into `include/game/` as call sites
    agree; each promotion must keep the bank matching.
-5. **Naming.** `// src: GUESS 0x... (confidence: ...)` markers, as FNV does,
+4. **Naming.** `// src: GUESS 0x... (confidence: ...)` markers, as FNV does,
    so guessed names can be audited and replaced.

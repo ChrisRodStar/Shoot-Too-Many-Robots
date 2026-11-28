@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import struct
 import sys
 from pathlib import Path
 
@@ -64,8 +65,51 @@ def first_diff(a: bytes, b: bytes) -> int | None:
     return None
 
 
+def _reloc_target(pe: PE, coff: Coff, reloc_sym, addend: int, resolver):
+    if resolver is None:
+        return None
+    if reloc_sym.section > 0:
+        sec = coff.sections[reloc_sym.section - 1]
+        if not sec.is_code:
+            return resolver.resolve_data(coff, reloc_sym, addend)
+    return resolver.resolve(reloc_sym.name)
+
+
+def _data_fallback(pe: PE, coff: Coff, reloc_sym, addend: int, want: bytes,
+                   off: int, typ: int):
+    """Use the original instruction's pointer, validated by data bytes.
+
+    Constants and string literals are not symbols in the PE. The original
+    field already holds their VA; accept it only when the object's bytes at the
+    referenced data symbol equal the bytes at that VA.
+    """
+    if reloc_sym.section <= 0 or off < 0 or off + 4 > len(want):
+        return None
+    sec = coff.sections[reloc_sym.section - 1]
+    start = reloc_sym.value + addend
+    if start < 0 or start >= len(sec.data):
+        return None
+    field = struct.unpack_from("<I", want, off)[0]
+    cand = field - addend
+    if typ == 0x07:  # DIR32NB stores an RVA
+        cand += pe.image_base
+    if cand < pe.image_base or cand >= pe.image_base + pe.size_of_image:
+        return None
+    for ln in (16, 8, 4):
+        blob = sec.data[start:start + ln]
+        if len(blob) < 4:
+            continue
+        try:
+            orig = pe.read_va(cand, len(blob))
+        except ValueError:
+            continue
+        if orig == blob:
+            return cand
+    return None
+
+
 def compare_one(pe: PE, rec: dict, obj_map: dict, symbol_map: dict,
-                strict_relocs: bool, verbose: bool):
+                strict_relocs: bool, verbose: bool, resolver=None):
     addr_hex = rec["address"][2:] if rec["address"].startswith("0x") else rec["address"]
     addr_hex = norm_addr(addr_hex)
     va = int(addr_hex, 16)
@@ -85,37 +129,68 @@ def compare_one(pe: PE, rec: dict, obj_map: dict, symbol_map: dict,
     got = sec.data[sym.value:sym.value + size]
     relocs = coff.relocations_for(sym, size)
 
-    # offsets occupied by relocations (object-relative)
-    ignored = set()
-    for r in relocs:
-        if r.size:
-            ignored.update(range(r.offset - sym.value, r.offset - sym.value + r.size))
-    if not strict_relocs:
-        # Compare bytes outside the relocation spans only.
-        n = min(len(want), len(got))
-        diffs = [i for i in range(n) if i not in ignored and want[i] != got[i]]
-        ok = not diffs and len(want) == len(got)
-        if ok:
-            detail = f"{len(want)} bytes"
-            if ignored:
-                detail += f", {len(ignored)} relocation byte(s) unchecked"
+    if strict_relocs:
+        d = first_diff(want, got)
+        if d is None and len(want) == len(got):
             return {"addr": addr_hex, "name": name, "status": "match",
-                    "detail": detail, "size": len(want)}
-        d = diffs[0] if diffs else min(len(want), len(got))
+                    "detail": f"{len(want)} bytes (strict, {len(relocs)} reloc)",
+                    "size": len(want)}
         detail = f"first diff +{d:#x}: want {format_bytes(want[d:d+8])} got {format_bytes(got[d:d+8])}"
-        if len(want) != len(got):
-            detail += f"; size want {len(want)} got {len(got)}"
-        if verbose:
-            return {"addr": addr_hex, "name": name, "status": "mismatch",
-                    "detail": detail, "want": format_bytes(want), "got": format_bytes(got)}
         return {"addr": addr_hex, "name": name, "status": "mismatch", "detail": detail}
 
-    # Strict: raw bytes must be identical, relocations included.
-    d = first_diff(want, got)
-    if d is None and len(want) == len(got):
+    # Apply every resolvable relocation to a copy of the object's bytes, using
+    # the original function's VA as the place-relative base. Unresolved spans
+    # are reported, never silently counted as matched.
+    patched = bytearray(got)
+    unresolved: set[int] = set()
+    resolved = 0
+    for r in relocs:
+        off = r.offset - sym.value
+        if off < 0 or off + 4 > len(patched):
+            unresolved.update(range(max(off, 0), min(off + 4, len(patched))))
+            continue
+        addend = struct.unpack_from("<i", got, off)[0]
+        reloc_sym = coff.symbols[r.symbol_index]
+        target = _reloc_target(pe, coff, reloc_sym, addend, resolver)
+        if target is None and r.typ in (0x06, 0x07):
+            target = _data_fallback(pe, coff, reloc_sym, addend, want, off, r.typ)
+        if target is None:
+            unresolved.update(range(off, off + 4))
+            continue
+        if r.typ == 0x14:          # REL32
+            expected = target + addend - (va + off + 4)
+        elif r.typ == 0x06:        # DIR32
+            expected = target + addend
+        elif r.typ == 0x07:        # DIR32NB
+            expected = target + addend - pe.image_base
+        else:
+            unresolved.update(range(off, off + 4))
+            continue
+        struct.pack_into("<I", patched, off, expected & 0xFFFFFFFF)
+        resolved += 1
+    got = bytes(patched)
+
+    n = min(len(want), len(got))
+    diffs = [i for i in range(n) if i not in unresolved and want[i] != got[i]]
+    if not diffs and len(want) == len(got):
+        if unresolved:
+            return {"addr": addr_hex, "name": name, "status": "unresolved",
+                    "detail": f"{len(unresolved)} relocation byte(s) unresolved"}
+        detail = f"{len(want)} bytes"
+        if resolved:
+            detail += f", {resolved} relocation(s) resolved"
         return {"addr": addr_hex, "name": name, "status": "match",
-                "detail": f"{len(want)} bytes (strict, {len(relocs)} reloc)"}
+                "detail": detail, "size": len(want)}
+
+    d = diffs[0] if diffs else n
     detail = f"first diff +{d:#x}: want {format_bytes(want[d:d+8])} got {format_bytes(got[d:d+8])}"
+    if len(want) != len(got):
+        detail += f"; size want {len(want)} got {len(got)}"
+    if unresolved:
+        detail += f"; {len(unresolved)} unresolved reloc byte(s)"
+    if verbose:
+        return {"addr": addr_hex, "name": name, "status": "mismatch",
+                "detail": detail, "want": format_bytes(want), "got": format_bytes(got)}
     return {"addr": addr_hex, "name": name, "status": "mismatch", "detail": detail}
 
 
@@ -165,6 +240,8 @@ def main() -> int:
     ap.add_argument("--addr", action="append", default=[], help="function address (repeatable)")
     ap.add_argument("--symbol-map", help="JSON {addr: object symbol}")
     ap.add_argument("--strict-relocs", action="store_true")
+    ap.add_argument("--no-resolve", action="store_true",
+                    help="mask relocation spans instead of resolving them")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--selftest", action="store_true")
@@ -191,7 +268,10 @@ def main() -> int:
             spec = a.split(":", 1)
             k = norm_addr(spec[0])
             if k in units:
-                wanted.append(units[k])
+                rec = dict(units[k])
+                if len(spec) == 2:
+                    rec["size"] = int(spec[1], 0)
+                wanted.append(rec)
             elif len(spec) == 2:
                 wanted.append({"address": "0x" + k, "name": f"FUN_{k}",
                                "size": int(spec[1], 0)})
@@ -210,10 +290,15 @@ def main() -> int:
     if args.symbol_map:
         symbol_map = {norm_addr(k): v for k, v in json.loads(Path(args.symbol_map).read_text()).items()}
 
-    results = [compare_one(pe, r, obj_map, symbol_map, args.strict_relocs, args.verbose)
+    resolver = None
+    if not args.no_resolve:
+        from symbols import Resolver
+        resolver = Resolver(pe, units_path)
+    results = [compare_one(pe, r, obj_map, symbol_map, args.strict_relocs,
+                           args.verbose, resolver)
                for r in wanted]
 
-    counts = {"match": 0, "mismatch": 0, "missing": 0}
+    counts = {"match": 0, "mismatch": 0, "missing": 0, "unresolved": 0}
     matched_bytes = 0
     for r in results:
         counts[r["status"]] += 1
@@ -230,8 +315,9 @@ def main() -> int:
         total = len(results)
         print(f"\n{counts['match']}/{total} functions match "
               f"({matched_bytes} bytes); {counts['mismatch']} mismatch, "
-              f"{counts['missing']} missing")
-    return 0 if counts["mismatch"] == 0 and counts["missing"] == 0 else 1
+              f"{counts['missing']} missing, {counts['unresolved']} unresolved reloc")
+    return 0 if (counts["mismatch"] == 0 and counts["missing"] == 0
+                 and counts["unresolved"] == 0) else 1
 
 
 if __name__ == "__main__":

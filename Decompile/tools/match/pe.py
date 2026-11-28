@@ -104,6 +104,34 @@ class PE:
             out.append((name, self.image_base + frva))
         return out
 
+    def imports(self) -> list[tuple[str, str, int]]:
+        """Return (dll, symbol, IAT VA) for every imported name."""
+        if len(self.dirs) < 2 or self.dirs[1][0] == 0:
+            return []
+        rva, _ = self.dirs[1]
+        out = []
+        off = rva
+        while True:
+            desc = self.read_rva(off, 20)
+            oft, _, _, name_rva, ft = struct.unpack("<IIIII", desc)
+            if name_rva == 0:
+                break
+            dll = self.cstring_rva(name_rva)
+            thunk_rva = oft or ft
+            i = 0
+            while True:
+                ent = struct.unpack("<I", self.read_rva(thunk_rva + 4 * i, 4))[0]
+                if ent == 0:
+                    break
+                if ent & 0x80000000:
+                    name = f"#{ent & 0x7FFFFFFF}"
+                else:
+                    name = self.cstring_rva(ent + 2)
+                out.append((dll, name, self.image_base + ft + 4 * i))
+                i += 1
+            off += 20
+        return out
+
     def check(self, sha256: str | None = None) -> None:
         if sha256 and self.sha256() != sha256:
             raise SystemExit(

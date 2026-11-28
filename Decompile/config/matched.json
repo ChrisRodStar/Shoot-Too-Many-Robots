@@ -2,35 +2,1544 @@
   "compiler": "msvc9-sp1",
   "cl_version": "15.00.30729.01",
   "image": "smr-msvc9",
-  "flags": ["/O2", "/TC"],
+  "flags": [
+    "/O2",
+    "/TC",
+    "/MD"
+  ],
   "functions": [
     {
       "address": "0x00401050",
       "size": 5,
       "symbol": "_FUN_00401050@16",
       "source": "src/matched/engine/simple.c",
-      "note": "stdcall, 4 args, returns 0; original ret 0x10"
+      "note": "stdcall, 4 args, returns 0; original ret 0x10",
+      "kind": "leaf"
     },
     {
       "address": "0x00941900",
       "size": 5,
       "symbol": "_FUN_00941900",
       "source": "src/matched/engine/simple.c",
-      "note": "identity, one int argument"
+      "note": "identity, one int argument",
+      "kind": "leaf"
     },
     {
       "address": "0x00403740",
       "size": 3,
       "symbol": "_FUN_00403740",
       "source": "src/matched/engine/simple.c",
-      "note": "returns 0; current tree name SomervillePC::vfunc_05"
+      "note": "returns 0; current tree name SomervillePC::vfunc_05",
+      "kind": "leaf"
     },
     {
       "address": "0x0049eb30",
       "size": 6,
       "symbol": "_FUN_0049eb30",
       "source": "src/matched/engine/simple.c",
-      "note": "returns 1; current tree name SaveGameSettings::vfunc_02"
+      "note": "returns 1; current tree name SaveGameSettings::vfunc_02",
+      "kind": "leaf"
+    },
+    {
+      "address": "0x00401000",
+      "size": 27,
+      "symbol": "_FUN_00401000",
+      "source": "src/matched/engine/rand_scale.c",
+      "note": "rand()*2^-15; resolves __imp__rand and a double constant",
+      "kind": "reloc"
+    },
+    {
+      "address": "0x00401130",
+      "size": 5,
+      "symbol": "_FUN_00401130",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005d4c20",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00404730",
+      "size": 5,
+      "symbol": "_FUN_00404730",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x004039f0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x004092a0",
+      "size": 5,
+      "symbol": "_FUN_004092a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00408d60",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0041ee90",
+      "size": 5,
+      "symbol": "_FUN_0041ee90",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0041ed40",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00424050",
+      "size": 5,
+      "symbol": "_FUN_00424050",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00416690",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00425d90",
+      "size": 5,
+      "symbol": "_FUN_00425d90",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0041a2d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00428a50",
+      "size": 5,
+      "symbol": "_FUN_00428a50",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00411140",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00428eb0",
+      "size": 5,
+      "symbol": "_FUN_00428eb0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00415970",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0042ac50",
+      "size": 5,
+      "symbol": "_FUN_0042ac50",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00428e50",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00482820",
+      "size": 5,
+      "symbol": "_FUN_00482820",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x004f0650",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x004919f0",
+      "size": 5,
+      "symbol": "_FUN_004919f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0048fa30",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00498ef0",
+      "size": 5,
+      "symbol": "_FUN_00498ef0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0049a500",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x004dc270",
+      "size": 5,
+      "symbol": "_FUN_004dc270",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0044b990",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x004f99c0",
+      "size": 5,
+      "symbol": "_FUN_004f99c0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00595bd0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00517d30",
+      "size": 5,
+      "symbol": "_FUN_00517d30",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00517930",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00528af0",
+      "size": 5,
+      "symbol": "_FUN_00528af0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00528870",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0054ee20",
+      "size": 5,
+      "symbol": "_FUN_0054ee20",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0055bea0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0055d3c0",
+      "size": 5,
+      "symbol": "_FUN_0055d3c0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005607d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0055d3d0",
+      "size": 5,
+      "symbol": "_FUN_0055d3d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005607f0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0055d800",
+      "size": 5,
+      "symbol": "_FUN_0055d800",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00568120",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0056a550",
+      "size": 5,
+      "symbol": "_FUN_0056a550",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005607d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0057f090",
+      "size": 5,
+      "symbol": "_FUN_0057f090",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ac0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00580b10",
+      "size": 5,
+      "symbol": "_FUN_00580b10",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005b41d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00581ae0",
+      "size": 5,
+      "symbol": "_FUN_00581ae0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007432f0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0059fbe0",
+      "size": 5,
+      "symbol": "_FUN_0059fbe0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ad0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0059fc00",
+      "size": 5,
+      "symbol": "_FUN_0059fc00",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ac0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005a19a0",
+      "size": 5,
+      "symbol": "_FUN_005a19a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005c5cf0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005a1ed0",
+      "size": 5,
+      "symbol": "_FUN_005a1ed0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005c5cf0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005abed0",
+      "size": 5,
+      "symbol": "_FUN_005abed0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ac0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005ac270",
+      "size": 5,
+      "symbol": "_FUN_005ac270",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005ac010",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005ac280",
+      "size": 5,
+      "symbol": "_FUN_005ac280",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005ac010",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005aca80",
+      "size": 5,
+      "symbol": "_FUN_005aca80",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ad0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005aca90",
+      "size": 5,
+      "symbol": "_FUN_005aca90",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ac0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005acc60",
+      "size": 5,
+      "symbol": "_FUN_005acc60",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ac0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005acec0",
+      "size": 5,
+      "symbol": "_FUN_005acec0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00756390",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005adf10",
+      "size": 5,
+      "symbol": "_FUN_005adf10",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00760ac0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005b49d0",
+      "size": 5,
+      "symbol": "_FUN_005b49d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005b47b0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bc430",
+      "size": 5,
+      "symbol": "_FUN_005bc430",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bc1c0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bd0a0",
+      "size": 5,
+      "symbol": "_FUN_005bd0a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bccf0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bd0b0",
+      "size": 5,
+      "symbol": "_FUN_005bd0b0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bccf0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bf360",
+      "size": 5,
+      "symbol": "_FUN_005bf360",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bf020",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bf370",
+      "size": 5,
+      "symbol": "_FUN_005bf370",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bf020",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bf7d0",
+      "size": 5,
+      "symbol": "_FUN_005bf7d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bf660",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bf7e0",
+      "size": 5,
+      "symbol": "_FUN_005bf7e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bf660",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005bf800",
+      "size": 5,
+      "symbol": "_FUN_005bf800",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005bf660",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005c1ac0",
+      "size": 5,
+      "symbol": "_FUN_005c1ac0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005c19a0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005dca40",
+      "size": 5,
+      "symbol": "_FUN_005dca40",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0083e178",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005df560",
+      "size": 5,
+      "symbol": "_FUN_005df560",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00608ea0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005e35b0",
+      "size": 5,
+      "symbol": "_FUN_005e35b0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0063b750",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005e35c0",
+      "size": 5,
+      "symbol": "_FUN_005e35c0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0063b7d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005f3af0",
+      "size": 5,
+      "symbol": "_FUN_005f3af0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x005f39d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x005faa60",
+      "size": 5,
+      "symbol": "_FUN_005faa60",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0060bf10",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0061ab40",
+      "size": 5,
+      "symbol": "_FUN_0061ab40",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0061aad0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00640b40",
+      "size": 5,
+      "symbol": "_FUN_00640b40",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00640ad0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0064aa00",
+      "size": 5,
+      "symbol": "_FUN_0064aa00",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0064a990",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00658a00",
+      "size": 5,
+      "symbol": "_FUN_00658a00",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00658800",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0065fa50",
+      "size": 5,
+      "symbol": "_FUN_0065fa50",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0065f9e0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00678700",
+      "size": 5,
+      "symbol": "_FUN_00678700",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006780c0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00692570",
+      "size": 5,
+      "symbol": "_FUN_00692570",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00691620",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00692580",
+      "size": 5,
+      "symbol": "_FUN_00692580",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006917e0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00692590",
+      "size": 5,
+      "symbol": "_FUN_00692590",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00691b80",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006931a0",
+      "size": 5,
+      "symbol": "_FUN_006931a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006929c0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006969a0",
+      "size": 5,
+      "symbol": "_FUN_006969a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00696610",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006969e0",
+      "size": 5,
+      "symbol": "_FUN_006969e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006967e0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006af8e0",
+      "size": 5,
+      "symbol": "_FUN_006af8e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006adef0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006bbdb0",
+      "size": 5,
+      "symbol": "_FUN_006bbdb0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006bbb80",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006ed1f0",
+      "size": 5,
+      "symbol": "_FUN_006ed1f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006ed120",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006eeae0",
+      "size": 5,
+      "symbol": "_FUN_006eeae0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006ee940",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006eeba0",
+      "size": 5,
+      "symbol": "_FUN_006eeba0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006eeb40",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006ef9e0",
+      "size": 5,
+      "symbol": "_FUN_006ef9e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006ee940",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006f3590",
+      "size": 5,
+      "symbol": "_FUN_006f3590",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006f3500",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006f3a00",
+      "size": 5,
+      "symbol": "_FUN_006f3a00",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006f3950",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006f3a80",
+      "size": 5,
+      "symbol": "_FUN_006f3a80",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006f3a10",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006f4de0",
+      "size": 5,
+      "symbol": "_FUN_006f4de0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006f4d30",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x006f5220",
+      "size": 5,
+      "symbol": "_FUN_006f5220",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006f5040",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007134c0",
+      "size": 5,
+      "symbol": "_FUN_007134c0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00713380",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0071c740",
+      "size": 5,
+      "symbol": "_FUN_0071c740",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0071c470",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0071cc10",
+      "size": 5,
+      "symbol": "_FUN_0071cc10",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0071c750",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0071cc20",
+      "size": 5,
+      "symbol": "_FUN_0071cc20",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0071cb20",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00722cc0",
+      "size": 5,
+      "symbol": "_FUN_00722cc0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008fe710",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00724f60",
+      "size": 5,
+      "symbol": "_FUN_00724f60",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008214a0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00727240",
+      "size": 5,
+      "symbol": "_FUN_00727240",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007271a0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007325e0",
+      "size": 5,
+      "symbol": "_FUN_007325e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00730110",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00732fb0",
+      "size": 5,
+      "symbol": "_FUN_00732fb0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00732c50",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007414a0",
+      "size": 5,
+      "symbol": "_FUN_007414a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007404b0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0074d730",
+      "size": 5,
+      "symbol": "_FUN_0074d730",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0074c080",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00750850",
+      "size": 5,
+      "symbol": "_FUN_00750850",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0074ff50",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00754fd0",
+      "size": 5,
+      "symbol": "_FUN_00754fd0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00754570",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0075d5b0",
+      "size": 5,
+      "symbol": "_FUN_0075d5b0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0075d390",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0075fab0",
+      "size": 5,
+      "symbol": "_FUN_0075fab0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00820e60",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0075fac0",
+      "size": 5,
+      "symbol": "_FUN_0075fac0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0083e29e",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0075fad0",
+      "size": 5,
+      "symbol": "_FUN_0075fad0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0083e29e",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007877d0",
+      "size": 5,
+      "symbol": "_FUN_007877d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00787740",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00792fb0",
+      "size": 5,
+      "symbol": "_FUN_00792fb0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00727280",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00799910",
+      "size": 5,
+      "symbol": "_FUN_00799910",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00792b00",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007ab860",
+      "size": 5,
+      "symbol": "_FUN_007ab860",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008fac40",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007ae700",
+      "size": 5,
+      "symbol": "_FUN_007ae700",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007ae690",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007b4d60",
+      "size": 5,
+      "symbol": "_FUN_007b4d60",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007b4c90",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007ef9e0",
+      "size": 5,
+      "symbol": "_FUN_007ef9e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007ef800",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007ef9f0",
+      "size": 5,
+      "symbol": "_FUN_007ef9f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007ef8f0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007fe7d0",
+      "size": 5,
+      "symbol": "_FUN_007fe7d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x007fe580",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008202d0",
+      "size": 5,
+      "symbol": "_FUN_008202d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0081ffe0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00822790",
+      "size": 5,
+      "symbol": "_FUN_00822790",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00822710",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008248f0",
+      "size": 5,
+      "symbol": "_FUN_008248f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00720400",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0082ec50",
+      "size": 5,
+      "symbol": "_FUN_0082ec50",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0082ebe0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00831d30",
+      "size": 5,
+      "symbol": "_FUN_00831d30",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008225d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0083c150",
+      "size": 5,
+      "symbol": "_FUN_0083c150",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0083e29e",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0083c160",
+      "size": 5,
+      "symbol": "_FUN_0083c160",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0083e29e",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008493b0",
+      "size": 5,
+      "symbol": "_FUN_008493b0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00843630",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008586c0",
+      "size": 5,
+      "symbol": "_FUN_008586c0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0084fbe0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008586d0",
+      "size": 5,
+      "symbol": "_FUN_008586d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0084f820",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008587b0",
+      "size": 5,
+      "symbol": "_FUN_008587b0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008586e0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00871710",
+      "size": 5,
+      "symbol": "_FUN_00871710",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0084f6a0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00874200",
+      "size": 5,
+      "symbol": "_FUN_00874200",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00845c20",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087d280",
+      "size": 5,
+      "symbol": "_FUN_0087d280",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0085e560",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087d350",
+      "size": 5,
+      "symbol": "_FUN_0087d350",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0084f7f0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087d3a0",
+      "size": 5,
+      "symbol": "_FUN_0087d3a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0085e5a0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087f280",
+      "size": 5,
+      "symbol": "_FUN_0087f280",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0087aa70",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087f290",
+      "size": 5,
+      "symbol": "_FUN_0087f290",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0087aa10",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087f2a0",
+      "size": 5,
+      "symbol": "_FUN_0087f2a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0087ab50",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087f2b0",
+      "size": 5,
+      "symbol": "_FUN_0087f2b0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0087aaf0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0087f3f0",
+      "size": 5,
+      "symbol": "_FUN_0087f3f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00845c50",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008827f0",
+      "size": 5,
+      "symbol": "_FUN_008827f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0086b8c0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00882800",
+      "size": 5,
+      "symbol": "_FUN_00882800",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0086bd00",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0088b970",
+      "size": 5,
+      "symbol": "_FUN_0088b970",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0088b820",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008a92a0",
+      "size": 5,
+      "symbol": "_FUN_008a92a0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00747f00",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b30e0",
+      "size": 5,
+      "symbol": "_FUN_008b30e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b2f80",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b30f0",
+      "size": 5,
+      "symbol": "_FUN_008b30f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b3030",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d00",
+      "size": 5,
+      "symbol": "_FUN_008b3d00",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b2f80",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d10",
+      "size": 5,
+      "symbol": "_FUN_008b3d10",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b3030",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d20",
+      "size": 5,
+      "symbol": "_FUN_008b3d20",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b2f80",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d30",
+      "size": 5,
+      "symbol": "_FUN_008b3d30",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b3030",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d40",
+      "size": 5,
+      "symbol": "_FUN_008b3d40",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b2f80",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d50",
+      "size": 5,
+      "symbol": "_FUN_008b3d50",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b3030",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d60",
+      "size": 5,
+      "symbol": "_FUN_008b3d60",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b2f80",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x008b3d70",
+      "size": 5,
+      "symbol": "_FUN_008b3d70",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008b3030",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x009078b0",
+      "size": 5,
+      "symbol": "_FUN_009078b0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x009092d0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0091d6f0",
+      "size": 5,
+      "symbol": "_FUN_0091d6f0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0092c680",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0091d760",
+      "size": 5,
+      "symbol": "_FUN_0091d760",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0092c660",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0091d770",
+      "size": 5,
+      "symbol": "_FUN_0091d770",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008e5da0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0091d7d0",
+      "size": 5,
+      "symbol": "_FUN_0091d7d0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0092c630",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0091d7e0",
+      "size": 5,
+      "symbol": "_FUN_0091d7e0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0092ea70",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x009293c0",
+      "size": 5,
+      "symbol": "_FUN_009293c0",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x0091ce70",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x0092c870",
+      "size": 5,
+      "symbol": "_FUN_0092c870",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00962d50",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00935590",
+      "size": 5,
+      "symbol": "_FUN_00935590",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x009354b0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00941760",
+      "size": 5,
+      "symbol": "_FUN_00941760",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x009416e0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x00974b00",
+      "size": 5,
+      "symbol": "_FUN_00974b00",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x008459e0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x009c9770",
+      "size": 5,
+      "symbol": "_FUN_009c9770",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x006ee4e0",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x009cac40",
+      "size": 5,
+      "symbol": "_FUN_009cac40",
+      "source": "src/matched/engine/tail_thunks.c",
+      "kind": "tail_thunk",
+      "target": "0x00821200",
+      "note": "single jmp; ABI passthrough, signature not reconstructed"
+    },
+    {
+      "address": "0x007e9730",
+      "size": 8,
+      "symbol": "_FUN_007e9730",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x20"
+    },
+    {
+      "address": "0x008155c0",
+      "size": 8,
+      "symbol": "_FUN_008155c0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x2c"
+    },
+    {
+      "address": "0x008163b0",
+      "size": 8,
+      "symbol": "_FUN_008163b0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x34"
+    },
+    {
+      "address": "0x008163c0",
+      "size": 8,
+      "symbol": "_FUN_008163c0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x38"
+    },
+    {
+      "address": "0x008457b0",
+      "size": 8,
+      "symbol": "_FUN_008457b0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x1c"
+    },
+    {
+      "address": "0x0084acb0",
+      "size": 7,
+      "symbol": "_FUN_0084acb0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x0"
+    },
+    {
+      "address": "0x0084bf20",
+      "size": 8,
+      "symbol": "_FUN_0084bf20",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x58"
+    },
+    {
+      "address": "0x0084f8b0",
+      "size": 8,
+      "symbol": "_FUN_0084f8b0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x8"
+    },
+    {
+      "address": "0x00859950",
+      "size": 8,
+      "symbol": "_FUN_00859950",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x30"
+    },
+    {
+      "address": "0x008599f0",
+      "size": 8,
+      "symbol": "_FUN_008599f0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x3c"
+    },
+    {
+      "address": "0x00859a00",
+      "size": 8,
+      "symbol": "_FUN_00859a00",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x40"
+    },
+    {
+      "address": "0x0085b520",
+      "size": 8,
+      "symbol": "_FUN_0085b520",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x4"
+    },
+    {
+      "address": "0x0085b5b0",
+      "size": 8,
+      "symbol": "_FUN_0085b5b0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x14"
+    },
+    {
+      "address": "0x0086c7d0",
+      "size": 8,
+      "symbol": "_FUN_0086c7d0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x18"
+    },
+    {
+      "address": "0x0086d5b0",
+      "size": 8,
+      "symbol": "_FUN_0086d5b0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0xc"
+    },
+    {
+      "address": "0x0086f190",
+      "size": 8,
+      "symbol": "_FUN_0086f190",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x10"
+    },
+    {
+      "address": "0x00876520",
+      "size": 8,
+      "symbol": "_FUN_00876520",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x68"
+    },
+    {
+      "address": "0x0092b1a0",
+      "size": 8,
+      "symbol": "_FUN_0092b1a0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0x60"
+    },
+    {
+      "address": "0x009613e0",
+      "size": 11,
+      "symbol": "_FUN_009613e0",
+      "source": "src/matched/engine/field_getters.c",
+      "kind": "accessor",
+      "note": "32-bit field read at +0xec"
     }
   ]
 }

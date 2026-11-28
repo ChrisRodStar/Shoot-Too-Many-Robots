@@ -16,9 +16,10 @@ to play it, and nothing here is playable.
 > plus Ghidra RTTI, and 2,850 recovered from **608 RTTI vtables across 527
 > classes** (class/slot labels, recorded as guesses). The other 43,095 are
 > `FUN_` placeholders. The 6 Steam-packer stubs in `.bind` are deliberately
-> excluded. **4 functions (19 bytes) have been rebuilt byte-identical** with
-> MSVC 2008, which now runs under Wine/Docker; the next milestone is the first
-> real bank. See [docs/STATUS.md](docs/STATUS.md),
+> excluded. **173 functions (945 bytes) have been rebuilt byte-identical** with
+> MSVC 2008, which now runs under Wine/Docker: 149 tail-call thunks, one real
+> function with two resolved relocations, 19 field accessors, and four leaf sanity
+> checks. The next milestone is the first real bank. See [docs/STATUS.md](docs/STATUS.md),
 > [docs/FINDINGS.md](docs/FINDINGS.md) and [docs/MSVC2008.md](docs/MSVC2008.md).
 
 ---
@@ -138,7 +139,8 @@ much is actually unknown. See [docs/METHOD.md](docs/METHOD.md).
 - Original function names for 92.8% of the code.
 - Original struct layouts, enums, and class hierarchies beyond RTTI basics.
 - Original source file boundaries and compiler flags.
-- Whether most Ghidra bodies compile to the original bytes (4 trivial ones tested).
+- Whether most Ghidra bodies compile to the original bytes (173 tested, mostly
+  thunks and accessors; the first real bank is next).
 
 ---
 
@@ -156,15 +158,14 @@ compilers are installed; see [docs/MSVC2008.md](docs/MSVC2008.md).
 python3 Decompile/tools/match/verify.py
 ```
 
-Current registry: **4/4 functions matched, 19 bytes**. They are deliberately
-trivial leaf functions that prove the compiler, COFF reader, symbol mapping and
-comparator:
+Current registry: **173/173 functions matched, 945 bytes**, with relocations
+resolved through callee addresses, the import IAT, and validated data pointers:
 
 ```text
-MATCH    00401050  FUN_00401050  5 bytes
-MATCH    00941900  FUN_00941900  5 bytes
-MATCH    00403740  SomervillePC::vfunc_05  3 bytes
-MATCH    0049eb30  SaveGameSettings::vfunc_02  6 bytes
+149  pure tail-call thunks          jmp target
+ 19  32-bit field accessors          mov eax,[eax+off]
+  1  FUN_00401000 (rand * 2^-15)      27 bytes, 2 relocations
+  4  leaf sanity checks                19 bytes
 ```
 
 A useful warning from the same harness: clang encodes `xor eax,eax` as
