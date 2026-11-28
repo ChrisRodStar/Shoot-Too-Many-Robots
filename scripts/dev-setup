@@ -10,8 +10,8 @@
 #   ./scripts/dev-setup /Users/dev/Desktop/Shoot\ Too\ Many\ Robots/work
 #
 # Generated C directories are copied, not symlinked, because re-emitting would
-# otherwise overwrite the shared baseline. Ghidra is copied only with
-# --with-ghidra (or SMR_SETUP_GHIDRA=1).
+# otherwise overwrite the shared baseline. Ghidra is symlinked read-only unless
+# --with-ghidra (or SMR_SETUP_GHIDRA=1) asks for a writable copy.
 set -euo pipefail
 
 project="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,7 +29,7 @@ if [[ ! -d "$data" ]]; then
     exit 2
 fi
 
-mkdir -p "$work/boot" "$work/recomp-dev" "$project/logs"
+mkdir -p "$work/build" "$work/run" "$work/dev" "$project/logs"
 data_real="$(cd "$data" && pwd -P)"
 work_real="$(cd "$work" && pwd -P)"
 
@@ -37,53 +37,37 @@ if [[ "$data_real" == "$work_real" ]]; then
     # Normal checkout: the shared inputs already live in work/.
     printf 'dev-setup: using this checkout as the data root\n'
 else
-    if [[ ! -f "$data/boot/ShootManyRobots.exe" ]]; then
-        printf 'dev-setup: missing %s\n' "$data/boot/ShootManyRobots.exe" >&2
+    if [[ ! -f "$data/inputs/exe/ShootManyRobots.exe" ]]; then
+        printf 'dev-setup: missing %s\n' "$data/inputs/exe/ShootManyRobots.exe" >&2
         exit 2
     fi
-    ln -sfn "$data/boot/ShootManyRobots.exe" "$work/boot/ShootManyRobots.exe"
-    for item in installed vc90 d3dx; do
-        if [[ -d "$data/$item" ]]; then
+    for item in inputs pcode; do
+        if [[ -d "$data/$item" && ! -e "$work/$item" ]]; then
             ln -sfn "$data/$item" "$work/$item"
         fi
     done
-    for item in smr-fixed.jsonl smr-fixed.jsonl.regs.json smr-fixed.jsonl.userops.json \
-                smr-all.jsonl smr-all.jsonl.regs.json smr-all.jsonl.userops.json; do
-        if [[ -f "$data/$item" ]]; then
-            ln -sfn "$data/$item" "$work/$item"
+    if [[ -d "$data/ghidra" && ! -e "$work/ghidra" ]]; then
+        if [[ "$with_ghidra" == 1 ]]; then
+            cp -cR "$data/ghidra" "$work/ghidra" 2>/dev/null || cp -a "$data/ghidra" "$work/ghidra"
+        else
+            ln -sfn "$data/ghidra" "$work/ghidra"
         fi
-    done
-fi
-
-for dir in "$data"/*-generated; do
-    [[ -d "$dir" ]] || continue
-    item="$(basename "$dir")"
-    if [[ ! -e "$work/$item" ]]; then
-        cp -cR "$dir" "$work/$item" 2>/dev/null || cp -a "$dir" "$work/$item"
     fi
-done
-
-if [[ "$with_ghidra" == 1 ]]; then
-    for dir in "$data/ghidra" "$data"/ghidra-*; do
-        [[ -d "$dir" ]] || continue
-        item="$(basename "$dir")"
-        if [[ ! -e "$work/$item" ]]; then
-            cp -cR "$dir" "$work/$item" 2>/dev/null || cp -a "$dir" "$work/$item"
-        fi
-    done
 fi
 
+mkdir -p "$work/generated"
 if [[ "$data_real" != "$work_real" ]]; then
-    if [[ -d "$data/startup-full-cache" && ! -e "$work/startup-full-cache" ]]; then
-        cp -cR "$data/startup-full-cache" "$work/startup-full-cache" 2>/dev/null || cp -a "$data/startup-full-cache" "$work/startup-full-cache"
-    fi
-    for dir in "$data"/ghidra-*; do
+    for dir in "$data"/generated/*; do
         [[ -d "$dir" ]] || continue
         item="$(basename "$dir")"
-        if [[ ! -e "$work/$item" ]]; then
-            ln -sfn "$dir" "$work/$item"
+        if [[ ! -e "$work/generated/$item" ]]; then
+            cp -cR "$dir" "$work/generated/$item" 2>/dev/null || cp -a "$dir" "$work/generated/$item"
         fi
     done
+    if [[ -d "$data/build/startup-full-cache" && ! -e "$work/build/startup-full-cache" ]]; then
+        cp -cR "$data/build/startup-full-cache" "$work/build/startup-full-cache" 2>/dev/null \
+            || cp -a "$data/build/startup-full-cache" "$work/build/startup-full-cache"
+    fi
 fi
 
 if [[ ! -e "$project/.venv" ]]; then

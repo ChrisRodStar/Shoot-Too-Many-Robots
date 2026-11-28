@@ -14,6 +14,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "work"
+REPORTS = WORK / "reports"
 STACK_ARGS = 0x2fff8004
 DST, SRC = 0x20001000, 0x20002000
 MODULES = [
@@ -78,11 +79,11 @@ def fmod_event_cases(case):
 
 
 def main():
-    fixtures = ROOT / "work"
+    fixtures = REPORTS
     commands = []
     reports = {}
     for name, _, meta in MODULES:
-        project = WORK / f"ghidra-{name}"
+        project = WORK / "ghidra" / name
         entries = {}
 
         def case(entry, *writes, _entries=entries, **fixture):
@@ -103,7 +104,7 @@ def main():
         reports[name] = (report, set(entries))
         commands.append([sys.executable, str(ROOT / "tools/recomp/difftest_full.py"),
                          str(project / meta["executable"]),
-                         str(WORK / "window-host-full/libfnv-differential.dylib"),
+                         str(WORK / "build/window-host-full/libfnv-differential.dylib"),
                          str(project / "functions.jsonl.regs.json"), str(report),
                          "--jobs", "2", "--trials", "4", "--fixtures", str(spec),
                          "--only", ",".join(entries)])

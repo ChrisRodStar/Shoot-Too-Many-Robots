@@ -3,7 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { classify, inlineTypes } from './asset-types';
 
-const root = resolve(process.cwd(), '../../../work/assets-extracted');
+const root = resolve(process.cwd(), '../../../work/assets/extracted');
 const manifestPath = resolve(root, 'manifest.json');
 let cached;
 

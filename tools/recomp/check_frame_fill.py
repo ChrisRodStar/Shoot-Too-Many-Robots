@@ -20,7 +20,7 @@ Exit status is 0 on success, 1 on a failed check, 2 when no frame can be read.
 Examples:
 
     .venv/bin/python tools/recomp/check_frame_fill.py
-    .venv/bin/python tools/recomp/check_frame_fill.py work/boot/window-full-frames
+    .venv/bin/python tools/recomp/check_frame_fill.py work/run/frames/window-full-frames
     .venv/bin/python tools/recomp/check_frame_fill.py --frame frame_2400.png
 """
 from __future__ import annotations
@@ -183,8 +183,8 @@ def main(argv=None) -> int:
         prog="check_frame_fill.py",
         description="Assert a dumped frame fills its output width and most of its height.",
     )
-    parser.add_argument("frames_dir", nargs="?", default="work/boot/window-full-frames",
-                        help="frame dump directory (default: work/boot/window-full-frames)")
+    parser.add_argument("frames_dir", nargs="?", default="work/run/frames/window-full-frames",
+                        help="frame dump directory (default: work/run/frames/window-full-frames)")
     parser.add_argument("--frame", help="specific PNG to check instead of the newest frame_*.png")
     parser.add_argument("--threshold", type=int, default=5,
                         help="a pixel counts as image when r/g/b exceeds this (default: 5)")

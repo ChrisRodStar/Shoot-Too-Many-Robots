@@ -27,29 +27,34 @@ CONFIG = ROOT / "config"
 # Shared read-only guest inputs and P-code exports. Override per worktree with
 # SMR_DATA_ROOT; writable generated/build state always stays under ROOT/work.
 DATA = Path(os.environ.get("SMR_DATA_ROOT", str(WORK))).expanduser()
-BOOT = WORK / "boot"
+INPUTS = DATA / "inputs"
 LOGS = ROOT / "logs"
-DEV = WORK / "recomp-dev"
+GHIDRA = WORK / "ghidra"
+GENERATED = WORK / "generated"
+BUILD = WORK / "build"
+REPORTS = WORK / "reports"
+RUN = WORK / "run"
+DEV = WORK / "dev"
 RUNS = DEV / "runs"
 VENV_PYTHON = ROOT / ".venv" / "bin" / "python"
-EXE = BOOT / "ShootManyRobots.exe"
-PCODE = DATA / "smr-fixed.jsonl"
-REGS = DATA / "smr-fixed.jsonl.regs.json"
+EXE = INPUTS / "exe" / "ShootManyRobots.exe"
+PCODE = DATA / "pcode" / "smr-fixed.jsonl"
+REGS = DATA / "pcode" / "smr-fixed.jsonl.regs.json"
 DIFFTEST = RUNTIME / "tools" / "differential" / "difftest.py"
 DIFFTEST_FULL = ROOT / "tools" / "recomp" / "difftest_full.py"
 STARTUP_PROBE = ROOT / "scripts" / "startup-probe"
 
 VARIANTS = {
     "entry": {
-        "generated": WORK / "smr-entry-generated",
-        "build": WORK / "window-host",
-        "cache": WORK / "startup-cache",
+        "generated": GENERATED / "game-entry",
+        "build": BUILD / "window-host",
+        "cache": BUILD / "startup-cache",
         "description": "startup subset (fast, default)",
     },
     "full": {
-        "generated": WORK / "smr-generated",
-        "build": WORK / "window-host-full",
-        "cache": WORK / "startup-full-cache",
+        "generated": GENERATED / "game",
+        "build": BUILD / "window-host-full",
+        "cache": BUILD / "startup-full-cache",
         "description": "all 46k exported game functions",
     },
 }

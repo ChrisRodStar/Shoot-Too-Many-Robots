@@ -11,9 +11,9 @@ command turns that feedback into a new entry set:
   4. gate on `verify --changed`;
   5. rebuild the host and run the tutorial, reporting the new fallback count.
 
-The entry set lives in ``work/recomp-dev/entry-set.json`` and the generated C in
-``work/smr-entry-generated``.  A copy of the previous generated directory is
-kept under ``work/recomp-dev/backups/`` so a failed promotion can be reverted.
+The entry set lives in ``work/dev/entry-set.json`` and the generated C in
+``work/generated/game-entry``.  A copy of the previous generated directory is
+kept under ``work/dev/backups/`` so a failed promotion can be reverted.
 
     ./scripts/recomp promote --dry-run
     ./scripts/recomp promote
@@ -32,7 +32,7 @@ from pathlib import Path
 
 from . import common, run, verify
 
-SUBSET = common.WORK / "smr-entrypoints.jsonl"
+SUBSET = common.DEV / "smr-entrypoints.jsonl"
 EMIT = common.RUNTIME / "tools" / "translate" / "emit.py"
 GAME_LO, GAME_HI = 0x400000, 0x1080000
 
@@ -274,7 +274,7 @@ def main(argv=None):
         requested = {int(a) for a in last.get("fallback_exe", [])}
         source = "last run"
         if not requested:
-            common.fail("no game.exe fallbacks in work/recomp-dev/last-run.json")
+            common.fail("no game.exe fallbacks in work/dev/last-run.json")
 
     known = pcode_entries()
     outside = sorted(a for a in requested if not in_game(a))

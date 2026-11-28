@@ -86,7 +86,7 @@ also rejects the known harness divergences described below.
 
 1. **Build a test dylib from the exact production translation units.** It does
    not re-emit C. The same `tu_*.c`, `table.c` and `stubs.c` that the host links
-   are compiled into `work/recomp-dev/testlib/<variant>/libtest.dylib`. If those
+   are compiled into `work/dev/testlib/<variant>/libtest.dylib`. If those
    files are the ones you ship, you are verifying what you ship.
 2. **Cache objects by content.** Each translation unit gets an object keyed by a
    SHA-256 of the compiler flags, toolchain and source bytes. A rebuild after a
@@ -172,8 +172,8 @@ The tutorial script:
   360 s), instead of leaving a window behind;
 - parses the log into fps (min/max/last), main CPU, GPU, draws, shader compile,
   fallbacks by module, faults and captures;
-- compares against `work/recomp-dev/last-run.json` and prints deltas;
-- writes `work/recomp-dev/runs/<timestamp>/` with the log and a JSON summary;
+- compares against `work/dev/last-run.json` and prints deltas;
+- writes `work/dev/runs/<timestamp>/` with the log and a JSON summary;
 - `--verify` runs `verify --changed` first and refuses to launch on a mismatch.
 
 Input-script commands (from the host's `input.c`) are one event per line:
@@ -211,7 +211,7 @@ whether the integrated result still draws the scene.
 
 ## Artifacts and caches
 
-Everything added by this tool lives under `work/recomp-dev/` (ignored by Git):
+Everything added by this tool lives under `work/dev/` (ignored by Git):
 
 | Path | Contents |
 | --- | --- |
@@ -235,8 +235,8 @@ projects, generated C, build trees, caches, logs and run output stay under
 ignored `work/`.
 
 Use `SMR_DATA_ROOT` to point at a single shared copy of the read-only inputs
-(`boot/`, `installed/`, `vc90/`, `d3dx/`, `smr-fixed.jsonl*`). The scripts read
-writable generated/build state only from the current worktree’s `work/`.
+(`inputs/`, `pcode/`, `ghidra/`). The scripts read writable generated/build state
+only from the current worktree’s `work/`.
 
 ```sh
 git worktree add ../smr-fallback -b recomp/fallback-msvcr90
@@ -246,10 +246,10 @@ SMR_DATA_ROOT="/path/to/main/checkout/work" ./scripts/dev-setup
 ./scripts/recomp status
 ```
 
-`dev-setup` links the shared inputs read-only, copies `smr-generated` and
-`smr-entry-generated`, and creates `work/recomp-dev` and `logs/`. Add
-`--with-ghidra` if that worktree needs its own writable copy of the Ghidra
-project.
+`dev-setup` links `inputs/`, `pcode/`, and `ghidra/` read-only, copies every
+directory in `generated/`, copies the warm `build/startup-full-cache`, and
+creates `work/dev` and `logs/`. Add `--with-ghidra` if that worktree needs its
+own writable copy of the Ghidra projects.
 
 ## Promoting hot fallbacks
 
@@ -266,9 +266,9 @@ default native entry set, re-emits, verifies, rebuilds and re-runs the tutorial.
 What it changes:
 
 - `config/smr-entrypoints.jsonl` — the P-code subset for the default build;
-- `work/smr-entry-generated/` — re-emitted C (previous copy kept under
-  `work/recomp-dev/backups/entry-*`);
-- `work/recomp-dev/entry-set.json` — the authoritative entry-address list.
+- `work/generated/game-entry/` — re-emitted C (previous copy kept under
+  `work/dev/backups/entry-*`);
+- `work/dev/entry-set.json` — the authoritative entry-address list.
 
 Safety gates:
 
@@ -282,7 +282,7 @@ Safety gates:
 4. The final re-run reports `game.exe fallbacks N -> M` and the fps delta, and
    **reverts automatically** if the promotion is slower by more than 1 fps or
    does not reduce the game.exe fallback count. Because the validation run is
-   windowed, `promote` rebuilds `work/window-host`, not the headless host.
+   windowed, `promote` rebuilds `work/build/window-host`, not the headless host.
 5. `promote --revert` restores the previous entry set (or `--from-backup PATH`)
    and rebuilds.
 
@@ -346,19 +346,19 @@ emit with the recovered secondary-entry map:
 ```sh
 export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
 headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
-"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis \
+"$headless" "$PWD/work/ghidra/game" smr -process ShootManyRobots.exe -noanalysis \
   -scriptPath "$PWD/tools/ghidra/scripts" \
   -postScript FixSplitEntry.java 0x626770:0x626772
-"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis -readOnly \
+"$headless" "$PWD/work/ghidra/game" smr -process ShootManyRobots.exe -noanalysis -readOnly \
   -scriptPath "$PWD/tools/ghidra/scripts" \
-  -postScript DumpPcode.java "$PWD/work/smr-fixed.jsonl" all
-.venv/bin/python vendor/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
+  -postScript DumpPcode.java "$PWD/work/pcode/smr-fixed.jsonl" all
+.venv/bin/python vendor/recompiler/recomp/emit.py work/pcode/smr-fixed.jsonl work/generated/game \
   --extra config/smr-extra-entries.json
 ```
 
 `config/smr-extra-entries.json` holds the 3,739 secondary entries recovered from
 the prior generated C; it must stay with the P-code export or a re-emit drops
-them. If it is lost, rebuild it from the prior `smr-generated/tu_*.c` by pairing
+them. If it is lost, rebuild it from the prior `generated/game/tu_*.c` by pairing
 each `void g_<extra>(...){...b_<owner>(c,k);}` with its owner. The existing full
 artifact was reproduced with `vendor/recompiler/recomp/emit.py`, not the older
 `vendor/macos-runtime` copy (the latter lacks `sqrtps`/`pshufw`); both were patched
@@ -404,15 +404,15 @@ fps window as an anecdote.
 Use the guest load address from `src/host/pe_modules.c`. For D3DX9:
 
 ```sh
-./scripts/lift-dll d3dx9 work/d3dx/d3dx9_43.dll 0x12400000
+./scripts/lift-dll d3dx9 work/inputs/d3dx/d3dx9_43.dll 0x12400000
 SMR_BUILD_JOBS=2 ./scripts/recomp run --to tutorial --full
 .venv/bin/python tools/recomp/difftest_d3dx9.py
 ```
 
 The lift creates a relocated analysis copy, a private Ghidra project and
-`functions.jsonl` under `work/ghidra-d3dx9/`. The runtime still loads the
+`functions.jsonl` under `work/ghidra/d3dx9/`. The runtime still loads the
 original DLL and binds its imports. The full probe discovers completed lifts
-by the `lifted-dll` marker under `work/*-generated/`. The startup builder can
+by the `lifted-dll` marker under `work/generated/*/`. The startup builder can
 also take repeated `--extra-generated DIRECTORY` arguments. Each module's
 translation units retain their own object cache keys.
 
@@ -422,7 +422,7 @@ The D3DX9 list comes from tutorial fallback roots, including CRT initialization.
 To generate the next modules:
 
 ```sh
-bin=work/installed/app/ShootManyRobots/Binaries
+bin=work/inputs/installed/app/ShootManyRobots/Binaries
 ./scripts/lift-dll physxcore "$bin/PhysXCore.dll" 0x11400000
 ./scripts/lift-dll fmodex "$bin/fmodex.dll" 0x13000000
 ./scripts/lift-dll fmod_event "$bin/fmod_event.dll" 0x13200000

@@ -410,7 +410,7 @@ def main(argv=None):
         wanted = set(common.parse_int_list(" ".join(args.addresses)))
         missing = wanted - set(addresses)
         if missing:
-            hint = " (not exported or skipped; see work/recomp-dev or emit_report.json)" if variant == "full" else " (try --full)"
+            hint = " (not exported or skipped; see work/dev or emit_report.json)" if variant == "full" else " (try --full)"
             common.fail(
                 "not in this dispatch table: "
                 + ", ".join(f"0x{a:x}" for a in sorted(missing))

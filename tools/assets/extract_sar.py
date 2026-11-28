@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 
 SIGNATURE = 0xDA7F
 VERSION = 3
-DEFAULT_DATA_DIR = Path("work/installed/app/ShootManyRobots/Data")
+DEFAULT_DATA_DIR = Path("work/inputs/installed/app/ShootManyRobots/Data")
 LOOSE_ASSET_EXTENSIONS = {".bmp", ".png", ".jpg", ".jpeg", ".gif", ".tga", ".dds", ".sif", ".wav", ".ogg", ".mp3", ".mp4"}
 
 
@@ -155,8 +155,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR,
                         help="folder containing the game's .sar bundles")
-    parser.add_argument("--output", type=Path, default=Path("work/assets-extracted"),
-                        help="destination for extracted members (default: work/assets-extracted)")
+    parser.add_argument("--output", type=Path, default=Path("work/assets/extracted"),
+                        help="destination for extracted members (default: work/assets/extracted)")
     parser.add_argument("--previews-only", action="store_true",
                         help="build PNG previews from a previous extraction without re-reading the archives")
     args = parser.parse_args()

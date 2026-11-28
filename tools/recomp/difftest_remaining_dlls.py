@@ -19,7 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "work"
-DYLD = WORK / "window-host-full" / "libfnv-differential.dylib"
+DYLD = WORK / "build" / "window-host-full" / "libfnv-differential.dylib"
+REPORTS = WORK / "reports"
 DIFFTEST = ROOT / "tools" / "recomp" / "difftest_full.py"
 
 # (module, dll in its Ghidra project, {entry: description})
@@ -105,12 +106,12 @@ def main() -> int:
     total = 0
     mismatches = []
     for name, dll_name, entries in MODULES:
-        project = WORK / f"ghidra-{name}"
+        project = WORK / "ghidra" / name
         dll = project / dll_name
         regs = project / "functions.jsonl.regs.json"
         if not dll.is_file() or not regs.is_file():
             raise SystemExit(f"missing lifted {name} sources under {project}")
-        report = WORK / f"{name}-remaining-diff.json"
+        report = REPORTS / f"{name}-remaining-diff.json"
         command = [
             sys.executable, str(DIFFTEST), str(dll), str(DYLD), str(regs), str(report),
             "--jobs", "2", "--trials", "4", "--only", ",".join(hex(e) for e in entries),

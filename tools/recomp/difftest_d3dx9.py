@@ -7,7 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "work"
-PROJECT = WORK / "ghidra-d3dx9"
+PROJECT = WORK / "ghidra" / "d3dx9"
+REPORTS = WORK / "reports"
 STACK_ARGS = 0x2fff8004
 DST, SRC = 0x20001000, 0x20002000
 
@@ -44,13 +45,13 @@ def main():
             case(entry, write(STACK_ARGS, "II", DST, SRC), write(SRC, f"{size}f", *values),
                  write(slot, "I", target))
 
-    fixtures = WORK / "d3dx9-fixtures.json"
+    fixtures = REPORTS / "d3dx9-fixtures.json"
     fixtures.write_text(json.dumps({
         "executable_sha256": "8f28dcef5d6f8ccb8b9d040c3a93281f8c28d631a40a2e2e6b77044af0ed333b",
         "entries": entries}))
-    report = WORK / "d3dx9-diff.json"
+    report = REPORTS / "d3dx9-diff.json"
     subprocess.run([sys.executable, str(ROOT / "tools/recomp/difftest_full.py"),
-                    PROJECT / "d3dx9_43.dll", WORK / "window-host-full/libfnv-differential.dylib",
+                    PROJECT / "d3dx9_43.dll", WORK / "build/window-host-full/libfnv-differential.dylib",
                     PROJECT / "functions.jsonl.regs.json", report, "--jobs", "2", "--trials", "4",
                     "--fixtures", fixtures, "--only", ",".join(entries)], check=True)
     results = json.loads(report.read_text())["results"]

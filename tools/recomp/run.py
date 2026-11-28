@@ -53,10 +53,10 @@ def artifacts(variant: str, mode: str, release: bool = False) -> tuple[Path, Pat
     if mode == "window":
         return (
             common.LOGS / f"window{suffix}-startup.log",
-            common.BOOT / f"window{suffix}-frames",
+            common.RUN / "frames" / f"window{suffix}-frames",
         )
     if mode == "metal":
-        return common.LOGS / f"native{suffix}-startup.log", common.BOOT / f"metal{suffix}-frames"
+        return common.LOGS / f"native{suffix}-startup.log", common.RUN / "frames" / f"metal{suffix}-frames"
     return common.LOGS / f"native{suffix}-startup.log", None
 
 

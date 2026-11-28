@@ -8,7 +8,7 @@
 (allow file-read* (subpath (param "PROJECT")))
 (allow file-read* (subpath (param "DATA_ROOT")))
 (deny file-write*)
-(allow file-write* (subpath (param "BOOT_DIR")))
+(allow file-write* (subpath (param "RUN_DIR")))
 ; Metal keeps its compiled-shader and pipeline archive here. Without the write grant every
 ; launch recompiles all shaders from source (100+ ms each); the directory holds only
 ; compiler output, so read/write access stays scoped to it.

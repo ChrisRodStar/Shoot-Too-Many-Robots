@@ -90,15 +90,15 @@ def data_root() -> Path:
 
 def game_paths():
     data = data_root()
-    installed = data / 'installed/app/ShootManyRobots'
+    installed = data / 'inputs/installed/app/ShootManyRobots'
     if not installed.is_dir():
-        installed = WORK / 'installed/app/ShootManyRobots'
-    vc90 = data / 'vc90/dlls'
+        installed = WORK / 'inputs/installed/app/ShootManyRobots'
+    vc90 = data / 'inputs/vc90/dlls'
     if not vc90.is_dir():
-        vc90 = WORK / 'vc90/dlls'
-    d3dx = data / 'd3dx'
+        vc90 = WORK / 'inputs/vc90/dlls'
+    d3dx = data / 'inputs/d3dx'
     if not d3dx.is_dir():
-        d3dx = WORK / 'd3dx'
+        d3dx = WORK / 'inputs/d3dx'
     return installed, vc90, d3dx
 
 
@@ -111,7 +111,7 @@ def host_candidates(release: bool, native: bool):
     names = ['fnv-startup', 'fnv-discovery'] if native else ['fnv-discovery', 'fnv-startup']
     for directory in dirs:
         for name in names:
-            candidate = WORK / directory / name
+            candidate = WORK / 'build' / directory / name
             if candidate.is_file() and os.access(candidate, os.X_OK):
                 yield candidate
 
@@ -122,7 +122,7 @@ def select_host(release: bool, native: bool) -> Path:
     raise SystemExit(
         'package-app: no windowed host binary found.\n'
         '  Build one first: ./scripts/recomp build --full' + (' --release' if release else '') + '\n'
-        '  Expected under work/window-host*/ (fnv-discovery or fnv-startup).'
+        '  Expected under work/build/window-host*/ (fnv-discovery or fnv-startup).'
     )
 
 
@@ -337,9 +337,10 @@ def main() -> int:
     args = parser.parse_args()
 
     installed, vc90, d3dx = game_paths()
-    # The game executable shipped with the recomp build is the prepared copy under work/boot
-    # (entry-point/import patches applied by the installer); fall back to the pristine install.
-    exe = data_root() / 'boot/ShootManyRobots.exe'
+    # The game executable shipped with the recomp build is the prepared copy under
+    # work/inputs/exe (entry-point/import patches applied by the installer); fall back
+    # to the pristine install.
+    exe = data_root() / 'inputs/exe/ShootManyRobots.exe'
     if not exe.is_file():
         exe = installed / 'ShootManyRobots.exe'
     if not exe.is_file():

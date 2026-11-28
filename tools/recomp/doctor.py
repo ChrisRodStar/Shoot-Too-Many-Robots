@@ -67,9 +67,9 @@ def main(argv=None):
         )
 
     for label, path in [
-        ("vc90 DLLs", common.DATA / "vc90" / "dlls"),
-        ("D3DX DLLs", common.DATA / "d3dx"),
-        ("game binaries", common.DATA / "installed" / "app" / "ShootManyRobots" / "Binaries"),
+        ("vc90 DLLs", common.INPUTS / "vc90" / "dlls"),
+        ("D3DX DLLs", common.INPUTS / "d3dx"),
+        ("game binaries", common.INPUTS / "installed" / "app" / "ShootManyRobots" / "Binaries"),
     ]:
         detail = str(path)
         try:

@@ -7,7 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "work"
-PROJECT = WORK / "ghidra-physxcore"
+PROJECT = WORK / "ghidra" / "physxcore"
+REPORTS = WORK / "reports"
 STACK_ARGS = 0x2fff8004
 SELF = 0x20002000
 DST = 0x20001000
@@ -60,14 +61,14 @@ def main():
         case(entry, write(STACK_ARGS, "I", DST),
              write(SELF + offset, f"{size}f", *values))
 
-    fixtures = WORK / "physxcore-fixtures.json"
+    fixtures = REPORTS / "physxcore-fixtures.json"
     fixtures.write_text(json.dumps({
         "executable_sha256": "1128dc74963c3162247e03f4fc0dc669eae0c7ce3170e9204c49a46d140072f9",
         "entries": entries}))
-    dylib = WORK / "window-host-full/libfnv-differential.dylib"
+    dylib = WORK / "build/window-host-full/libfnv-differential.dylib"
     if not dylib.is_file():
         raise SystemExit(f"missing {dylib}; build the merged full host first")
-    report = WORK / "physxcore-diff.json"
+    report = REPORTS / "physxcore-diff.json"
     subprocess.run([sys.executable, str(ROOT / "tools/recomp/difftest_full.py"),
                     PROJECT / "PhysXCore.dll", dylib,
                     PROJECT / "functions.jsonl.regs.json", report, "--jobs", "2",

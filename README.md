@@ -34,7 +34,7 @@ This project lifts the 32-bit x86 Windows executable through Ghidra P-code into 
 
 ```text
 ShootManyRobots.exe (x86 PE)
-   └─► Ghidra headless P-code export (work/smr-fixed.jsonl)
+   └─► Ghidra headless P-code export (work/pcode/smr-fixed.jsonl)
          └─► P-code → C emitter (vendor/recompiler)
                └─► ARM64 Mach-O host (Clang + vendor/macos-runtime + src/host)
                      ├── D3D9 → Metal renderer (shaders via sm2msl, sRGB views, 3D LUT)
@@ -58,8 +58,38 @@ Tracked source, config, and tools are strictly separated from large/generated lo
 | [`config/`](config/) | Curated small inputs (`guest-manifest.json`, `entry-set.json`, `smr-extra-entries.json`, `learned-entries.txt`) |
 | [`patches/`](patches/) | Reusable upstream reference deltas (`pe-image-base.patch`, `recompiler-mmx-sse.patch`) |
 | [`docs/`](docs/) | Detailed engineering docs — see [`docs/RECOMP-WORKFLOW.md`](docs/RECOMP-WORKFLOW.md) for the dev loop design |
-| `work/` *(ignored)* | Game binaries, DLLs, Ghidra project, generated C (`smr-generated/`, `smr-entry-generated/`), frame dumps, and run history |
+| `work/` *(ignored)* | Local 7 GB workspace — guest inputs, P-code, Ghidra projects, generated C, builds, reports, runtime scratch, extracted assets, and packaged app. See [the work layout](#work-directory-layout) |
 | `logs/` *(ignored)* | Build and runtime logs (`window-full-startup.log`, `window-startup.log`, `native-startup.log`) |
+
+### Work Directory Layout
+
+`work/` is organized by lifecycle, so each top-level directory answers one question: what it is, whether it can be rebuilt, and whether it is safe to delete.
+
+```text
+work/
+├── inputs/        guest inputs, treated as read-only
+│   ├── exe/       prepared ShootManyRobots.exe (patched by the installer)
+│   ├── installed/ unpacked game (.sar archives, Binaries, redist payloads)
+│   ├── vc90/      x86 VC++ 2008 CRT DLLs
+│   └── d3dx/      June 2010 DirectX DLLs
+├── pcode/         Ghidra P-code exports (smr-fixed.jsonl, physx-leaf.jsonl)
+├── ghidra/        analysis projects, one directory per module
+│   ├── game/      the smr + middleware projects
+│   └── physxcore/, d3dx9/, fmodex/, ... (project + DLL + functions.jsonl)
+├── generated/     emitted C, one directory per module
+│   ├── game/      full 50,203-function translation
+│   ├── game-entry/ 189-entry startup subset
+│   └── physxcore/, d3dx9/, ... (with lifted-dll markers)
+├── build/         host binaries and object caches (window-host*, startup*cache)
+├── reports/       differential-test fixtures and reports (*-diff.json)
+├── run/           runtime scratch: frame dumps (frames/) and per-flavor user dirs
+├── assets/        extracted SAR content (extracted/) and upgrade experiments
+├── dev/           recomp dev state: verify cache, run history, promotion backups
+├── scratch/       perf samples, one-off patches, stale experiments, old dumps
+└── dist/          packaged "Shoot Too Many Robots.app"
+```
+
+Only `inputs/`, `pcode/`, and `ghidra/` are expensive to recreate. `generated/` is re-emitted from `pcode/`; `build/` and `dev/` are caches; `reports/`, `run/`, and `scratch/` are safe to delete; `assets/` and `dist/` are regenerable from `inputs/`.
 
 ---
 
@@ -67,14 +97,14 @@ Tracked source, config, and tools are strictly separated from large/generated lo
 
 ### Browse Extracted Assets
 
-From the project root, install the viewer and start it with Node.js 20.9 or later. If `work/assets-extracted/manifest.json` is missing, run `python3 tools/assets/extract_sar.py` first.
+From the project root, install the viewer and start it with Node.js 20.9 or later. If `work/assets/extracted/manifest.json` is missing, run `python3 tools/assets/extract_sar.py` first.
 
 ```sh
 npm ci --prefix tools/assets/viewer
 npm --prefix tools/assets/viewer run dev
 ```
 
-Open [the local asset viewer](http://127.0.0.1:3060). It reads the SHA-256 manifest in `work/assets-extracted/`, where originals retain their archive-relative paths. Categories follow the assets' role, with separate filters for file type and group. For example, choose **Environment → Image / texture** for environment textures or **Interface → HUD** for the HUD files. **Save original** returns the extracted file. The [standalone viewer](tools/assets/viewer.html) is also available for browsing an ad hoc folder from the browser.
+Open [the local asset viewer](http://127.0.0.1:3060). It reads the SHA-256 manifest in `work/assets/extracted/`, where originals retain their archive-relative paths. Categories follow the assets' role, with separate filters for file type and group. For example, choose **Environment → Image / texture** for environment textures or **Interface → HUD** for the HUD files. **Save original** returns the extracted file. The [standalone viewer](tools/assets/viewer.html) is also available for browsing an ad hoc folder from the browser.
 
 With Pillow installed, `python3 tools/assets/extract_sar.py --previews-only` refreshes the PNG previews and adds original dimensions and encoding to the manifest. The previews fit within 512 × 512 pixels. For image work, decode a full-resolution master from the original DDS or SIF.
 
@@ -89,7 +119,7 @@ Start with a small 2× pilot using a recognizable interface icon, a tiled ground
 | Normal maps, channel-packed masks, LUTs, and FX | Identify the role and channel mapping first. Resample channels according to their data, renormalize normals, and preserve LUT dimensions unless the shader is updated too. Check translucent effects over light and dark backgrounds. |
 | Meshes and animation | Prioritize only assets whose shapes or movement need work. New meshes or animations require a separate authoring and import workflow. |
 
-Use a separate ignored location such as `work/assets-upgrades/` for experiments. Keep candidate files keyed by the original asset path. Before testing a replacement in the runtime, check texture encoding, alpha handling, and mipmaps against the original. The extraction contains DXT1 and DXT5 textures, so use a compatible legacy format when testing DDS output. Treat SIF repacking and interface layout integration as separate checks. [DirectXTex texture processing](https://github.com/microsoft/DirectXTex/wiki/texconv)
+Use a separate ignored location such as `work/assets/upgrades/` for experiments. Keep candidate files keyed by the original asset path. Before testing a replacement in the runtime, check texture encoding, alpha handling, and mipmaps against the original. The extraction contains DXT1 and DXT5 textures, so use a compatible legacy format when testing DDS output. Treat SIF repacking and interface layout integration as separate checks. [DirectXTex texture processing](https://github.com/microsoft/DirectXTex/wiki/texconv)
 
 First verify your local toolchain and game data under `work/`:
 
@@ -116,14 +146,14 @@ First verify your local toolchain and game data under `work/`:
 | --- | --- | --- |
 | Full windowed Metal | `SMR_FULL=1 SMR_WINDOW=1 ./scripts/startup-probe` | Runs all 50,203 native functions in a live window; logs to `logs/window-full-startup.log` |
 | Entry-subset windowed | `SMR_WINDOW=1 ./scripts/startup-probe` | Fast-build 189-entry startup subset with Unicorn fallback |
-| Offscreen first-frame | `SMR_METAL=1 ./scripts/startup-probe` | Stops after first D3D9 `Present` and saves `work/boot/frame_1.png` |
+| Offscreen first-frame | `SMR_METAL=1 ./scripts/startup-probe` | Stops after first D3D9 `Present` and saves `work/run/frames/frame_1.png` |
 | Headless diagnostics | `./scripts/startup-probe` | No GPU/window; logs to `logs/native-startup.log` |
 
 Useful environment flags: `SMR_BUILD_ONLY=1` (compile without launching), `SMR_TRACE=1` (Win32 API trace), `FNV_DUMP_FRAMES=1,60,300` (dump specific frame numbers), `SMR_CONTINUE=1` / `SMR_PROBE_SECONDS=60` (headless runs).
 
 ### Working with Git Worktrees
 
-`SMR_DATA_ROOT` points to a shared read-only copy of `work/` (game files + P-code exports), so parallel worktrees don't duplicate gigabytes of assets:
+`SMR_DATA_ROOT` points at a shared read-only copy of `work/`'s inputs (`inputs/`, `pcode/`, and `ghidra/`), so parallel worktrees don't duplicate gigabytes of assets. `dev-setup` links those three directories, copies `generated/` (so a worktree can re-emit safely), and copies the warm `build/startup-full-cache`:
 
 ```sh
 git worktree add ../smr-task -b task/name
@@ -153,12 +183,12 @@ SMR_DATA_ROOT="/path/to/main/checkout/work" ./scripts/dev-setup
 
 Game assets and compiled outputs are kept out of Git under `work/`:
 
-- `work/boot/ShootManyRobots.exe` — unpacked 32-bit Windows PE guest executable
-- `work/installed/` — unpacked game content (`.sar` archives) and bundled redistributables
-- `work/vc90/dlls/` — x86 Visual C++ 2008 CRT DLLs (`msvcr90.dll`, `msvcp90.dll`)
-- `work/d3dx/` — June 2010 DirectX x86 DLLs (`d3dx9_43.dll`, `d3dcompiler_43.dll`)
-- `work/smr-fixed.jsonl` — Ghidra P-code export (`46,464` primary functions)
-- `work/smr-generated/` & `work/smr-entry-generated/` — emitted C translation units (`50,203` full / `189` entry)
+- `work/inputs/exe/ShootManyRobots.exe` — unpacked 32-bit Windows PE guest executable
+- `work/inputs/installed/` — unpacked game content (`.sar` archives) and bundled redistributables
+- `work/inputs/vc90/dlls/` — x86 Visual C++ 2008 CRT DLLs (`msvcr90.dll`, `msvcp90.dll`)
+- `work/inputs/d3dx/` — June 2010 DirectX x86 DLLs (`d3dx9_43.dll`, `d3dcompiler_43.dll`)
+- `work/pcode/smr-fixed.jsonl` — Ghidra P-code export (`46,464` primary functions)
+- `work/generated/game/` & `work/generated/game-entry/` — emitted C translation units (`50,203` full / `189` entry)
 
 Pinned upstream baselines:
 
@@ -174,15 +204,15 @@ Pinned upstream baselines:
 export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
 headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
 
-"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis \
+"$headless" "$PWD/work/ghidra/game" smr -process ShootManyRobots.exe -noanalysis \
   -scriptPath "$PWD/tools/ghidra/scripts" \
   -postScript FixSplitEntry.java 0x626770:0x626772
 
-"$headless" "$PWD/work/ghidra" smr -process ShootManyRobots.exe -noanalysis -readOnly \
+"$headless" "$PWD/work/ghidra/game" smr -process ShootManyRobots.exe -noanalysis -readOnly \
   -scriptPath "$PWD/tools/ghidra/scripts" \
-  -postScript DumpPcode.java "$PWD/work/smr-fixed.jsonl" all
+  -postScript DumpPcode.java "$PWD/work/pcode/smr-fixed.jsonl" all
 
-.venv/bin/python vendor/recompiler/recomp/emit.py work/smr-fixed.jsonl work/smr-generated \
+.venv/bin/python vendor/recompiler/recomp/emit.py work/pcode/smr-fixed.jsonl work/generated/game \
   --extra config/smr-extra-entries.json
 ```
 
@@ -200,21 +230,21 @@ set -e
 work="$PWD/work"
 repo="$PWD/vendor/recompiler"
 installer="$HOME/Downloads/Shoot Many Robots.exe"
-dll="$work/installed/app/ShootManyRobots/Binaries/PhysXLoader.dll"
+dll="$work/inputs/installed/app/ShootManyRobots/Binaries/PhysXLoader.dll"
 python="$PWD/.venv/bin/python"
 
-innoextract --extract --output-dir "$work/installed" "$installer"
+innoextract --extract --output-dir "$work/inputs/installed" "$installer"
 export JAVA_HOME="$(brew --prefix openjdk@25)/libexec/openjdk.jdk/Contents/Home"
 headless="$(brew --prefix ghidra)/libexec/support/analyzeHeadless"
-mkdir -p "$work/ghidra"
-"$headless" "$work/ghidra" middleware -import "$dll" -overwrite \
+mkdir -p "$work/ghidra/middleware"
+"$headless" "$work/ghidra/middleware" middleware -import "$dll" -overwrite \
   -analysisTimeoutPerFile 120 -scriptPath "$PWD/tools/ghidra/scripts" \
-  -postScript DumpPcode.java "$work/physx-leaf.jsonl" leaf
+  -postScript DumpPcode.java "$work/pcode/physx-leaf.jsonl" leaf
 
-"$python" "$repo/recomp/emit.py" "$work/physx-leaf.jsonl" "$work/physx-generated"
-JOBS=4 "$repo/recomp/build.sh" "$work/physx-generated" "$work/physx-build"
-"$python" "$repo/recomp/difftest.py" "$dll" "$work/physx-build/librecomp.dylib" \
-  "$work/physx-leaf.jsonl.regs.json" "$work/physx-difftest.json" --jobs 4
+"$python" "$repo/recomp/emit.py" "$work/pcode/physx-leaf.jsonl" "$work/generated/physx"
+JOBS=4 "$repo/recomp/build.sh" "$work/generated/physx" "$work/scratch/physx-build"
+"$python" "$repo/recomp/difftest.py" "$dll" "$work/scratch/physx-build/librecomp.dylib" \
+  "$work/pcode/physx-leaf.jsonl.regs.json" "$work/reports/physx-difftest.json" --jobs 4
 ```
 
 </details>

@@ -16,7 +16,7 @@ Target machine used for measurements: Apple M4, two 2560×1440 displays
 The D3D9 device is created from `IDirect3D9::CreateDevice`, and the guest fills
 `D3DPRESENT_PARAMETERS` with **`BackBufferWidth = 0`, `BackBufferHeight = 0`** and
 `Windowed = TRUE` (verified in the emitted C for `FUN_005d05a0`,
-`work/smr-generated/tu_000ba.c`, stores at `0x5d075e`…`0x5d07ae`). In windowed mode Direct3D
+`work/generated/game/tu_000ba.c`, stores at `0x5d075e`…`0x5d07ae`). In windowed mode Direct3D
 ignores those fields, so the effective size is whatever the host reports as the desktop mode.
 
 `vendor/macos-runtime/upstream/recomp/host/d3d9.c:1013` then does:
@@ -43,7 +43,7 @@ not the boot mode.
 ### 1.2 The game's own fullscreen toggle is thrown away
 
 `Shoot Many Robots` does not call `ChangeDisplaySettings`. Its fullscreen path is
-`FUN_005ce1a0` (`work/smr-generated/tu_000b9.c`), which:
+`FUN_005ce1a0` (`work/generated/game/tu_000b9.c`), which:
 
 1. `SetWindowLongA(hwnd, GWL_STYLE, 0x80000000)` — `WS_POPUP`
 2. `SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, width, height, SWP_NOCOPYBITS)`
@@ -274,7 +274,7 @@ This alone gives native resolution in the existing Cmd+F fullscreen.
 - **Race at startup:** the game restyles the window immediately after device creation; the
   window must exist first (it does — `fnv_surface` is called from `d3d_backend_init` before the
   style call).
-- **Uncommitted prototype:** `work/research/fullscreen-native-res.patch` contains the exact diff
+- **Uncommitted prototype:** `work/scratch/research/fullscreen-native-res.patch` contains the exact diff
   if the in-tree changes need to be moved to a branch/commit.
 
 ---
@@ -288,5 +288,5 @@ This alone gives native resolution in the existing Cmd+F fullscreen.
 - `vendor/macos-runtime/upstream/recomp/host/d3d9_metal.m:1960` — aspect-fit present and
   MetalFX.
 - `vendor/macos-runtime/upstream/recomp/host/shims_win.c:117` — `SetWindowLongA`.
-- `work/smr-generated/tu_000b9.c` (`FUN_005ce1a0`) — the guest's fullscreen toggle.
-- `work/smr-generated/tu_000ba.c` (`FUN_005d05a0`) — device creation with a 0×0 backbuffer.
+- `work/generated/game/tu_000b9.c` (`FUN_005ce1a0`) — the guest's fullscreen toggle.
+- `work/generated/game/tu_000ba.c` (`FUN_005d05a0`) — device creation with a 0×0 backbuffer.

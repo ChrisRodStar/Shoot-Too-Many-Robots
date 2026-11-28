@@ -214,7 +214,7 @@ export function AssetViewer({ assets }) {
               <span>{label}</span><span className="category-count">{number.format(counts[key] ?? 0)}</span>
             </button>
           ))}
-          <div className="source-path"><FolderOpen size={15} /> work/assets-extracted</div>
+          <div className="source-path"><FolderOpen size={15} /> work/assets/extracted</div>
         </nav>
 
         <main className="gallery" ref={galleryRef}>

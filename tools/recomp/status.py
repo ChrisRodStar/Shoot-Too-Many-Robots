@@ -204,7 +204,7 @@ def main(argv=None):
     testlib = common.DEV / "testlib"
     if testlib.is_dir():
         print()
-        print(f"  dev caches     testlib {common.human_size(dir_size(testlib))} · verify reports in work/recomp-dev/")
+        print(f"  dev caches     testlib {common.human_size(dir_size(testlib))} · verify reports in work/dev/")
 
     print()
     print("  next")
